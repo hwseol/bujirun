@@ -6,7 +6,19 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.unit.dp
+import com.mhmh2.bujirun.account.Account
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -55,8 +67,11 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 fun BujirunApp() {
     val context = LocalContext.current
     val state by WorkoutSession.state.collectAsState()
+    val user by Account.user.collectAsState()
     var permissionDenied by remember { mutableStateOf(false) }
     var pendingGoal by remember { mutableStateOf<Goal>(Goal.Free) }
+    var pendingSimScale by remember { mutableStateOf(0) }
+    var adminChoiceFor by remember { mutableStateOf<Goal?>(null) }
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var openWorkout by rememberSaveable { mutableStateOf<Long?>(null) }
 
@@ -67,15 +82,25 @@ fun BujirunApp() {
         // them); location isn't.
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             permissionDenied = false
-            WorkoutService.start(context, pendingGoal)
+            WorkoutService.start(context, pendingGoal, pendingSimScale)
         } else {
             permissionDenied = true
         }
     }
 
-    fun start(goal: Goal) {
+    // Login is required. A workout already running (e.g. after signing out mid-run, or the
+    // activity being recreated) still takes precedence below, so it's never orphaned.
+    val signedIn = user
+    val workoutActive = state.countdown != null || state.status != WorkoutStatus.IDLE
+    if (signedIn == null && !workoutActive) {
+        LoginScreen()
+        return
+    }
+
+    fun start(goal: Goal, simScale: Int = 0) {
         Prefs.lastGoal = goal
         pendingGoal = goal
+        pendingSimScale = simScale
         val needed = buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -85,8 +110,16 @@ fun BujirunApp() {
         val missing = needed.filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }
-        if (missing.isEmpty()) WorkoutService.start(context, goal)
+        if (missing.isEmpty()) WorkoutService.start(context, goal, simScale)
         else permissionLauncher.launch(missing.toTypedArray())
+    }
+
+    adminChoiceFor?.let { goal ->
+        AdminStartDialog(
+            onReal = { adminChoiceFor = null; start(goal) },
+            onTest = { scale -> adminChoiceFor = null; start(goal, scale) },
+            onDismiss = { adminChoiceFor = null },
+        )
     }
 
     val countdown = state.countdown
@@ -129,7 +162,11 @@ fun BujirunApp() {
                 when (tab) {
                     Tab.HOME -> {
                         val workouts by remember { WorkoutStore.observeDone() }.collectAsState(initial = emptyList())
-                        HomeScreen(remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts), onStart = ::start)
+                        HomeScreen(
+                            remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts),
+                            nickname = signedIn?.nickname,
+                            onStart = { goal -> if (signedIn?.isAdmin == true) adminChoiceFor = goal else start(goal) },
+                        )
                     }
                     Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it })
                     Tab.SETTINGS -> SettingsScreen()
@@ -137,6 +174,37 @@ fun BujirunApp() {
             }
         }
     }
+}
+
+/** Admin only: a real workout, or a fake-GPS test run at 1x/5x/10x. */
+@Composable
+private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("어떻게 시작할까요?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onReal, modifier = Modifier.fillMaxWidth()) { Text("실제 운동") }
+                Text(
+                    "테스트 (가짜 GPS · 기록에 '테스트'로 저장, 삼성헬스 제외)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1, 5, 10).forEach { scale ->
+                        OutlinedButton(
+                            onClick = { onTest(scale) },
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("${scale}배속", maxLines = 1) }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
 }
 
 /** "이번 주 3회 · 12.40km", or null before the first workout of the week. */

@@ -8,6 +8,8 @@ enum class WorkoutStatus { IDLE, RUNNING, PAUSED, FINISHED }
 data class WorkoutSnapshot(
     // Row in WorkoutStore, once the clock has started.
     val workoutId: Long? = null,
+    // > 0 during an admin fake-GPS test run (the speed-up factor).
+    val simScale: Int = 0,
     val goal: Goal = Goal.Free,
     // 3, 2, 1 before the clock starts (GPS is already warming up meanwhile); null otherwise.
     val countdown: Int? = null,

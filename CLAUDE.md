@@ -20,6 +20,15 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - `adb shell am crash com.mhmh2.bujirun` mid-run tests crash recovery (workouts are flushed
   every 10 s and recovered on next launch).
 
+## Accounts and admin test runs
+- Login is required but local-only: email + nickname, no verification, no server (yet). Anything
+  that isn't an email address is rejected. Admin = `admin@example.com` (AccountRules.ADMIN_EMAIL).
+- Admin's start button offers a real workout or a fake-GPS test run at 1x/5x/10x (FakeRun +
+  a scaled clock in WorkoutService, everything reads `now()`). Test runs are saved with
+  `simulated = 1`, titled "(테스트)", and never exported to Health Connect.
+- The DB is at version 2 (added `simulated`); testers hold real data, so add migrations, never
+  destructive fallbacks.
+
 ## Pinned versions
 - `connect-client` is on 1.1.0-alpha12 because 1.1.0 stable needs AGP 8.9.1 (we're on 8.7.2).
 - NAVER map client ID lives in app/build.gradle.kts manifestPlaceholders; it's public by design.

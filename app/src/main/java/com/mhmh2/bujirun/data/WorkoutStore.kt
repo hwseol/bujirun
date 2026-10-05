@@ -28,17 +28,22 @@ object WorkoutStore {
 
     fun init(context: Context) {
         if (::db.isInitialized) return
-        db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "bujirun.db").build()
+        db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "bujirun.db")
+            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .build()
     }
 
     // Shorter than this, and nowhere: an accidental start. Not worth a row in the history.
     private const val MIN_KEEP_MS = 10_000L
     private const val MIN_KEEP_M = 20.0
 
-    suspend fun create(goal: Goal, startedAt: Long): Long = writes.withLock {
+    suspend fun create(goal: Goal, startedAt: Long, simulated: Boolean = false): Long = writes.withLock {
         val (type, value) = goal.encode()
         dao.insert(
-            WorkoutEntity(startedAt = startedAt, endedAt = startedAt, status = WorkoutEntity.IN_PROGRESS, goalType = type, goalValue = value)
+            WorkoutEntity(
+                startedAt = startedAt, endedAt = startedAt, status = WorkoutEntity.IN_PROGRESS,
+                goalType = type, goalValue = value, simulated = simulated,
+            )
         )
     }
 
@@ -55,7 +60,9 @@ object WorkoutStore {
                 }
                 dao.update(
                     current.copy(
-                        endedAt = System.currentTimeMillis(),
+                        // A sped-up test run covers more virtual time than real time has passed;
+                        // end it where its own last point is.
+                        endedAt = maxOf(System.currentTimeMillis(), newPoints.lastOrNull()?.sample?.epochMs ?: 0L),
                         status = if (finished) WorkoutEntity.DONE else WorkoutEntity.IN_PROGRESS,
                         durationMs = s.elapsedMs,
                         distanceM = s.distanceM,

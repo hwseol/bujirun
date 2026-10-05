@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import com.mhmh2.bujirun.account.Account
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -47,8 +50,32 @@ fun SettingsScreen() {
     val weight = weightText.toIntOrNull()
     val weightValid = weight != null && weight in 25..250
 
+    val user by Account.user.collectAsState()
+    var confirmSignOut by remember { mutableStateOf(false) }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
         Text("설정", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
+
+        user?.let { u ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(u.nickname, style = MaterialTheme.typography.titleMedium)
+                        if (u.isAdmin) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "관리자",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Text(u.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { confirmSignOut = true }) { Text("로그아웃") }
+            }
+            Divider()
+        }
 
         Section("체중", "칼로리 계산에 써요. 폰에만 저장돼요.")
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -90,6 +117,16 @@ fun SettingsScreen() {
         Divider()
         ToggleRow("자동 일시정지", "멈춰 서면 기록을 잠시 멈추고, 움직이면 다시 시작해요.", autoPause, Prefs::setAutoPause)
         Spacer(Modifier.height(32.dp))
+    }
+
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text("로그아웃할까요?") },
+            text = { Text("운동 기록은 이 폰에 그대로 남아요.") },
+            confirmButton = { TextButton(onClick = { confirmSignOut = false; Account.signOut() }) { Text("로그아웃") } },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("취소") } }
+        )
     }
 }
 

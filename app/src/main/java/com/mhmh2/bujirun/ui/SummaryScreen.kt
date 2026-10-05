@@ -154,10 +154,14 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                     enabled = pointRows.isNotEmpty(),
                     modifier = Modifier.weight(1f)
                 ) { Text("GPX 파일") }
-                OutlinedButton(onClick = ::saveToHealth, modifier = Modifier.weight(1f)) { Text("삼성헬스에 저장") }
+                // Fake test runs stay out of the user's real health records.
+                OutlinedButton(onClick = ::saveToHealth, enabled = !w.simulated, modifier = Modifier.weight(1f)) {
+                    Text("삼성헬스에 저장")
+                }
             }
             Text(
-                "GPX는 Strava, Garmin 등에 올릴 수 있어요. 삼성헬스는 Health Connect를 거쳐 저장돼요 " +
+                if (w.simulated) "테스트 기록은 삼성헬스에 저장하지 않아요."
+                else "GPX는 Strava, Garmin 등에 올릴 수 있어요. 삼성헬스는 Health Connect를 거쳐 저장돼요 " +
                     "(삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요).",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

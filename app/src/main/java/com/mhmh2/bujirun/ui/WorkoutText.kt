@@ -23,7 +23,7 @@ fun workoutTitle(w: WorkoutEntity, now: Long = System.currentTimeMillis()): Stri
         in 17..20 -> "저녁"
         else -> "밤"
     }
-    return "$day $part ${if (w.isRun) "러닝" else "걷기"}"
+    return "$day $part ${if (w.isRun) "러닝" else "걷기"}" + if (w.simulated) " (테스트)" else ""
 }
 
 /** "2026년 10월 5일 (월) 오전 7:12". */

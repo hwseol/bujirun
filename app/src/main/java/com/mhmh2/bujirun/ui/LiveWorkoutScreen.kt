@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
@@ -72,6 +73,10 @@ fun LiveWorkoutScreen(
                 },
                 emphasized = !paused && state.hasFix
             )
+            if (state.simScale > 0) {
+                Spacer(Modifier.width(8.dp))
+                StatusBadge("테스트 ×${state.simScale}", emphasized = false)
+            }
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { Prefs.setVoiceEnabled(!voiceOn) }) {
                 Icon(

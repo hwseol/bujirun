@@ -54,7 +54,13 @@ private val dials = mapOf(
 )
 
 @Composable
-fun HomeScreen(initialGoal: Goal, permissionDenied: Boolean, weekSummary: String?, onStart: (Goal) -> Unit) {
+fun HomeScreen(
+    initialGoal: Goal,
+    permissionDenied: Boolean,
+    weekSummary: String?,
+    nickname: String?,
+    onStart: (Goal) -> Unit,
+) {
     var kind by remember {
         mutableStateOf(
             when (initialGoal) {
@@ -84,7 +90,7 @@ fun HomeScreen(initialGoal: Goal, permissionDenied: Boolean, weekSummary: String
     ) {
         Text("부지런", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(top = 24.dp))
         Text(
-            weekSummary ?: "짬 날 때, 이어폰과 폰만 들고",
+            listOfNotNull(nickname?.let { "${it}님" }, weekSummary ?: "짬 날 때, 이어폰과 폰만 들고").joinToString(" · "),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

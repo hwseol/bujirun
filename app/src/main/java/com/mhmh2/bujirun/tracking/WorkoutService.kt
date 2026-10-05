@@ -74,13 +74,46 @@ class WorkoutService : LifecycleService() {
     private var autoPause = AutoPauseDetector()
     private var stepSensorActive = false
 
+    // Admin test runs: fixes come from FakeRun instead of GPS, and the workout clock can run
+    // faster than real time. 0 = a real workout. Everything that reads "now" goes through now(),
+    // so the tracker, coach and auto-pause all see one consistent (possibly sped-up) timeline.
+    private var simScale = 0
+    private var clockOriginReal = 0L
+    private var epochOrigin = 0L
+    private var simJob: Job? = null
+    private var lastNotifyReal = 0L
+
+    private fun now(): Long {
+        val real = SystemClock.elapsedRealtime()
+        return if (simScale <= 1) real else clockOriginReal + (real - clockOriginReal) * simScale
+    }
+
+    private fun onSample(sample: LocationSample) {
+        val t = tracker ?: return
+        speedMeter.add(sample)
+        t.onLocation(sample)
+    }
+
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            val t = tracker ?: return
-            result.locations.forEach {
-                val sample = it.toSample()
-                speedMeter.add(sample)
-                t.onLocation(sample)
+            result.locations.forEach { onSample(it.toSample()) }
+        }
+    }
+
+    private fun startFakeGps() {
+        val (lat, lon) = FakeRun.SEOUL_STARTS.random()
+        val fake = FakeRun(System.nanoTime(), lat, lon)
+        simJob = lifecycleScope.launch {
+            while (isActive) {
+                val f = fake.next()
+                val t = now()
+                onSample(
+                    LocationSample(
+                        timeMs = t, lat = f.lat, lon = f.lon, accuracyM = f.accuracyM, altitudeM = f.altitudeM,
+                        speedMps = f.speedMps, epochMs = epochOrigin + (t - clockOriginReal),
+                    )
+                )
+                delay(1000L / simScale)
             }
         }
     }
@@ -100,10 +133,11 @@ class WorkoutService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        val now = SystemClock.elapsedRealtime()
+        val now = now()
         when (intent?.action) {
             ACTION_START -> start(
-                Goal.decode(intent.getStringExtra(EXTRA_GOAL_TYPE), intent.getDoubleExtra(EXTRA_GOAL_VALUE, 0.0))
+                Goal.decode(intent.getStringExtra(EXTRA_GOAL_TYPE), intent.getDoubleExtra(EXTRA_GOAL_VALUE, 0.0)),
+                simScale = intent.getIntExtra(EXTRA_SIM_SCALE, 0),
             )
             ACTION_PAUSE -> tracker?.takeIf { it.status == WorkoutStatus.RUNNING }?.let {
                 it.pause(now)
@@ -124,13 +158,16 @@ class WorkoutService : LifecycleService() {
         return START_NOT_STICKY
     }
 
-    private fun start(goal: Goal) {
+    private fun start(goal: Goal, simScale: Int) {
         if (tracker != null) return
         if (!hasLocationPermission()) {
             stopSelf()
             return
         }
         this.goal = goal
+        this.simScale = simScale
+        clockOriginReal = SystemClock.elapsedRealtime()
+        epochOrigin = System.currentTimeMillis()
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
@@ -148,9 +185,15 @@ class WorkoutService : LifecycleService() {
         cadenceMeter = CadenceMeter()
         classifier = ActivityClassifier()
         autoPause = AutoPauseDetector()
-        // GPS starts now so it has the countdown to get a fix before the clock runs.
-        requestLocationUpdates()
-        stepSensorActive = registerStepSensor()
+        // GPS starts now so it has the countdown to get a fix before the clock runs. A test run
+        // uses neither GPS nor the step sensor (the phone isn't actually moving).
+        if (simScale > 0) {
+            startFakeGps()
+        } else {
+            requestLocationUpdates()
+            stepSensorActive = registerStepSensor()
+        }
+        val tickMs = 1000L / maxOf(simScale, 1)
         ticker = lifecycleScope.launch {
             for (n in COUNTDOWN_FROM downTo 1) {
                 countdown = n
@@ -158,18 +201,18 @@ class WorkoutService : LifecycleService() {
                 publish()
                 delay(1000)
             }
-            workoutId = WorkoutStore.create(goal, System.currentTimeMillis())
+            workoutId = WorkoutStore.create(goal, epochOrigin + (now() - clockOriginReal), simulated = simScale > 0)
             countdown = null
-            t.start(SystemClock.elapsedRealtime())
+            t.start(now())
             say(Cue.Started(goal))
             var ticks = 0
             while (isActive) {
-                updateMotion(SystemClock.elapsedRealtime())
+                updateMotion(now())
                 val snapshot = publish() ?: break
                 coach?.onTick(snapshot)?.forEach(::say)
                 // Save as we go, so a workout killed by the system mid-run isn't lost.
                 if (++ticks % SAVE_EVERY_TICKS == 0) save(snapshot, finished = false)
-                delay(1000)
+                delay(tickMs)
             }
         }
     }
@@ -255,6 +298,9 @@ class WorkoutService : LifecycleService() {
         voice = null
         countdown = null
         pausedBy = null
+        simJob?.cancel()
+        simJob = null
+        simScale = 0
         fused.removeLocationUpdates(locationCallback)
         unregisterStepSensor()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -267,10 +313,16 @@ class WorkoutService : LifecycleService() {
 
     private fun publish(): WorkoutSnapshot? {
         val t = tracker ?: return null
-        val snapshot = t.snapshot(SystemClock.elapsedRealtime())
-            .copy(workoutId = workoutId, goal = goal, countdown = countdown, autoPaused = pausedBy == PausedBy.AUTO)
+        val snapshot = t.snapshot(now()).copy(
+            workoutId = workoutId, goal = goal, countdown = countdown,
+            autoPaused = pausedBy == PausedBy.AUTO, simScale = simScale,
+        )
         WorkoutSession.publish(snapshot)
-        if (snapshot.status != WorkoutStatus.FINISHED) {
+        // At most once a real second: a 10x test run ticks ten times a second, and Android
+        // drops notification updates from apps that post faster than that.
+        val real = SystemClock.elapsedRealtime()
+        if (snapshot.status != WorkoutStatus.FINISHED && real - lastNotifyReal >= 1000) {
+            lastNotifyReal = real
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(snapshot))
         }
         return snapshot
@@ -351,13 +403,16 @@ class WorkoutService : LifecycleService() {
         const val ACTION_STOP = "com.mhmh2.bujirun.STOP"
         private const val EXTRA_GOAL_TYPE = "goal_type"
         private const val EXTRA_GOAL_VALUE = "goal_value"
+        private const val EXTRA_SIM_SCALE = "sim_scale"
 
-        fun start(context: Context, goal: Goal) {
+        /** [simScale] > 0: an admin test run with fake GPS at that many times real speed. */
+        fun start(context: Context, goal: Goal, simScale: Int = 0) {
             val (type, value) = goal.encode()
             val intent = Intent(context, WorkoutService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_GOAL_TYPE, type)
                 .putExtra(EXTRA_GOAL_VALUE, value)
+                .putExtra(EXTRA_SIM_SCALE, simScale)
             ContextCompat.startForegroundService(context, intent)
         }
 

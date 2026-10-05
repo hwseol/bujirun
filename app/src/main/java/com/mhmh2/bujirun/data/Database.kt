@@ -1,6 +1,9 @@
 package com.mhmh2.bujirun.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Index
@@ -30,6 +33,8 @@ data class WorkoutEntity(
     val ascentM: Double = 0.0,
     val runMs: Long = 0,
     val walkMs: Long = 0,
+    // An admin fake-GPS test run: labelled as such, and never exported to Health Connect.
+    @ColumnInfo(defaultValue = "0") val simulated: Boolean = false,
 ) {
     val isRun: Boolean get() = runMs >= walkMs
 
@@ -77,7 +82,16 @@ interface WorkoutDao {
     }
 }
 
-@Database(entities = [WorkoutEntity::class, TrackPointEntity::class], version = 1, exportSchema = false)
+@Database(entities = [WorkoutEntity::class, TrackPointEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workouts(): WorkoutDao
+
+    companion object {
+        // Testers' phones already hold version-1 databases with real workouts: migrate, never wipe.
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workouts ADD COLUMN simulated INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+    }
 }
