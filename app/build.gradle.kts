@@ -56,6 +56,22 @@ android {
         }
     }
 
+    // The NAVER map SDK ships ~23 MB of native code per CPU type. For sideloaded test APKs:
+    // one APK per CPU type (phones are arm64-v8a, the emulator x86_64) with the native libraries
+    // compressed, so a phone APK stays small enough to send through chat. Play releases are
+    // AABs, which Play splits per device anyway; these settings don't affect them.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+    packaging {
+        jniLibs { useLegacyPackaging = true }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
