@@ -1,6 +1,17 @@
 package com.mhmh2.bujirun.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.health.connect.client.PermissionController
+import com.mhmh2.bujirun.data.GpxShare
+import com.mhmh2.bujirun.data.HealthExport
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +55,6 @@ import com.mhmh2.bujirun.tracking.Splits
 import com.mhmh2.bujirun.tracking.formatDuration
 import com.mhmh2.bujirun.tracking.formatKm
 import com.mhmh2.bujirun.tracking.formatPace
-import kotlinx.coroutines.flow.map
 import kotlin.math.roundToInt
 
 /**
@@ -54,10 +64,43 @@ import kotlin.math.roundToInt
 @Composable
 fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     val workout by remember(workoutId) { WorkoutStore.observe(workoutId) }.collectAsState(initial = null)
-    val points by remember(workoutId) {
-        WorkoutStore.observePoints(workoutId).map { list -> list.map { it.toTrackPoint() } }
-    }.collectAsState(initial = emptyList())
+    val pointRows by remember(workoutId) { WorkoutStore.observePoints(workoutId) }.collectAsState(initial = emptyList())
+    val points = remember(pointRows) { pointRows.map { it.toTrackPoint() } }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+    fun writeToHealth() {
+        val w = workout ?: return
+        scope.launch {
+            runCatching { HealthExport.write(context, w, pointRows) }
+                .onSuccess { toast("Health Connect에 저장했어요") }
+                .onFailure { toast("저장하지 못했어요: ${it.message}") }
+        }
+    }
+    val healthPermissionLauncher = rememberLauncherForActivityResult(
+        PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        if (granted.containsAll(HealthExport.required)) writeToHealth()
+        else toast("권한을 허용해야 삼성헬스에 저장할 수 있어요")
+    }
+    fun saveToHealth() {
+        when (HealthExport.availability(context)) {
+            HealthExport.Availability.UNAVAILABLE -> toast("이 폰에서는 Health Connect를 쓸 수 없어요")
+            HealthExport.Availability.NEEDS_UPDATE -> {
+                toast("Health Connect를 먼저 설치하거나 업데이트해 주세요")
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+            HealthExport.Availability.AVAILABLE -> scope.launch {
+                if (HealthExport.missingPermissions(context).isEmpty()) writeToHealth()
+                else healthPermissionLauncher.launch(HealthExport.permissions)
+            }
+        }
+    }
 
     val w = workout
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -101,6 +144,25 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 SplitsTable(splits)
             }
+
+            Spacer(Modifier.height(28.dp))
+            Text("내보내기", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { GpxShare.share(context, workoutTitle(w), w, pointRows) },
+                    enabled = pointRows.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) { Text("GPX 파일") }
+                OutlinedButton(onClick = ::saveToHealth, modifier = Modifier.weight(1f)) { Text("삼성헬스에 저장") }
+            }
+            Text(
+                "GPX는 Strava, Garmin 등에 올릴 수 있어요. 삼성헬스는 Health Connect를 거쳐 저장돼요 " +
+                    "(삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
             Spacer(Modifier.height(24.dp))
         }
         if (justFinished) {
