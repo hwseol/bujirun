@@ -30,6 +30,11 @@ android {
         // works for the package name registered with it (com.mhmh2.bujirun). The client
         // *secret* is never used by the app and must not be committed.
         manifestPlaceholders["naverMapClientId"] = "y7j83b46cr"
+
+        // The Bujirun API (backend/). Override for a local server on the emulator with
+        // `-PbujirunApi=http://10.0.2.2:8100/` (cleartext is allowed for 10.0.2.2 only).
+        val api = (project.findProperty("bujirunApi") as String?) ?: "https://bujirun.184-193-203-68.sslip.io/"
+        buildConfigField("String", "API_BASE", "\"$api\"")
     }
 
     signingConfigs {

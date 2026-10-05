@@ -20,11 +20,6 @@ class AccountRulesTest {
         assertEquals("someone@naver.com", AccountRules.normalizeEmail("  Someone@Naver.com "))
     }
 
-    @Test fun adminIsTheAdminEmailHoweverTyped() {
-        assertTrue(User(AccountRules.normalizeEmail(" MHMH2090@Gmail.com"), "관리자").isAdmin)
-        assertFalse(User("someone@gmail.com", "러너").isAdmin)
-    }
-
     @Test fun nicknameRules() {
         assertTrue(AccountRules.isValidNickname("부지런"))
         assertTrue(AccountRules.isValidNickname("  달리는  사람 "))
@@ -32,5 +27,10 @@ class AccountRulesTest {
         assertFalse(AccountRules.isValidNickname("a"))
         assertFalse(AccountRules.isValidNickname("   "))
         assertFalse(AccountRules.isValidNickname("열세글자가넘는아주긴닉네임"))
+    }
+
+    @Test fun passwordRules() {
+        assertTrue(AccountRules.isValidPassword("12345678"))
+        assertFalse(AccountRules.isValidPassword("1234567"))
     }
 }

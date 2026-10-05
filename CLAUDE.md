@@ -21,8 +21,14 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
   every 10 s and recovered on next launch).
 
 ## Accounts and admin test runs
-- Login is required but local-only: email + nickname, no verification, no server (yet). Anything
-  that isn't an email address is rejected. Admin = `admin@example.com` (AccountRules.ADMIN_EMAIL).
+- Login is required. Accounts live on the Bujirun API (backend/, deploy notes in
+  backend/deploy/README.md): unique email and nickname, password (PBKDF2), opaque session token
+  stored on the phone. No email verification; forgotten passwords go through
+  backend/reset_password.py on the server. Admin = `admin@example.com` (backend
+  accounts.ADMIN_EMAIL); the app trusts the server's `is_admin`.
+- Test the app against a local server: run `uvicorn server:app --port 8100` in backend/ (the
+  EnglishBite venv has fastapi) and build with `-PbujirunApi=http://10.0.2.2:8100/`.
+  Backend tests: `python -m unittest test_accounts` in backend/.
 - Admin's start button offers a real workout or a fake-GPS test run at 1x/5x/10x (FakeRun +
   a scaled clock in WorkoutService, everything reads `now()`). Test runs are saved with
   `simulated = 1`, titled "(테스트)", and never exported to Health Connect.

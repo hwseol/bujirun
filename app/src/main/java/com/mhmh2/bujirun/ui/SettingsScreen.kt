@@ -15,7 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.mhmh2.bujirun.account.Account
+import com.mhmh2.bujirun.account.AuthException
+import kotlinx.coroutines.launch
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +57,8 @@ fun SettingsScreen() {
 
     val user by Account.user.collectAsState()
     var confirmSignOut by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
         Text("설정", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
@@ -116,6 +123,12 @@ fun SettingsScreen() {
         ToggleRow("음성 안내", "운동 중 음성으로 알려줘요. 운동 화면에서도 바꿀 수 있어요.", voiceOn, Prefs::setVoiceEnabled)
         Divider()
         ToggleRow("자동 일시정지", "멈춰 서면 기록을 잠시 멈추고, 움직이면 다시 시작해요.", autoPause, Prefs::setAutoPause)
+        if (user != null) {
+            Divider()
+            TextButton(onClick = { deleting = true }, contentPadding = PaddingValues(0.dp)) {
+                Text("계정 삭제", color = MaterialTheme.colorScheme.error)
+            }
+        }
         Spacer(Modifier.height(32.dp))
     }
 
@@ -124,10 +137,60 @@ fun SettingsScreen() {
             onDismissRequest = { confirmSignOut = false },
             title = { Text("로그아웃할까요?") },
             text = { Text("운동 기록은 이 폰에 그대로 남아요.") },
-            confirmButton = { TextButton(onClick = { confirmSignOut = false; Account.signOut() }) { Text("로그아웃") } },
+            confirmButton = {
+                TextButton(onClick = { confirmSignOut = false; scope.launch { Account.logOut() } }) { Text("로그아웃") }
+            },
             dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("취소") } }
         )
     }
+    if (deleting) DeleteAccountDialog(onDismiss = { deleting = false })
+}
+
+/** Account deletion (required by Play for apps with sign-up). Re-asks for the password. */
+@Composable
+private fun DeleteAccountDialog(onDismiss: () -> Unit) {
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text("계정을 삭제할까요?") },
+        text = {
+            Column {
+                Text("서버에서 계정이 지워지고 되돌릴 수 없어요. 이 폰의 운동 기록은 남아요.")
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it; error = null },
+                    label = { Text("비밀번호") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = error != null,
+                    supportingText = { error?.let { Text(it) } },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = password.isNotEmpty() && !busy,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            Account.deleteAccount(password)
+                        } catch (e: AuthException) {
+                            error = e.message
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
+            ) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("취소") } }
+    )
 }
 
 @Composable

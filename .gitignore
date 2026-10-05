@@ -10,3 +10,7 @@ captures/
 .externalNativeBuild
 .cxx
 dist/
+
+backend/.venv/
+backend/accounts.db
+backend/__pycache__/

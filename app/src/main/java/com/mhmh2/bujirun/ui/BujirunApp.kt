@@ -91,6 +91,8 @@ fun BujirunApp() {
     // Login is required. A workout already running (e.g. after signing out mid-run, or the
     // activity being recreated) still takes precedence below, so it's never orphaned.
     val signedIn = user
+    // Whoever just signed in starts on home, not on whatever tab the previous session left open.
+    LaunchedEffect(signedIn?.email) { tab = Tab.HOME }
     val workoutActive = state.countdown != null || state.status != WorkoutStatus.IDLE
     if (signedIn == null && !workoutActive) {
         LoginScreen()
