@@ -37,6 +37,10 @@ import com.mhmh2.bujirun.coach.Cue
 import com.mhmh2.bujirun.coach.CueText
 import com.mhmh2.bujirun.coach.Goal
 import com.mhmh2.bujirun.coach.VoiceAnnouncer
+import com.mhmh2.bujirun.course.CourseNavigator
+import com.mhmh2.bujirun.course.CourseRoute
+import com.mhmh2.bujirun.course.CourseStore
+import com.mhmh2.bujirun.course.GeoPoint
 import com.mhmh2.bujirun.data.WorkoutStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -88,10 +92,16 @@ class WorkoutService : LifecycleService() {
         return if (simScale <= 1) real else clockOriginReal + (real - clockOriginReal) * simScale
     }
 
+    // Following a course (null for a free run).
+    private var courseId: Long? = null
+    private var navigator: CourseNavigator? = null
+    private var position: GeoPoint? = null
+
     private fun onSample(sample: LocationSample) {
         val t = tracker ?: return
         speedMeter.add(sample)
         t.onLocation(sample)
+        if (sample.accuracyM <= 25f) position = GeoPoint(sample.lat, sample.lon)
     }
 
     private val locationCallback = object : LocationCallback() {
@@ -100,9 +110,10 @@ class WorkoutService : LifecycleService() {
         }
     }
 
-    private fun startFakeGps() {
+    /** [path]: run along this course instead of wandering from a random Seoul spot. */
+    private fun startFakeGps(path: List<GeoPoint>?) {
         val (lat, lon) = FakeRun.SEOUL_STARTS.random()
-        val fake = FakeRun(System.nanoTime(), lat, lon)
+        val fake = FakeRun(System.nanoTime(), lat, lon, path)
         simJob = lifecycleScope.launch {
             while (isActive) {
                 val f = fake.next()
@@ -138,6 +149,7 @@ class WorkoutService : LifecycleService() {
             ACTION_START -> start(
                 Goal.decode(intent.getStringExtra(EXTRA_GOAL_TYPE), intent.getDoubleExtra(EXTRA_GOAL_VALUE, 0.0)),
                 simScale = intent.getIntExtra(EXTRA_SIM_SCALE, 0),
+                courseId = intent.getLongExtra(EXTRA_COURSE_ID, 0L).takeIf { it > 0 },
             )
             ACTION_PAUSE -> tracker?.takeIf { it.status == WorkoutStatus.RUNNING }?.let {
                 it.pause(now)
@@ -158,7 +170,7 @@ class WorkoutService : LifecycleService() {
         return START_NOT_STICKY
     }
 
-    private fun start(goal: Goal, simScale: Int) {
+    private fun start(goal: Goal, simScale: Int, courseId: Long?) {
         if (tracker != null) return
         if (!hasLocationPermission()) {
             stopSelf()
@@ -166,6 +178,9 @@ class WorkoutService : LifecycleService() {
         }
         this.goal = goal
         this.simScale = simScale
+        this.courseId = courseId
+        navigator = null
+        position = null
         clockOriginReal = SystemClock.elapsedRealtime()
         epochOrigin = System.currentTimeMillis()
         ServiceCompat.startForeground(
@@ -187,27 +202,37 @@ class WorkoutService : LifecycleService() {
         autoPause = AutoPauseDetector()
         // GPS starts now so it has the countdown to get a fix before the clock runs. A test run
         // uses neither GPS nor the step sensor (the phone isn't actually moving).
-        if (simScale > 0) {
-            startFakeGps()
-        } else {
+        if (simScale <= 0) {
             requestLocationUpdates()
             stepSensorActive = registerStepSensor()
         }
         val tickMs = 1000L / maxOf(simScale, 1)
         ticker = lifecycleScope.launch {
+            // The course (a quick local read) before anything needs it; a test run then runs along it.
+            val course = courseId?.let { CourseStore.load(it) }
+            if (course != null) navigator = CourseNavigator(course.first, CourseRoute(course.second))
+            if (simScale > 0) startFakeGps(course?.second)
             for (n in COUNTDOWN_FROM downTo 1) {
                 countdown = n
                 say(Cue.Countdown(n))
                 publish()
                 delay(1000)
             }
-            workoutId = WorkoutStore.create(goal, epochOrigin + (now() - clockOriginReal), simulated = simScale > 0)
+            workoutId = WorkoutStore.create(
+                goal, epochOrigin + (now() - clockOriginReal), simulated = simScale > 0, courseId = courseId.takeIf { course != null },
+            )
             countdown = null
             t.start(now())
             say(Cue.Started(goal))
+            navigator?.let { say(Cue.Course(it.begin())) }
             var ticks = 0
             while (isActive) {
                 updateMotion(now())
+                val nav = navigator
+                val here = position
+                if (nav != null && here != null && t.status == WorkoutStatus.RUNNING) {
+                    nav.update(here, now()).forEach { say(Cue.Course(it)) }
+                }
                 val snapshot = publish() ?: break
                 coach?.onTick(snapshot)?.forEach(::say)
                 // Save as we go, so a workout killed by the system mid-run isn't lost.
@@ -301,6 +326,8 @@ class WorkoutService : LifecycleService() {
         simJob?.cancel()
         simJob = null
         simScale = 0
+        navigator = null
+        courseId = null
         fused.removeLocationUpdates(locationCallback)
         unregisterStepSensor()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -316,6 +343,7 @@ class WorkoutService : LifecycleService() {
         val snapshot = t.snapshot(now()).copy(
             workoutId = workoutId, goal = goal, countdown = countdown,
             autoPaused = pausedBy == PausedBy.AUTO, simScale = simScale,
+            courseId = courseId.takeIf { navigator != null }, course = navigator?.progress(), position = position,
         )
         WorkoutSession.publish(snapshot)
         // At most once a real second: a 10x test run ticks ten times a second, and Android
@@ -404,15 +432,20 @@ class WorkoutService : LifecycleService() {
         private const val EXTRA_GOAL_TYPE = "goal_type"
         private const val EXTRA_GOAL_VALUE = "goal_value"
         private const val EXTRA_SIM_SCALE = "sim_scale"
+        private const val EXTRA_COURSE_ID = "course_id"
 
-        /** [simScale] > 0: an admin test run with fake GPS at that many times real speed. */
-        fun start(context: Context, goal: Goal, simScale: Int = 0) {
+        /**
+         * [simScale] > 0: an admin test run with fake GPS at that many times real speed.
+         * [courseId]: follow that course with voice guidance.
+         */
+        fun start(context: Context, goal: Goal, simScale: Int = 0, courseId: Long? = null) {
             val (type, value) = goal.encode()
             val intent = Intent(context, WorkoutService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_GOAL_TYPE, type)
                 .putExtra(EXTRA_GOAL_VALUE, value)
                 .putExtra(EXTRA_SIM_SCALE, simScale)
+                .putExtra(EXTRA_COURSE_ID, courseId ?: 0L)
             ContextCompat.startForegroundService(context, intent)
         }
 

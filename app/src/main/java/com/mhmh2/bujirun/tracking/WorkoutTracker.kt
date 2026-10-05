@@ -10,6 +10,11 @@ data class WorkoutSnapshot(
     val workoutId: Long? = null,
     // > 0 during an admin fake-GPS test run (the speed-up factor).
     val simScale: Int = 0,
+    // Following a course: which one, where we are on it and what's next.
+    val courseId: Long? = null,
+    val course: com.mhmh2.bujirun.course.CourseProgress? = null,
+    // Last precise position (for the live map).
+    val position: com.mhmh2.bujirun.course.GeoPoint? = null,
     val goal: Goal = Goal.Free,
     // 3, 2, 1 before the clock starts (GPS is already warming up meanwhile); null otherwise.
     val countdown: Int? = null,

@@ -1,5 +1,6 @@
 package com.mhmh2.bujirun.coach
 
+import com.mhmh2.bujirun.course.CourseCue
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.math.roundToLong
@@ -21,6 +22,7 @@ object CueText {
         is Cue.PaceAdvice ->
             (if (cue.speedUp) "조금 빠르게. " else "조금 천천히. ") + "지금 ${pace(cue.currentPaceSecPerKm)} 페이스예요."
         is Cue.GoalReached -> "목표 달성! ${km(cue.distanceM)}, ${duration(cue.totalMs)}."
+        is Cue.Course -> course(cue.cue)
         Cue.Paused -> "일시정지."
         Cue.AutoPaused -> "자동 일시정지."
         Cue.Resumed -> "다시 시작합니다."
@@ -29,6 +31,20 @@ object CueText {
             else "운동을 마쳤습니다. ${km(cue.distanceM)}, ${duration(cue.totalMs)}." +
                 (cue.averagePaceSecPerKm?.let { " 평균 페이스 ${pace(it)}." } ?: "") +
                 (if (cue.calories >= 1) " 약 ${cue.calories.roundToLong()}킬로칼로리." else "")
+    }
+
+    fun course(c: CourseCue): String = when (c) {
+        is CourseCue.Begin -> "코스 안내를 시작합니다. 코스 ${km(c.lengthM)}."
+        is CourseCue.ToStart -> "코스 출발점까지 ${c.meters}미터예요. 출발점으로 가 주세요."
+        CourseCue.AtStart -> "코스 출발점이에요. 안내를 시작할게요."
+        is CourseCue.TurnAhead -> "${c.meters}미터 앞에서 ${c.direction.spoken}."
+        is CourseCue.TurnNow -> "${c.direction.spoken}입니다." + (c.then?.let { " 이어서 ${it.spoken}." } ?: "")
+        is CourseCue.Climb -> "곧 오르막 ${c.lengthM}미터예요."
+        CourseCue.OffCourse -> "코스를 벗어났어요."
+        CourseCue.BackOnCourse -> "코스로 돌아왔어요."
+        is CourseCue.Remaining -> "코스 남은 거리 ${km(c.meters)}."
+        CourseCue.Halfway -> "코스 절반 왔어요."
+        CourseCue.Finished -> "코스 완주!"
     }
 
     private fun goalPhrase(goal: Goal) = when (goal) {

@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mhmh2.bujirun.Prefs
@@ -86,24 +87,43 @@ fun LiveWorkoutScreen(
             }
         }
 
-        Spacer(Modifier.weight(1f))
-        Label("시간")
-        Text(formatDuration(state.elapsedMs), fontSize = 72.sp)
-        Spacer(Modifier.height(24.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            BigStat("거리", formatKm(state.distanceM), "km")
-            if (state.goal is Goal.Free) BigStat("평균 페이스", formatPace(state.averagePaceSecPerKm), "/km")
-            else BigStat("현재 페이스", formatPace(state.currentPaceSecPerKm), "/km")
+        val course = state.course
+        val courseId = state.courseId
+        if (course != null && courseId != null) {
+            // Following a course: the map is the main thing, numbers compact underneath.
+            Spacer(Modifier.height(8.dp))
+            CourseLiveMap(
+                courseId, course, state.position,
+                Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                SmallStat("시간", formatDuration(state.elapsedMs))
+                SmallStat("거리", "${formatKm(state.distanceM)}km")
+                SmallStat("페이스", formatPace(state.currentPaceSecPerKm))
+                SmallStat("코스 남은", "${formatKm(course.remainingM)}km")
+            }
+            Spacer(Modifier.height(16.dp))
+        } else {
+            Spacer(Modifier.weight(1f))
+            Label("시간")
+            Text(formatDuration(state.elapsedMs), fontSize = 72.sp)
+            Spacer(Modifier.height(24.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                BigStat("거리", formatKm(state.distanceM), "km")
+                if (state.goal is Goal.Free) BigStat("평균 페이스", formatPace(state.averagePaceSecPerKm), "/km")
+                else BigStat("현재 페이스", formatPace(state.currentPaceSecPerKm), "/km")
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "약 ${state.calories.roundToInt()}kcal",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(24.dp))
+            GoalPanel(state)
+            Spacer(Modifier.weight(1f))
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "약 ${state.calories.roundToInt()}kcal",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(24.dp))
-        GoalPanel(state)
-        Spacer(Modifier.weight(1f))
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (paused) {
@@ -167,6 +187,14 @@ private fun StatusBadge(text: String, emphasized: Boolean) {
 @Composable
 private fun Label(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun SmallStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Label(label)
+        Text(value, fontSize = 22.sp)
+    }
 }
 
 @Composable

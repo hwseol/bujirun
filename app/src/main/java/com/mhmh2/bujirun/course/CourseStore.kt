@@ -33,6 +33,13 @@ object CourseStore {
         )
     }
 
+    /** Name and line of a course, for running it. Null if it no longer exists. */
+    suspend fun load(id: Long): Pair<String, List<GeoPoint>>? {
+        val c = dao.get(id) ?: return null
+        val pts = dao.points(id).map { GeoPoint(it.lat, it.lon, it.altitudeM) }
+        return if (pts.size >= 2) c.name to pts else null
+    }
+
     fun rename(id: Long, name: String) { scope.launch { dao.rename(id, name.trim().ifEmpty { "이름 없는 코스" }) } }
     fun delete(id: Long) { scope.launch { dao.delete(id) } }
 

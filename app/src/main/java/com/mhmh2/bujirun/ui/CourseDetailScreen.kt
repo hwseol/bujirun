@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +45,7 @@ import java.io.File
 import kotlin.math.roundToInt
 
 @Composable
-fun CourseDetailScreen(courseId: Long, onClose: () -> Unit) {
+fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: Double) -> Unit) {
     val context = LocalContext.current
     val course by remember(courseId) { CourseStore.observe(courseId) }.collectAsState(initial = null)
     val points by remember(courseId) { CourseStore.observePoints(courseId) }.collectAsState(initial = emptyList())
@@ -80,12 +81,18 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(28.dp))
+            Button(
+                onClick = { onRun(c.distanceM) },
+                enabled = points.size >= 2,
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) { Text("이 코스로 달리기") }
             Text(
-                "이 코스를 따라 달리며 음성 길안내를 받는 기능은 다음 업데이트에서 추가돼요.",
+                "갈림길 100m 전과 직전에 방향을 알려주고, 코스를 벗어나면 알려줘요.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { shareCourse(context, c.name, points) }, enabled = points.size >= 2) { Text("GPX로 내보내기") }
             }

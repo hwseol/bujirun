@@ -19,6 +19,15 @@ class CueTextTest {
         assertEquals("1.62킬로미터", CueText.km(1618.0))
     }
 
+    @Test fun courseSentences() {
+        assertEquals("100미터 앞에서 왼쪽.", CueText.course(com.mhmh2.bujirun.course.CourseCue.TurnAhead(com.mhmh2.bujirun.course.TurnDirection.LEFT, 100)))
+        assertEquals(
+            "오른쪽입니다. 이어서 왼쪽 방향.",
+            CueText.course(com.mhmh2.bujirun.course.CourseCue.TurnNow(com.mhmh2.bujirun.course.TurnDirection.RIGHT, com.mhmh2.bujirun.course.TurnDirection.SLIGHT_LEFT))
+        )
+        assertEquals("코스 남은 거리 2.5킬로미터.", CueText.course(com.mhmh2.bujirun.course.CourseCue.Remaining(2500.0)))
+    }
+
     @Test fun sentences() {
         assertEquals("운동을 시작합니다. 목표 5킬로미터.", CueText.of(Cue.Started(Goal.Distance(5000.0))))
         assertEquals("운동을 시작합니다. 목표 페이스 6분.", CueText.of(Cue.Started(Goal.Pace(360))))

@@ -21,6 +21,8 @@ object Api {
 
     suspend fun post(path: String, body: JSONObject?, token: String? = null): JSONObject = request("POST", path, body, token)
 
+    suspend fun get(path: String, token: String? = null): JSONObject = request("GET", path, null, token)
+
     private suspend fun request(method: String, path: String, body: JSONObject?, token: String?): JSONObject =
         withContext(Dispatchers.IO) {
             val offline = "서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요."

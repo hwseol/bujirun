@@ -119,6 +119,10 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         ) {
             Text(workoutTitle(w), style = MaterialTheme.typography.headlineSmall)
             Text(workoutDate(w), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            w.courseId?.let { cid ->
+                val course by remember(cid) { CourseStore.observe(cid) }.collectAsState(initial = null)
+                course?.let { Text("코스: ${it.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+            }
             Spacer(Modifier.height(16.dp))
             RouteView(points)
             Spacer(Modifier.height(20.dp))

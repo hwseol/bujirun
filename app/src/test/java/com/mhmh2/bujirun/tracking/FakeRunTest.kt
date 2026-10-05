@@ -46,6 +46,24 @@ class FakeRunTest {
         assertTrue("pauses $pauses", pauses >= 1)
     }
 
+    @Test fun followsACourseAndStopsAtTheFinish() {
+        val path = listOf(
+            com.mhmh2.bujirun.course.GeoPoint(37.5, 127.0),
+            com.mhmh2.bujirun.course.GeoPoint(37.5 + 800 / 111_195.0, 127.0),
+        )
+        val fake = FakeRun(3, 0.0, 0.0, path)
+        var maxOff = 0.0
+        var last = fake.next()
+        repeat(1200) {
+            last = fake.next()
+            maxOff = maxOf(maxOff, kotlin.math.abs(last.lon - 127.0) * 111_195.0 * 0.79)
+        }
+        assertTrue("strays ${maxOff}m from the course", maxOff < 3)
+        // 20 minutes is far more than 800 m takes: it ends standing at the finish.
+        assertEquals(37.5 + 800 / 111_195.0, last.lat, 3 / 111_195.0)
+        assertTrue(last.speedMps < 0.5)
+    }
+
     @Test fun sameSeedSameRun() {
         val a = FakeRun(7, 37.5, 127.0)
         val b = FakeRun(7, 37.5, 127.0)

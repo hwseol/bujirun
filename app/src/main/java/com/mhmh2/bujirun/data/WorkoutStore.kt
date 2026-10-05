@@ -29,7 +29,7 @@ object WorkoutStore {
     fun init(context: Context) {
         if (::db.isInitialized) return
         db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "bujirun.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
             .build()
     }
 
@@ -40,12 +40,12 @@ object WorkoutStore {
     private const val MIN_KEEP_MS = 10_000L
     private const val MIN_KEEP_M = 20.0
 
-    suspend fun create(goal: Goal, startedAt: Long, simulated: Boolean = false): Long = writes.withLock {
+    suspend fun create(goal: Goal, startedAt: Long, simulated: Boolean = false, courseId: Long? = null): Long = writes.withLock {
         val (type, value) = goal.encode()
         dao.insert(
             WorkoutEntity(
                 startedAt = startedAt, endedAt = startedAt, status = WorkoutEntity.IN_PROGRESS,
-                goalType = type, goalValue = value, simulated = simulated,
+                goalType = type, goalValue = value, simulated = simulated, courseId = courseId,
             )
         )
     }

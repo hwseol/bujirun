@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.tracking
 
+import com.mhmh2.bujirun.course.CourseRoute
+import com.mhmh2.bujirun.course.GeoPoint
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -13,7 +15,15 @@ import kotlin.random.Random
  * exercise walk/run detection, auto-pause, splits, calories and the route drawing.
  * Endless: it keeps going until the workout is stopped. Pure and seeded, so it's testable.
  */
-class FakeRun(seed: Long, private var lat: Double, private var lon: Double) {
+class FakeRun(seed: Long, private var lat: Double, private var lon: Double, path: List<GeoPoint>? = null) {
+    /** With a course: run along it (laps of a loop; stand at the finish of a one-way course). */
+    private val route = path?.takeIf { it.size >= 2 }?.let { CourseRoute(it) }
+    private var along = 0.0
+
+    init {
+        route?.pointAt(0.0)?.let { lat = it.lat; lon = it.lon }
+    }
+
     data class Fix(val lat: Double, val lon: Double, val altitudeM: Double, val accuracyM: Float, val speedMps: Double)
 
     private enum class Kind { WALK, RUN, STOP }
@@ -29,11 +39,17 @@ class FakeRun(seed: Long, private var lat: Double, private var lon: Double) {
     fun next(): Fix {
         val phase = currentPhase()
         phase.secondsLeft--
-        val speed = when (phase.kind) {
-            Kind.STOP -> 0.0
+        val finished = route != null && !route.isLoop && along >= route.lengthM
+        val speed = when {
+            phase.kind == Kind.STOP || finished -> 0.0
             else -> phase.baseSpeed * (1 + rnd.nextDouble(-0.05, 0.05))
         }
-        if (speed > 0) {
+        if (route != null) {
+            along += speed
+            if (along >= route.lengthM) along = if (route.isLoop) along - route.lengthM else route.lengthM
+            route.pointAt(along).let { lat = it.lat; lon = it.lon }
+            distance += speed
+        } else if (speed > 0) {
             heading += gaussian() * 3
             if (distance >= nextTurnAt) {
                 heading += (if (rnd.nextBoolean()) 1 else -1) * rnd.nextDouble(60.0, 110.0)

@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.mhmh2.bujirun.ui.PendingImport
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +31,8 @@ class MainActivity : ComponentActivity() {
         val s = WorkoutSession.state.value
         if (s.status == WorkoutStatus.IDLE && s.countdown == null) WorkoutStore.recoverInterrupted()
         handleGpx(intent)
+        // A session the server no longer knows (account deleted, password reset) signs out.
+        lifecycleScope.launch { Account.verify() }
         enableEdgeToEdge()
         setContent {
             BujirunTheme {

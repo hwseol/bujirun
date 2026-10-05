@@ -35,6 +35,8 @@ data class WorkoutEntity(
     val walkMs: Long = 0,
     // An admin fake-GPS test run: labelled as such, and never exported to Health Connect.
     @ColumnInfo(defaultValue = "0") val simulated: Boolean = false,
+    // The course this workout followed, if any (the course may since have been deleted).
+    val courseId: Long? = null,
 ) {
     val isRun: Boolean get() = runMs >= walkMs
 
@@ -111,6 +113,7 @@ interface CourseDao {
     @Query("UPDATE courses SET name = :name WHERE id = :id") suspend fun rename(id: Long, name: String)
     @Query("SELECT * FROM courses ORDER BY createdAt DESC") fun observeAll(): Flow<List<CourseEntity>>
     @Query("SELECT * FROM courses WHERE id = :id") fun observe(id: Long): Flow<CourseEntity?>
+    @Query("SELECT * FROM courses WHERE id = :id") suspend fun get(id: Long): CourseEntity?
     @Query("SELECT * FROM course_points WHERE courseId = :id ORDER BY seq") fun observePoints(id: Long): Flow<List<CoursePointEntity>>
     @Query("SELECT * FROM course_points WHERE courseId = :id ORDER BY seq") suspend fun points(id: Long): List<CoursePointEntity>
     @Query("DELETE FROM course_points WHERE courseId = :id") suspend fun deletePoints(id: Long)
@@ -132,7 +135,7 @@ interface CourseDao {
 
 @Database(
     entities = [WorkoutEntity::class, TrackPointEntity::class, CourseEntity::class, CoursePointEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -159,6 +162,11 @@ abstract class AppDatabase : RoomDatabase() {
                         "`altitudeM` REAL)"
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_course_points_courseId` ON `course_points` (`courseId`)")
+            }
+        }
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workouts ADD COLUMN courseId INTEGER")
             }
         }
     }

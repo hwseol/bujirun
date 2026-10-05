@@ -64,6 +64,20 @@ object Account {
         clear()
     }
 
+    /**
+     * Checks the stored session is still valid on the server (the account may have been deleted,
+     * or its password reset). Signs out only on a definite "not signed in" - offline or a server
+     * hiccup keeps the session, since the app works fine without the server.
+     */
+    suspend fun verify() {
+        val t = token ?: return
+        try {
+            com.mhmh2.bujirun.net.Api.get("/auth/me", t)
+        } catch (e: com.mhmh2.bujirun.net.ApiException) {
+            if (e.status == 401) clear()
+        }
+    }
+
     suspend fun deleteAccount(password: String) {
         val u = _user.value ?: return
         AuthApi.deleteAccount(u.email, password)

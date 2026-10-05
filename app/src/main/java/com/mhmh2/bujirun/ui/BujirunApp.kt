@@ -73,7 +73,9 @@ fun BujirunApp() {
     var permissionDenied by remember { mutableStateOf(false) }
     var pendingGoal by remember { mutableStateOf<Goal>(Goal.Free) }
     var pendingSimScale by remember { mutableStateOf(0) }
-    var adminChoiceFor by remember { mutableStateOf<Goal?>(null) }
+    var pendingCourse by remember { mutableStateOf<Long?>(null) }
+    // Admin's "real or test?" question, holding what was about to start.
+    var adminChoiceFor by remember { mutableStateOf<Pair<Goal, Long?>?>(null) }
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var openWorkout by rememberSaveable { mutableStateOf<Long?>(null) }
     var openCourse by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -89,7 +91,7 @@ fun BujirunApp() {
         // them); location isn't.
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             permissionDenied = false
-            WorkoutService.start(context, pendingGoal, pendingSimScale)
+            WorkoutService.start(context, pendingGoal, pendingSimScale, pendingCourse)
         } else {
             permissionDenied = true
         }
@@ -106,10 +108,12 @@ fun BujirunApp() {
         return
     }
 
-    fun start(goal: Goal, simScale: Int = 0) {
-        Prefs.lastGoal = goal
+    fun start(goal: Goal, simScale: Int = 0, courseId: Long? = null) {
+        // A course run's distance goal is the course's, not a preference to remember.
+        if (courseId == null) Prefs.lastGoal = goal
         pendingGoal = goal
         pendingSimScale = simScale
+        pendingCourse = courseId
         val needed = buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -119,14 +123,18 @@ fun BujirunApp() {
         val missing = needed.filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }
-        if (missing.isEmpty()) WorkoutService.start(context, goal, simScale)
+        if (missing.isEmpty()) WorkoutService.start(context, goal, simScale, courseId)
         else permissionLauncher.launch(missing.toTypedArray())
     }
 
-    adminChoiceFor?.let { goal ->
+    fun requestStart(goal: Goal, courseId: Long? = null) {
+        if (signedIn?.isAdmin == true) adminChoiceFor = goal to courseId else start(goal, courseId = courseId)
+    }
+
+    adminChoiceFor?.let { (goal, courseId) ->
         AdminStartDialog(
-            onReal = { adminChoiceFor = null; start(goal) },
-            onTest = { scale -> adminChoiceFor = null; start(goal, scale) },
+            onReal = { adminChoiceFor = null; start(goal, courseId = courseId) },
+            onTest = { scale -> adminChoiceFor = null; start(goal, scale, courseId) },
             onDismiss = { adminChoiceFor = null },
         )
     }
@@ -162,7 +170,13 @@ fun BujirunApp() {
         }
         openCourse != null -> {
             BackHandler { openCourse = null }
-            CourseDetailScreen(openCourse!!, onClose = { openCourse = null })
+            val id = openCourse!!
+            CourseDetailScreen(id, onClose = { openCourse = null }, onRun = { distance ->
+                openCourse = null
+                // No separate distance goal: the course guidance covers halfway/finish, and a
+                // goal would announce "goal reached" right beside "course finished".
+                requestStart(Goal.Free, courseId = id)
+            })
         }
         else -> Scaffold(
             bottomBar = {
@@ -185,7 +199,7 @@ fun BujirunApp() {
                         HomeScreen(
                             remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts),
                             nickname = signedIn?.nickname,
-                            onStart = { goal -> if (signedIn?.isAdmin == true) adminChoiceFor = goal else start(goal) },
+                            onStart = { goal -> requestStart(goal) },
                         )
                     }
                     Tab.COURSES -> CoursesScreen(onOpen = { openCourse = it }, onDraw = { drawingCourse = true })

@@ -16,6 +16,8 @@ sealed interface Cue {
     data class RemainingTime(val ms: Long) : Cue
     data class PaceAdvice(val speedUp: Boolean, val currentPaceSecPerKm: Double) : Cue
     data class GoalReached(val distanceM: Double, val totalMs: Long) : Cue
+    /** Course guidance (CourseNavigator), spoken through the same voice queue. */
+    data class Course(val cue: com.mhmh2.bujirun.course.CourseCue) : Cue
     data object Paused : Cue
     data object AutoPaused : Cue
     data object Resumed : Cue
