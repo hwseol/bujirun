@@ -23,6 +23,9 @@ private val LightColors = lightColorScheme(
     surfaceVariant = Color(0xFFF5E6DF),
     onSurfaceVariant = Color(0xFF53433C),
     surfaceContainerHighest = Color(0xFFF5E6DF),
+    surfaceContainer = Color(0xFFFBEEE8),     // bottom navigation bar
+    surfaceContainerHigh = Color(0xFFF8EAE3),  // dialogs
+    surfaceContainerLow = Color(0xFFFEF4F0),
 )
 
 private val DarkColors = darkColorScheme(
@@ -35,6 +38,9 @@ private val DarkColors = darkColorScheme(
     surfaceVariant = Color(0xFF3B2E29),
     onSurfaceVariant = Color(0xFFD8C2B9),
     surfaceContainerHighest = Color(0xFF3B2E29),
+    surfaceContainer = Color(0xFF271D1A),
+    surfaceContainerHigh = Color(0xFF322723),
+    surfaceContainerLow = Color(0xFF221916),
 )
 
 @Composable

@@ -20,13 +20,22 @@ data class LocationSample(
     val altitudeM: Double? = null,
     // Speed as reported by the GPS chip itself (Doppler), when the phone provides it.
     val speedMps: Double? = null,
+    // Wall-clock UTC time of the fix, for saved tracks and GPX export.
+    val epochMs: Long = 0,
 )
 
 /**
- * An accepted fix, which run segment it belongs to (a new segment starts after each pause), and
- * whether the runner was walking or running there.
+ * An accepted fix as part of the workout: which run segment it belongs to (a new segment starts
+ * after each pause), walking or running there, and the workout's cumulative distance and active
+ * time at that point (what km splits are interpolated from).
  */
-data class TrackPoint(val sample: LocationSample, val segment: Int, val activity: Activity = Activity.UNKNOWN)
+data class TrackPoint(
+    val sample: LocationSample,
+    val segment: Int,
+    val activity: Activity = Activity.UNKNOWN,
+    val distanceM: Double = 0.0,
+    val activeMs: Long = 0,
+)
 
 private const val EARTH_RADIUS_M = 6_371_000.0
 

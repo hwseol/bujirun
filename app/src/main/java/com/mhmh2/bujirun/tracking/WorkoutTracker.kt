@@ -6,6 +6,8 @@ enum class WorkoutStatus { IDLE, RUNNING, PAUSED, FINISHED }
 
 /** Everything the screen and the notification show, frozen at one moment. */
 data class WorkoutSnapshot(
+    // Row in WorkoutStore, once the clock has started.
+    val workoutId: Long? = null,
     val goal: Goal = Goal.Free,
     // 3, 2, 1 before the clock starts (GPS is already warming up meanwhile); null otherwise.
     val countdown: Int? = null,
@@ -131,7 +133,10 @@ class WorkoutTracker(
 
     private fun countPoint(sample: LocationSample) {
         anchor = sample
-        points += TrackPoint(sample, segment, activity)
+        // A fix can be timestamped a moment before the segment (re)started; never let active time
+        // run backwards along the track.
+        val activeMs = maxOf(elapsedMs(sample.timeMs), points.lastOrNull()?.activeMs ?: 0L)
+        points += TrackPoint(sample, segment, activity, distanceM, activeMs)
         recent.addLast(sample.timeMs to distanceM)
     }
 

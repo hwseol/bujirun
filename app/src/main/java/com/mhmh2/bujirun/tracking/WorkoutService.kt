@@ -37,6 +37,7 @@ import com.mhmh2.bujirun.coach.Cue
 import com.mhmh2.bujirun.coach.CueText
 import com.mhmh2.bujirun.coach.Goal
 import com.mhmh2.bujirun.coach.VoiceAnnouncer
+import com.mhmh2.bujirun.data.WorkoutStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -61,6 +62,8 @@ class WorkoutService : LifecycleService() {
     private var goal: Goal = Goal.Free
     private var countdown: Int? = null
     private var ticker: Job? = null
+    private var workoutId: Long? = null
+    private var savedPoints = 0
 
     // Walk/run detection and auto-pause (see Motion.kt).
     private enum class PausedBy { USER, AUTO }
@@ -90,6 +93,7 @@ class WorkoutService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         Prefs.init(this)
+        WorkoutStore.init(this)
         fused = LocationServices.getFusedLocationProviderClient(this)
         createChannel()
     }
@@ -135,9 +139,11 @@ class WorkoutService : LifecycleService() {
         )
         val t = WorkoutTracker(weightKg = Prefs.weightKg)
         tracker = t
-        coach = CoachEngine(goal)
+        coach = CoachEngine(goal, Prefs.cueInterval)
         voice = VoiceAnnouncer(this)
         pausedBy = null
+        workoutId = null
+        savedPoints = 0
         speedMeter = SpeedMeter()
         cadenceMeter = CadenceMeter()
         classifier = ActivityClassifier()
@@ -152,15 +158,30 @@ class WorkoutService : LifecycleService() {
                 publish()
                 delay(1000)
             }
+            workoutId = WorkoutStore.create(goal, System.currentTimeMillis())
             countdown = null
             t.start(SystemClock.elapsedRealtime())
             say(Cue.Started(goal))
+            var ticks = 0
             while (isActive) {
                 updateMotion(SystemClock.elapsedRealtime())
                 val snapshot = publish() ?: break
                 coach?.onTick(snapshot)?.forEach(::say)
+                // Save as we go, so a workout killed by the system mid-run isn't lost.
+                if (++ticks % SAVE_EVERY_TICKS == 0) save(snapshot, finished = false)
                 delay(1000)
             }
+        }
+    }
+
+    private fun save(snapshot: WorkoutSnapshot, finished: Boolean) {
+        val t = tracker ?: return
+        val id = workoutId ?: return
+        val newPoints = t.track.subList(savedPoints, t.track.size).toList()
+        savedPoints = t.track.size
+        WorkoutStore.flush(id, newPoints, snapshot, finished) { kept ->
+            // Too short to be a real workout (an accidental start): skip the summary too.
+            if (!kept) WorkoutSession.publish(WorkoutSnapshot())
         }
     }
 
@@ -225,7 +246,7 @@ class WorkoutService : LifecycleService() {
             WorkoutSession.publish(WorkoutSnapshot())
         } else {
             t.finish(now)
-            publish()
+            publish()?.let { save(it, finished = true) }
             say(Cue.Finished(t.distanceM, t.elapsedMs(now), t.averagePaceSecPerKm(now), t.calories))
         }
         voice?.releaseWhenDone()
@@ -247,7 +268,7 @@ class WorkoutService : LifecycleService() {
     private fun publish(): WorkoutSnapshot? {
         val t = tracker ?: return null
         val snapshot = t.snapshot(SystemClock.elapsedRealtime())
-            .copy(goal = goal, countdown = countdown, autoPaused = pausedBy == PausedBy.AUTO)
+            .copy(workoutId = workoutId, goal = goal, countdown = countdown, autoPaused = pausedBy == PausedBy.AUTO)
         WorkoutSession.publish(snapshot)
         if (snapshot.status != WorkoutStatus.FINISHED) {
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(snapshot))
@@ -323,6 +344,7 @@ class WorkoutService : LifecycleService() {
         private const val CHANNEL_ID = "workout"
         private const val NOTIFICATION_ID = 1
         private const val COUNTDOWN_FROM = 3
+        private const val SAVE_EVERY_TICKS = 10
         const val ACTION_START = "com.mhmh2.bujirun.START"
         const val ACTION_PAUSE = "com.mhmh2.bujirun.PAUSE"
         const val ACTION_RESUME = "com.mhmh2.bujirun.RESUME"
@@ -352,4 +374,5 @@ private fun Location.toSample() = LocationSample(
     accuracyM = if (hasAccuracy()) accuracy else Float.MAX_VALUE,
     altitudeM = if (hasAltitude()) altitude else null,
     speedMps = if (hasSpeed()) speed.toDouble() else null,
+    epochMs = time,
 )

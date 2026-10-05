@@ -2,6 +2,7 @@ package com.mhmh2.bujirun
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.mhmh2.bujirun.coach.CueInterval
 import com.mhmh2.bujirun.coach.Goal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,10 +29,27 @@ object Prefs {
         sp.edit().putBoolean("auto_pause", enabled).apply()
     }
 
-    /** For calories. Until the user sets it (settings, M4), an average adult's 65 kg. */
+    /** For calories. Until the user sets it in settings, an average adult's 65 kg. */
     var weightKg: Double
         get() = sp.getFloat("weight_kg", 65f).toDouble()
         set(value) = sp.edit().putFloat("weight_kg", value.toFloat()).apply()
+
+    val weightSet: Boolean get() = sp.contains("weight_kg")
+
+    /** How often the routine progress announcement comes. */
+    var cueInterval: CueInterval
+        get() = when (val v = sp.getString("cue_interval", "d1000")) {
+            null -> CueInterval.EveryDistance(1000.0)
+            else -> if (v.startsWith("t")) CueInterval.EveryTime(v.drop(1).toLong())
+            else CueInterval.EveryDistance(v.drop(1).toDouble())
+        }
+        set(value) {
+            val encoded = when (value) {
+                is CueInterval.EveryDistance -> "d${value.meters.toInt()}"
+                is CueInterval.EveryTime -> "t${value.ms}"
+            }
+            sp.edit().putString("cue_interval", encoded).apply()
+        }
 
     fun setVoiceEnabled(enabled: Boolean) {
         _voiceEnabled.value = enabled

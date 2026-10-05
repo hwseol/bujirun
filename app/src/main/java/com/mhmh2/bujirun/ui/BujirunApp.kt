@@ -3,42 +3,52 @@ package com.mhmh2.bujirun.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.coach.Goal
+import com.mhmh2.bujirun.data.WorkoutEntity
+import com.mhmh2.bujirun.data.WorkoutStore
 import com.mhmh2.bujirun.tracking.WorkoutService
 import com.mhmh2.bujirun.tracking.WorkoutSession
-import com.mhmh2.bujirun.tracking.WorkoutSnapshot
 import com.mhmh2.bujirun.tracking.WorkoutStatus
-import com.mhmh2.bujirun.tracking.formatDuration
 import com.mhmh2.bujirun.tracking.formatKm
-import com.mhmh2.bujirun.tracking.formatPace
-import kotlin.math.roundToInt
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
+
+private enum class Tab(val label: String, val icon: ImageVector) {
+    HOME("홈", Icons.Filled.Home),
+    HISTORY("기록", Icons.AutoMirrored.Filled.List),
+    SETTINGS("설정", Icons.Filled.Settings),
+}
 
 /** Picks the screen from the workout state - the service is the source of truth, not the UI. */
 @Composable
@@ -47,11 +57,14 @@ fun BujirunApp() {
     val state by WorkoutSession.state.collectAsState()
     var permissionDenied by remember { mutableStateOf(false) }
     var pendingGoal by remember { mutableStateOf<Goal>(Goal.Free) }
+    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var openWorkout by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
-        // Notifications are optional (the service still records without them); location isn't.
+        // Notifications and activity recognition are optional (recording still works without
+        // them); location isn't.
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             permissionDenied = false
             WorkoutService.start(context, pendingGoal)
@@ -77,6 +90,7 @@ fun BujirunApp() {
     }
 
     val countdown = state.countdown
+    val finishedId = state.workoutId
     when {
         countdown != null -> CountdownScreen(countdown)
         state.status == WorkoutStatus.RUNNING || state.status == WorkoutStatus.PAUSED -> LiveWorkoutScreen(
@@ -85,51 +99,52 @@ fun BujirunApp() {
             onResume = { WorkoutService.send(context, WorkoutService.ACTION_RESUME) },
             onStop = { WorkoutService.send(context, WorkoutService.ACTION_STOP) }
         )
-        state.status == WorkoutStatus.FINISHED -> FinishedScreen(state, onDone = WorkoutSession::reset)
-        else -> HomeScreen(remember { Prefs.lastGoal }, permissionDenied, onStart = ::start)
+        state.status == WorkoutStatus.FINISHED && finishedId != null -> {
+            BackHandler { WorkoutSession.reset() }
+            SummaryScreen(finishedId, justFinished = true, onClose = {
+                WorkoutSession.reset()
+                tab = Tab.HOME
+            })
+        }
+        state.status == WorkoutStatus.FINISHED -> LaunchedEffect(Unit) { WorkoutSession.reset() }
+        openWorkout != null -> {
+            BackHandler { openWorkout = null }
+            SummaryScreen(openWorkout!!, justFinished = false, onClose = { openWorkout = null })
+        }
+        else -> Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    Tab.entries.forEach { t ->
+                        NavigationBarItem(
+                            selected = tab == t,
+                            onClick = { tab = t },
+                            icon = { Icon(t.icon, contentDescription = null) },
+                            label = { Text(t.label) }
+                        )
+                    }
+                }
+            }
+        ) { inner ->
+            Box(Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner)) {
+                when (tab) {
+                    Tab.HOME -> {
+                        val workouts by remember { WorkoutStore.observeDone() }.collectAsState(initial = emptyList())
+                        HomeScreen(remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts), onStart = ::start)
+                    }
+                    Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it })
+                    Tab.SETTINGS -> SettingsScreen()
+                }
+            }
+        }
     }
 }
 
-/** Placeholder until the real summary (route, splits, calories) in M4. */
-@Composable
-private fun FinishedScreen(state: WorkoutSnapshot, onDone: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("운동 끝", style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(32.dp))
-        Text(formatDuration(state.elapsedMs), fontSize = 56.sp)
-        Spacer(Modifier.height(24.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SummaryStat("거리", "${formatKm(state.distanceM)}km")
-            SummaryStat("평균 페이스", formatPace(state.averagePaceSecPerKm))
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SummaryStat("칼로리", "약 ${state.calories.roundToInt()}kcal")
-            SummaryStat("오르막", "${state.ascentM.roundToInt()}m")
-        }
-        val moving = state.runMs + state.walkMs
-        if (moving > 0) {
-            Spacer(Modifier.height(16.dp))
-            val runPct = (state.runMs * 100.0 / moving).roundToInt()
-            Text(
-                "달리기 $runPct% · 걷기 ${100 - runPct}%",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(Modifier.height(48.dp))
-        Button(onClick = onDone) { Text("확인") }
-    }
-}
-
-@Composable
-private fun SummaryStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontSize = 28.sp)
-    }
+/** "이번 주 3회 · 12.40km", or null before the first workout of the week. */
+private fun weekSummary(workouts: List<WorkoutEntity>): String? {
+    val zone = ZoneId.systemDefault()
+    val monday = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        .atStartOfDay(zone).toInstant().toEpochMilli()
+    val week = workouts.filter { it.startedAt >= monday }
+    if (week.isEmpty()) return null
+    return "이번 주 ${week.size}회 · ${formatKm(week.sumOf { it.distanceM })}km"
 }
