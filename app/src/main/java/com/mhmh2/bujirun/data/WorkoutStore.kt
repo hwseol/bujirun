@@ -29,9 +29,12 @@ object WorkoutStore {
     fun init(context: Context) {
         if (::db.isInitialized) return
         db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "bujirun.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
     }
+
+    /** Same database, course tables (see CourseStore). */
+    internal val database: AppDatabase get() = db
 
     // Shorter than this, and nowhere: an accidental start. Not worth a row in the history.
     private const val MIN_KEEP_MS = 10_000L

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -58,6 +59,7 @@ import java.time.temporal.TemporalAdjusters
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     HOME("홈", Icons.Filled.Home),
+    COURSES("코스", Icons.Filled.Map),
     HISTORY("기록", Icons.AutoMirrored.Filled.List),
     SETTINGS("설정", Icons.Filled.Settings),
 }
@@ -74,6 +76,11 @@ fun BujirunApp() {
     var adminChoiceFor by remember { mutableStateOf<Goal?>(null) }
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var openWorkout by rememberSaveable { mutableStateOf<Long?>(null) }
+    var openCourse by rememberSaveable { mutableStateOf<Long?>(null) }
+    var drawingCourse by rememberSaveable { mutableStateOf(false) }
+    // A GPX opened from another app lands on the courses tab, which imports it.
+    val pendingImport by PendingImport.uri.collectAsState()
+    LaunchedEffect(pendingImport) { if (pendingImport != null) { openCourse = null; drawingCourse = false; tab = Tab.COURSES } }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -92,7 +99,7 @@ fun BujirunApp() {
     // activity being recreated) still takes precedence below, so it's never orphaned.
     val signedIn = user
     // Whoever just signed in starts on home, not on whatever tab the previous session left open.
-    LaunchedEffect(signedIn?.email) { tab = Tab.HOME }
+    LaunchedEffect(signedIn?.email) { if (PendingImport.uri.value == null) tab = Tab.HOME }
     val workoutActive = state.countdown != null || state.status != WorkoutStatus.IDLE
     if (signedIn == null && !workoutActive) {
         LoginScreen()
@@ -146,6 +153,17 @@ fun BujirunApp() {
             BackHandler { openWorkout = null }
             SummaryScreen(openWorkout!!, justFinished = false, onClose = { openWorkout = null })
         }
+        drawingCourse -> {
+            BackHandler { drawingCourse = false }
+            CourseDrawScreen(
+                onClose = { drawingCourse = false },
+                onSaved = { id -> drawingCourse = false; openCourse = id },
+            )
+        }
+        openCourse != null -> {
+            BackHandler { openCourse = null }
+            CourseDetailScreen(openCourse!!, onClose = { openCourse = null })
+        }
         else -> Scaffold(
             bottomBar = {
                 NavigationBar {
@@ -170,6 +188,7 @@ fun BujirunApp() {
                             onStart = { goal -> if (signedIn?.isAdmin == true) adminChoiceFor = goal else start(goal) },
                         )
                     }
+                    Tab.COURSES -> CoursesScreen(onOpen = { openCourse = it }, onDraw = { drawingCourse = true })
                     Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it })
                     Tab.SETTINGS -> SettingsScreen()
                 }

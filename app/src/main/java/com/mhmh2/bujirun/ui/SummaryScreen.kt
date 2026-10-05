@@ -9,6 +9,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.health.connect.client.PermissionController
+import com.mhmh2.bujirun.course.CourseSource
+import com.mhmh2.bujirun.course.CourseStore
+import com.mhmh2.bujirun.course.GeoPoint
 import com.mhmh2.bujirun.data.GpxShare
 import com.mhmh2.bujirun.data.HealthExport
 import kotlinx.coroutines.launch
@@ -67,6 +70,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     val pointRows by remember(workoutId) { WorkoutStore.observePoints(workoutId) }.collectAsState(initial = emptyList())
     val points = remember(pointRows) { pointRows.map { it.toTrackPoint() } }
     var confirmDelete by remember { mutableStateOf(false) }
+    var savingCourse by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -159,6 +163,11 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                     Text("삼성헬스에 저장")
                 }
             }
+            OutlinedButton(
+                onClick = { savingCourse = true },
+                enabled = points.size >= 2,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) { Text("이 경로를 코스로 저장") }
             Text(
                 if (w.simulated) "테스트 기록은 삼성헬스에 저장하지 않아요."
                 else "GPX는 Strava, Garmin 등에 올릴 수 있어요. 삼성헬스는 Health Connect를 거쳐 저장돼요 " +
@@ -171,6 +180,16 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         }
         if (justFinished) {
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp)) { Text("확인") }
+        }
+    }
+
+    if (savingCourse) {
+        NameDialog("코스 이름", w?.let { workoutTitle(it).removeSuffix(" (테스트)") }.orEmpty(), onDismiss = { savingCourse = false }) { name ->
+            savingCourse = false
+            scope.launch {
+                CourseStore.save(name, CourseSource.WORKOUT, points.map { GeoPoint(it.sample.lat, it.sample.lon, it.sample.altitudeM) })
+                toast("코스에 저장했어요. 코스 탭에서 볼 수 있어요.")
+            }
         }
     }
 

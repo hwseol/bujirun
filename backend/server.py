@@ -9,9 +9,22 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 import accounts
+import routes
 
 app = FastAPI(title="Bujirun API")
 accounts.init_db()
+
+
+class RouteRequest(BaseModel):
+    start: list[float]  # [lat, lon]
+    end: list[float]
+
+
+def _user(authorization: str | None):
+    user = accounts.user_by_token(authorization) if authorization else None
+    if user is None:
+        raise HTTPException(status_code=401, detail="다시 로그인해 주세요.")
+    return user
 
 
 class SignupRequest(BaseModel):
@@ -70,6 +83,20 @@ def delete_account(req: LoginRequest):
     except accounts.AccountError as e:
         _fail(e)
     return {"ok": True}
+
+
+@app.post("/routes/pedestrian")
+def pedestrian_route(req: RouteRequest, authorization: str | None = Header(None)):
+    """A walking route between two points, for drawing courses. Signed-in users only (it spends
+    a shared daily TMAP quota)."""
+    user = _user(authorization)
+    if len(req.start) != 2 or len(req.end) != 2:
+        raise HTTPException(status_code=400, detail="잘못된 위치예요.")
+    try:
+        routes.charge(user["id"])
+        return routes.pedestrian(req.start, req.end)
+    except routes.RouteError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/health")

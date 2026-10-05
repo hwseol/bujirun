@@ -82,15 +82,83 @@ interface WorkoutDao {
     }
 }
 
-@Database(entities = [WorkoutEntity::class, TrackPointEntity::class], version = 2, exportSchema = false)
+/** A route to run: imported from GPX, saved from a workout, or drawn on the map. */
+@Entity(tableName = "courses")
+data class CourseEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val source: String,       // CourseSource name
+    val distanceM: Double,
+    val ascentM: Double,
+    val isLoop: Boolean,
+    val createdAt: Long,      // epoch ms
+)
+
+@Entity(tableName = "course_points", indices = [Index("courseId")])
+data class CoursePointEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val courseId: Long,
+    val seq: Int,
+    val lat: Double,
+    val lon: Double,
+    val altitudeM: Double?,
+)
+
+@Dao
+interface CourseDao {
+    @Insert suspend fun insert(course: CourseEntity): Long
+    @Insert suspend fun insertPoints(points: List<CoursePointEntity>)
+    @Query("UPDATE courses SET name = :name WHERE id = :id") suspend fun rename(id: Long, name: String)
+    @Query("SELECT * FROM courses ORDER BY createdAt DESC") fun observeAll(): Flow<List<CourseEntity>>
+    @Query("SELECT * FROM courses WHERE id = :id") fun observe(id: Long): Flow<CourseEntity?>
+    @Query("SELECT * FROM course_points WHERE courseId = :id ORDER BY seq") fun observePoints(id: Long): Flow<List<CoursePointEntity>>
+    @Query("SELECT * FROM course_points WHERE courseId = :id ORDER BY seq") suspend fun points(id: Long): List<CoursePointEntity>
+    @Query("DELETE FROM course_points WHERE courseId = :id") suspend fun deletePoints(id: Long)
+    @Query("DELETE FROM courses WHERE id = :id") suspend fun deleteCourse(id: Long)
+
+    @Transaction
+    suspend fun insertWithPoints(course: CourseEntity, points: List<CoursePointEntity>): Long {
+        val id = insert(course)
+        insertPoints(points.map { it.copy(courseId = id) })
+        return id
+    }
+
+    @Transaction
+    suspend fun delete(id: Long) {
+        deletePoints(id)
+        deleteCourse(id)
+    }
+}
+
+@Database(
+    entities = [WorkoutEntity::class, TrackPointEntity::class, CourseEntity::class, CoursePointEntity::class],
+    version = 3,
+    exportSchema = false,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workouts(): WorkoutDao
+    abstract fun courses(): CourseDao
 
     companion object {
-        // Testers' phones already hold version-1 databases with real workouts: migrate, never wipe.
+        // Testers' phones already hold databases with real workouts: migrate, never wipe.
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE workouts ADD COLUMN simulated INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `courses` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `source` TEXT NOT NULL, `distanceM` REAL NOT NULL, `ascentM` REAL NOT NULL, " +
+                        "`isLoop` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `course_points` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`courseId` INTEGER NOT NULL, `seq` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, " +
+                        "`altitudeM` REAL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_course_points_courseId` ON `course_points` (`courseId`)")
             }
         }
     }

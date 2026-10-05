@@ -1,6 +1,10 @@
 package com.mhmh2.bujirun
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import androidx.core.content.IntentCompat
+import com.mhmh2.bujirun.ui.PendingImport
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -24,6 +28,7 @@ class MainActivity : ComponentActivity() {
         // off IDLE), so any workout still marked in-progress was cut short by the process dying.
         val s = WorkoutSession.state.value
         if (s.status == WorkoutStatus.IDLE && s.countdown == null) WorkoutStore.recoverInterrupted()
+        handleGpx(intent)
         enableEdgeToEdge()
         setContent {
             BujirunTheme {
@@ -32,5 +37,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleGpx(intent)
+    }
+
+    /** A GPX opened or shared from another app: hand it to the courses tab to import. */
+    private fun handleGpx(intent: Intent?) {
+        val uri: Uri? = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            else -> null
+        }
+        if (uri != null) PendingImport.uri.value = uri
     }
 }

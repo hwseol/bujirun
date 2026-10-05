@@ -40,10 +40,12 @@ data class TrackPoint(
 private const val EARTH_RADIUS_M = 6_371_000.0
 
 /** Great-circle (haversine) distance - accurate to well under a metre at running distances. */
-fun distanceMeters(a: LocationSample, b: LocationSample): Double {
-    val dLat = Math.toRadians(b.lat - a.lat)
-    val dLon = Math.toRadians(b.lon - a.lon)
+fun distanceMeters(a: LocationSample, b: LocationSample): Double = distanceMeters(a.lat, a.lon, b.lat, b.lon)
+
+fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
     val h = sin(dLat / 2).let { it * it } +
-        cos(Math.toRadians(a.lat)) * cos(Math.toRadians(b.lat)) * sin(dLon / 2).let { it * it }
+        cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).let { it * it }
     return 2 * EARTH_RADIUS_M * asin(sqrt(h))
 }
