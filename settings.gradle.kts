@@ -16,6 +16,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // NAVER Map SDK isn't on Maven Central.
+        maven("https://repository.map.naver.com/archive/maven")
     }
 }
 

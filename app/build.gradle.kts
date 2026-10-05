@@ -25,6 +25,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+
+        // NAVER Cloud Platform Maps client ID. Not a secret: it ships inside the app and only
+        // works for the package name registered with it (com.mhmh2.bujirun). The client
+        // *secret* is never used by the app and must not be committed.
+        manifestPlaceholders["naverMapClientId"] = "y7j83b46cr"
     }
 
     signingConfigs {
@@ -89,5 +94,6 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.health.connect)
+    implementation(libs.naver.map)
     testImplementation(libs.junit)
 }
