@@ -15,7 +15,9 @@ DATA=~/bujirun/data
 mkdir -p "$DATA"
 
 cd "$APP"
-[ -d .venv ] || python3 -m venv .venv
+# python3.11, not the system default python3 (3.9 on this Amazon Linux): the code uses 3.10+
+# syntax (`str | None`). EnglishBite's venv uses 3.11 too.
+[ -d .venv ] || python3.11 -m venv .venv
 .venv/bin/pip install -q -r requirements.txt
 
 sudo tee /etc/systemd/system/bujirun-api.service >/dev/null <<EOF
