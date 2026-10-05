@@ -79,7 +79,9 @@ class ApiTest(unittest.TestCase):
         accounts.init_db()
         try:
             from fastapi.testclient import TestClient
-        except ImportError as e:  # httpx missing
+        except (ImportError, RuntimeError) as e:
+            # No HTTP test client installed (newer Starlette raises RuntimeError asking for
+            # httpx2). The server doesn't need one to run; skip rather than fail.
             self.skipTest(str(e))
         import server
         self.client = TestClient(server.app)
