@@ -26,7 +26,13 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.mhmh2.bujirun.MainActivity
+import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.R
+import com.mhmh2.bujirun.coach.CoachEngine
+import com.mhmh2.bujirun.coach.Cue
+import com.mhmh2.bujirun.coach.CueText
+import com.mhmh2.bujirun.coach.Goal
+import com.mhmh2.bujirun.coach.VoiceAnnouncer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -46,6 +52,10 @@ class WorkoutService : LifecycleService() {
 
     private lateinit var fused: FusedLocationProviderClient
     private var tracker: WorkoutTracker? = null
+    private var coach: CoachEngine? = null
+    private var voice: VoiceAnnouncer? = null
+    private var goal: Goal = Goal.Free
+    private var countdown: Int? = null
     private var ticker: Job? = null
 
     private val locationCallback = object : LocationCallback() {
@@ -57,6 +67,7 @@ class WorkoutService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
+        Prefs.init(this)
         fused = LocationServices.getFusedLocationProviderClient(this)
         createChannel()
     }
@@ -65,9 +76,17 @@ class WorkoutService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         val now = SystemClock.elapsedRealtime()
         when (intent?.action) {
-            ACTION_START -> start(now)
-            ACTION_PAUSE -> tracker?.pause(now)
-            ACTION_RESUME -> tracker?.resume(now)
+            ACTION_START -> start(
+                Goal.decode(intent.getStringExtra(EXTRA_GOAL_TYPE), intent.getDoubleExtra(EXTRA_GOAL_VALUE, 0.0))
+            )
+            ACTION_PAUSE -> tracker?.takeIf { it.status == WorkoutStatus.RUNNING }?.let {
+                it.pause(now)
+                say(Cue.Paused)
+            }
+            ACTION_RESUME -> tracker?.takeIf { it.status == WorkoutStatus.PAUSED }?.let {
+                it.resume(now)
+                say(Cue.Resumed)
+            }
             ACTION_STOP -> stop(now)
         }
         publish()
@@ -76,23 +95,38 @@ class WorkoutService : LifecycleService() {
         return START_NOT_STICKY
     }
 
-    private fun start(now: Long) {
+    private fun start(goal: Goal) {
         if (tracker != null) return
         if (!hasLocationPermission()) {
             stopSelf()
             return
         }
+        this.goal = goal
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
-            buildNotification(WorkoutSnapshot(status = WorkoutStatus.RUNNING)),
+            buildNotification(WorkoutSnapshot(goal = goal, countdown = COUNTDOWN_FROM)),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
         )
-        tracker = WorkoutTracker().also { it.start(now) }
+        val t = WorkoutTracker()
+        tracker = t
+        coach = CoachEngine(goal)
+        voice = VoiceAnnouncer(this)
+        // GPS starts now so it has the countdown to get a fix before the clock runs.
         requestLocationUpdates()
         ticker = lifecycleScope.launch {
-            while (isActive) {
+            for (n in COUNTDOWN_FROM downTo 1) {
+                countdown = n
+                say(Cue.Countdown(n))
                 publish()
+                delay(1000)
+            }
+            countdown = null
+            t.start(SystemClock.elapsedRealtime())
+            say(Cue.Started(goal))
+            while (isActive) {
+                val snapshot = publish() ?: break
+                coach?.onTick(snapshot)?.forEach(::say)
                 delay(1000)
             }
         }
@@ -100,22 +134,37 @@ class WorkoutService : LifecycleService() {
 
     private fun stop(now: Long) {
         val t = tracker ?: run { stopSelf(); return }
-        t.finish(now)
-        publish()
-        tracker = null
         ticker?.cancel()
+        if (countdown != null) {
+            // Cancelled before it began: nothing to show, straight back to the start screen.
+            WorkoutSession.publish(WorkoutSnapshot())
+        } else {
+            t.finish(now)
+            publish()
+            say(Cue.Finished(t.distanceM, t.elapsedMs(now), t.averagePaceSecPerKm(now)))
+        }
+        voice?.releaseWhenDone()
+        tracker = null
+        coach = null
+        voice = null
+        countdown = null
         fused.removeLocationUpdates(locationCallback)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    private fun publish() {
-        val t = tracker ?: return
-        val snapshot = t.snapshot(SystemClock.elapsedRealtime())
+    private fun say(cue: Cue) {
+        if (Prefs.voiceEnabled.value) voice?.speak(CueText.of(cue))
+    }
+
+    private fun publish(): WorkoutSnapshot? {
+        val t = tracker ?: return null
+        val snapshot = t.snapshot(SystemClock.elapsedRealtime()).copy(goal = goal, countdown = countdown)
         WorkoutSession.publish(snapshot)
-        if (snapshot.status == WorkoutStatus.RUNNING || snapshot.status == WorkoutStatus.PAUSED) {
+        if (snapshot.status != WorkoutStatus.FINISHED) {
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(snapshot))
         }
+        return snapshot
     }
 
     @SuppressLint("MissingPermission") // checked in start() before we get here
@@ -144,24 +193,28 @@ class WorkoutService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val paused = s.status == WorkoutStatus.PAUSED
-        val toggle = if (paused) {
-            NotificationCompat.Action(0, "재개", servicePendingIntent(ACTION_RESUME))
-        } else {
-            NotificationCompat.Action(0, "일시정지", servicePendingIntent(ACTION_PAUSE))
+        val title = when {
+            s.countdown != null -> "곧 시작합니다"
+            paused -> "일시정지"
+            !s.hasFix -> "GPS 찾는 중"
+            else -> "운동 중"
         }
-        val title = if (paused) "일시정지" else if (!s.hasFix) "GPS 찾는 중" else "운동 중"
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_run)
             .setContentTitle(title)
             .setContentText("${formatDuration(s.elapsedMs)} · ${formatKm(s.distanceM)}km · ${formatPace(s.currentPaceSecPerKm)}/km")
             .setContentIntent(openApp)
-            .addAction(toggle)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+        when (s.status) {
+            WorkoutStatus.RUNNING -> builder.addAction(0, "일시정지", servicePendingIntent(ACTION_PAUSE))
+            WorkoutStatus.PAUSED -> builder.addAction(0, "재개", servicePendingIntent(ACTION_RESUME))
+            else -> {}
+        }
+        return builder.build()
     }
 
     private fun servicePendingIntent(action: String) = PendingIntent.getService(
@@ -172,21 +225,32 @@ class WorkoutService : LifecycleService() {
 
     override fun onDestroy() {
         fused.removeLocationUpdates(locationCallback)
+        voice?.releaseWhenDone()
         super.onDestroy()
     }
 
     companion object {
         private const val CHANNEL_ID = "workout"
         private const val NOTIFICATION_ID = 1
+        private const val COUNTDOWN_FROM = 3
         const val ACTION_START = "com.mhmh2.bujirun.START"
         const val ACTION_PAUSE = "com.mhmh2.bujirun.PAUSE"
         const val ACTION_RESUME = "com.mhmh2.bujirun.RESUME"
         const val ACTION_STOP = "com.mhmh2.bujirun.STOP"
+        private const val EXTRA_GOAL_TYPE = "goal_type"
+        private const val EXTRA_GOAL_VALUE = "goal_value"
+
+        fun start(context: Context, goal: Goal) {
+            val (type, value) = goal.encode()
+            val intent = Intent(context, WorkoutService::class.java)
+                .setAction(ACTION_START)
+                .putExtra(EXTRA_GOAL_TYPE, type)
+                .putExtra(EXTRA_GOAL_VALUE, value)
+            ContextCompat.startForegroundService(context, intent)
+        }
 
         fun send(context: Context, action: String) {
-            val intent = Intent(context, WorkoutService::class.java).setAction(action)
-            if (action == ACTION_START) ContextCompat.startForegroundService(context, intent)
-            else context.startService(intent)
+            context.startService(Intent(context, WorkoutService::class.java).setAction(action))
         }
     }
 }

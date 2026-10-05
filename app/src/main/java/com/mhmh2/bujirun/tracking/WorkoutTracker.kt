@@ -1,9 +1,14 @@
 package com.mhmh2.bujirun.tracking
 
+import com.mhmh2.bujirun.coach.Goal
+
 enum class WorkoutStatus { IDLE, RUNNING, PAUSED, FINISHED }
 
 /** Everything the screen and the notification show, frozen at one moment. */
 data class WorkoutSnapshot(
+    val goal: Goal = Goal.Free,
+    // 3, 2, 1 before the clock starts (GPS is already warming up meanwhile); null otherwise.
+    val countdown: Int? = null,
     val status: WorkoutStatus = WorkoutStatus.IDLE,
     val elapsedMs: Long = 0,
     val distanceM: Double = 0.0,
