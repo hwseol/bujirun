@@ -10,6 +10,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Build
 import android.os.Looper
@@ -58,11 +62,29 @@ class WorkoutService : LifecycleService() {
     private var countdown: Int? = null
     private var ticker: Job? = null
 
+    // Walk/run detection and auto-pause (see Motion.kt).
+    private enum class PausedBy { USER, AUTO }
+    private var pausedBy: PausedBy? = null
+    private var speedMeter = SpeedMeter()
+    private var cadenceMeter = CadenceMeter()
+    private var classifier = ActivityClassifier()
+    private var autoPause = AutoPauseDetector()
+    private var stepSensorActive = false
+
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val t = tracker ?: return
-            result.locations.forEach { t.onLocation(it.toSample()) }
+            result.locations.forEach {
+                val sample = it.toSample()
+                speedMeter.add(sample)
+                t.onLocation(sample)
+            }
         }
+    }
+
+    private val stepListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) = cadenceMeter.onStep(SystemClock.elapsedRealtime())
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
     override fun onCreate() {
@@ -81,10 +103,13 @@ class WorkoutService : LifecycleService() {
             )
             ACTION_PAUSE -> tracker?.takeIf { it.status == WorkoutStatus.RUNNING }?.let {
                 it.pause(now)
+                pausedBy = PausedBy.USER
                 say(Cue.Paused)
             }
+            // Also the way out of an auto-pause, if the runner doesn't want to wait for it.
             ACTION_RESUME -> tracker?.takeIf { it.status == WorkoutStatus.PAUSED }?.let {
                 it.resume(now)
+                pausedBy = null
                 say(Cue.Resumed)
             }
             ACTION_STOP -> stop(now)
@@ -108,12 +133,18 @@ class WorkoutService : LifecycleService() {
             buildNotification(WorkoutSnapshot(goal = goal, countdown = COUNTDOWN_FROM)),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
         )
-        val t = WorkoutTracker()
+        val t = WorkoutTracker(weightKg = Prefs.weightKg)
         tracker = t
         coach = CoachEngine(goal)
         voice = VoiceAnnouncer(this)
+        pausedBy = null
+        speedMeter = SpeedMeter()
+        cadenceMeter = CadenceMeter()
+        classifier = ActivityClassifier()
+        autoPause = AutoPauseDetector()
         // GPS starts now so it has the countdown to get a fix before the clock runs.
         requestLocationUpdates()
+        stepSensorActive = registerStepSensor()
         ticker = lifecycleScope.launch {
             for (n in COUNTDOWN_FROM downTo 1) {
                 countdown = n
@@ -125,11 +156,65 @@ class WorkoutService : LifecycleService() {
             t.start(SystemClock.elapsedRealtime())
             say(Cue.Started(goal))
             while (isActive) {
+                updateMotion(SystemClock.elapsedRealtime())
                 val snapshot = publish() ?: break
                 coach?.onTick(snapshot)?.forEach(::say)
                 delay(1000)
             }
         }
+    }
+
+    /** Once a second: walking or running, and whether to auto-pause/resume. */
+    private fun updateMotion(now: Long) {
+        val t = tracker ?: return
+        // Without the step sensor (no permission, or the phone lacks one) GPS speed decides alone.
+        val cadence = if (stepSensorActive) cadenceMeter.cadence(now) else null
+        val recentSteps = if (stepSensorActive) cadenceMeter.stepsSince(now - 5_000) else null
+
+        if (t.status == WorkoutStatus.RUNNING) {
+            t.activity = classifier.update(now, speedMeter.speed(10_000, now), cadence)
+            t.tick(now)
+        }
+        // A pause the user chose is theirs to end - never auto-resume it.
+        if (!Prefs.autoPause.value || pausedBy == PausedBy.USER) return
+        val decision = autoPause.update(
+            now,
+            autoPaused = pausedBy == PausedBy.AUTO,
+            slowSpeed = speedMeter.speed(8_000, now),
+            quickSpeed = speedMeter.speed(3_000, now),
+            recentSteps = recentSteps,
+        )
+        // Standing at the start line also auto-pauses (the clock shouldn't run before the first
+        // step), but announcing it right after "starting" would be noise - stay quiet until the
+        // runner has actually gone somewhere.
+        val announce = t.distanceM >= 10
+        when (decision) {
+            AutoPauseDetector.Decision.PAUSE -> if (t.status == WorkoutStatus.RUNNING) {
+                t.pause(now)
+                pausedBy = PausedBy.AUTO
+                if (announce) say(Cue.AutoPaused)
+            }
+            AutoPauseDetector.Decision.RESUME -> if (pausedBy == PausedBy.AUTO) {
+                t.resume(now)
+                pausedBy = null
+                if (announce) say(Cue.Resumed)
+            }
+            AutoPauseDetector.Decision.NONE -> {}
+        }
+    }
+
+    private fun registerStepSensor(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED
+        ) return false
+        val sensors = getSystemService(SensorManager::class.java)
+        val detector = sensors.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) ?: return false
+        return sensors.registerListener(stepListener, detector, SensorManager.SENSOR_DELAY_NORMAL)
+    }
+
+    private fun unregisterStepSensor() {
+        if (stepSensorActive) getSystemService(SensorManager::class.java).unregisterListener(stepListener)
+        stepSensorActive = false
     }
 
     private fun stop(now: Long) {
@@ -141,14 +226,16 @@ class WorkoutService : LifecycleService() {
         } else {
             t.finish(now)
             publish()
-            say(Cue.Finished(t.distanceM, t.elapsedMs(now), t.averagePaceSecPerKm(now)))
+            say(Cue.Finished(t.distanceM, t.elapsedMs(now), t.averagePaceSecPerKm(now), t.calories))
         }
         voice?.releaseWhenDone()
         tracker = null
         coach = null
         voice = null
         countdown = null
+        pausedBy = null
         fused.removeLocationUpdates(locationCallback)
+        unregisterStepSensor()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -159,7 +246,8 @@ class WorkoutService : LifecycleService() {
 
     private fun publish(): WorkoutSnapshot? {
         val t = tracker ?: return null
-        val snapshot = t.snapshot(SystemClock.elapsedRealtime()).copy(goal = goal, countdown = countdown)
+        val snapshot = t.snapshot(SystemClock.elapsedRealtime())
+            .copy(goal = goal, countdown = countdown, autoPaused = pausedBy == PausedBy.AUTO)
         WorkoutSession.publish(snapshot)
         if (snapshot.status != WorkoutStatus.FINISHED) {
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(snapshot))
@@ -195,9 +283,10 @@ class WorkoutService : LifecycleService() {
         val paused = s.status == WorkoutStatus.PAUSED
         val title = when {
             s.countdown != null -> "곧 시작합니다"
+            s.autoPaused -> "자동 일시정지"
             paused -> "일시정지"
             !s.hasFix -> "GPS 찾는 중"
-            else -> "운동 중"
+            else -> activityLabel(s.activity)
         }
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_run)
@@ -225,6 +314,7 @@ class WorkoutService : LifecycleService() {
 
     override fun onDestroy() {
         fused.removeLocationUpdates(locationCallback)
+        unregisterStepSensor()
         voice?.releaseWhenDone()
         super.onDestroy()
     }
@@ -261,4 +351,5 @@ private fun Location.toSample() = LocationSample(
     lon = longitude,
     accuracyM = if (hasAccuracy()) accuracy else Float.MAX_VALUE,
     altitudeM = if (hasAltitude()) altitude else null,
+    speedMps = if (hasSpeed()) speed.toDouble() else null,
 )

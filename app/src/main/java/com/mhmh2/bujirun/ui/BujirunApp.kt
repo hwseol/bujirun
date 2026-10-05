@@ -38,6 +38,7 @@ import com.mhmh2.bujirun.tracking.WorkoutStatus
 import com.mhmh2.bujirun.tracking.formatDuration
 import com.mhmh2.bujirun.tracking.formatKm
 import com.mhmh2.bujirun.tracking.formatPace
+import kotlin.math.roundToInt
 
 /** Picks the screen from the workout state - the service is the source of truth, not the UI. */
 @Composable
@@ -66,6 +67,7 @@ fun BujirunApp() {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
         val missing = needed.filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
@@ -101,16 +103,33 @@ private fun FinishedScreen(state: WorkoutSnapshot, onDone: () -> Unit) {
         Text(formatDuration(state.elapsedMs), fontSize = 56.sp)
         Spacer(Modifier.height(24.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("거리", style = MaterialTheme.typography.bodySmall)
-                Text("${formatKm(state.distanceM)}km", fontSize = 28.sp)
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("평균 페이스", style = MaterialTheme.typography.bodySmall)
-                Text(formatPace(state.averagePaceSecPerKm), fontSize = 28.sp)
-            }
+            SummaryStat("거리", "${formatKm(state.distanceM)}km")
+            SummaryStat("평균 페이스", formatPace(state.averagePaceSecPerKm))
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            SummaryStat("칼로리", "약 ${state.calories.roundToInt()}kcal")
+            SummaryStat("오르막", "${state.ascentM.roundToInt()}m")
+        }
+        val moving = state.runMs + state.walkMs
+        if (moving > 0) {
+            Spacer(Modifier.height(16.dp))
+            val runPct = (state.runMs * 100.0 / moving).roundToInt()
+            Text(
+                "달리기 $runPct% · 걷기 ${100 - runPct}%",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Spacer(Modifier.height(48.dp))
         Button(onClick = onDone) { Text("확인") }
+    }
+}
+
+@Composable
+private fun SummaryStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 28.sp)
     }
 }

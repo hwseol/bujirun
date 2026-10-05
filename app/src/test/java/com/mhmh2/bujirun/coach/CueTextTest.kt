@@ -29,5 +29,9 @@ class CueTextTest {
         assertEquals("조금 빠르게. 지금 6분 30초 페이스예요.", CueText.of(Cue.PaceAdvice(true, 390.0)))
         assertEquals("목표 달성! 5킬로미터, 31분 4초.", CueText.of(Cue.GoalReached(5000.0, 1_864_000)))
         assertEquals("운동을 마쳤습니다. 총 시간 12초.", CueText.of(Cue.Finished(2.0, 12_000, null)))
+        assertEquals(
+            "운동을 마쳤습니다. 5킬로미터, 31분 4초. 평균 페이스 6분 13초. 약 312킬로칼로리.",
+            CueText.of(Cue.Finished(5000.0, 1_864_000, 372.8, 311.6))
+        )
     }
 }

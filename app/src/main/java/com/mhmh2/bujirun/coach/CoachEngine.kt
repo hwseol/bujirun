@@ -17,8 +17,14 @@ sealed interface Cue {
     data class PaceAdvice(val speedUp: Boolean, val currentPaceSecPerKm: Double) : Cue
     data class GoalReached(val distanceM: Double, val totalMs: Long) : Cue
     data object Paused : Cue
+    data object AutoPaused : Cue
     data object Resumed : Cue
-    data class Finished(val distanceM: Double, val totalMs: Long, val averagePaceSecPerKm: Double?) : Cue
+    data class Finished(
+        val distanceM: Double,
+        val totalMs: Long,
+        val averagePaceSecPerKm: Double?,
+        val calories: Double = 0.0,
+    ) : Cue
 }
 
 /**

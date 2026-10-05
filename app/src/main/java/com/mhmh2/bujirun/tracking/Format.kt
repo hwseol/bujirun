@@ -16,6 +16,13 @@ fun formatDuration(ms: Long): String {
 /** 3.02 (km, two decimals - the convention every running app uses). */
 fun formatKm(meters: Double): String = String.format(Locale.US, "%.2f", meters / 1000.0)
 
+fun activityLabel(activity: Activity) = when (activity) {
+    Activity.RUN -> "달리는 중"
+    Activity.WALK -> "걷는 중"
+    Activity.STILL -> "멈춤"
+    Activity.UNKNOWN -> "기록 중"
+}
+
 /** 6'11" per km, or --'--" when there isn't enough data yet. */
 fun formatPace(secPerKm: Double?): String {
     // Slower than 60 min/km is standing still, not a pace worth showing.

@@ -18,10 +18,15 @@ data class LocationSample(
     val lon: Double,
     val accuracyM: Float,
     val altitudeM: Double? = null,
+    // Speed as reported by the GPS chip itself (Doppler), when the phone provides it.
+    val speedMps: Double? = null,
 )
 
-/** An accepted fix plus which run segment it belongs to (a new segment starts after each pause). */
-data class TrackPoint(val sample: LocationSample, val segment: Int)
+/**
+ * An accepted fix, which run segment it belongs to (a new segment starts after each pause), and
+ * whether the runner was walking or running there.
+ */
+data class TrackPoint(val sample: LocationSample, val segment: Int, val activity: Activity = Activity.UNKNOWN)
 
 private const val EARTH_RADIUS_M = 6_371_000.0
 

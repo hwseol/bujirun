@@ -13,11 +13,25 @@ object Prefs {
     private val _voiceEnabled = MutableStateFlow(true)
     val voiceEnabled: StateFlow<Boolean> = _voiceEnabled.asStateFlow()
 
+    private val _autoPause = MutableStateFlow(true)
+    val autoPause: StateFlow<Boolean> = _autoPause.asStateFlow()
+
     fun init(context: Context) {
         if (::sp.isInitialized) return
         sp = context.applicationContext.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         _voiceEnabled.value = sp.getBoolean("voice_enabled", true)
+        _autoPause.value = sp.getBoolean("auto_pause", true)
     }
+
+    fun setAutoPause(enabled: Boolean) {
+        _autoPause.value = enabled
+        sp.edit().putBoolean("auto_pause", enabled).apply()
+    }
+
+    /** For calories. Until the user sets it (settings, M4), an average adult's 65 kg. */
+    var weightKg: Double
+        get() = sp.getFloat("weight_kg", 65f).toDouble()
+        set(value) = sp.edit().putFloat("weight_kg", value.toFloat()).apply()
 
     fun setVoiceEnabled(enabled: Boolean) {
         _voiceEnabled.value = enabled

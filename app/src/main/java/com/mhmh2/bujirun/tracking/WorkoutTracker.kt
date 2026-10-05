@@ -10,20 +10,27 @@ data class WorkoutSnapshot(
     // 3, 2, 1 before the clock starts (GPS is already warming up meanwhile); null otherwise.
     val countdown: Int? = null,
     val status: WorkoutStatus = WorkoutStatus.IDLE,
+    val autoPaused: Boolean = false,
+    val activity: Activity = Activity.UNKNOWN,
     val elapsedMs: Long = 0,
     val distanceM: Double = 0.0,
     val currentPaceSecPerKm: Double? = null,
     val averagePaceSecPerKm: Double? = null,
+    val calories: Double = 0.0,
+    val ascentM: Double = 0.0,
+    val runMs: Long = 0,
+    val walkMs: Long = 0,
     val hasFix: Boolean = false,
     val pointCount: Int = 0,
 )
 
 /**
- * Turns a stream of GPS fixes plus start/pause/resume/finish into time and distance.
+ * Turns a stream of GPS fixes plus start/pause/resume/finish into time, distance and calories.
  * Pure logic: the caller supplies every timestamp (elapsed-realtime ms), so tests can drive it
  * with a fake clock.
  */
 class WorkoutTracker(
+    private val weightKg: Double = 65.0,
     private val filter: TrackFilter = TrackFilter(),
     // Standing still, GPS still wanders a few metres; adding every wobble would grow the
     // distance while not moving. Distance is only counted once we're this far from the last
@@ -36,9 +43,15 @@ class WorkoutTracker(
         private set
     var distanceM = 0.0
         private set
+    var calories = 0.0
+        private set
     var hasFix = false
         private set
 
+    /** Set by the caller from [ActivityClassifier]; labels new points and active time. */
+    var activity = Activity.UNKNOWN
+
+    private val elevation = ElevationTracker()
     private var activeMsBeforeSegment = 0L
     private var segmentStartMs = 0L
     private var segment = 0
@@ -47,6 +60,8 @@ class WorkoutTracker(
     private val points = mutableListOf<TrackPoint>()
     // (time, cumulative distance) of recent counted points, for the rolling current pace.
     private val recent = ArrayDeque<Pair<Long, Double>>()
+    private val activityMs = mutableMapOf<Activity, Long>()
+    private var lastTickMs: Long? = null
 
     val track: List<TrackPoint> get() = points
 
@@ -54,10 +69,12 @@ class WorkoutTracker(
         check(status == WorkoutStatus.IDLE) { "already started" }
         status = WorkoutStatus.RUNNING
         segmentStartMs = nowMs
+        lastTickMs = nowMs
     }
 
     fun pause(nowMs: Long) {
         if (status != WorkoutStatus.RUNNING) return
+        tick(nowMs)
         activeMsBeforeSegment += nowMs - segmentStartMs
         status = WorkoutStatus.PAUSED
         // Whatever distance is covered while paused (walking back to the start, etc.) must not
@@ -65,18 +82,29 @@ class WorkoutTracker(
         anchor = null
         lastAccepted = null
         recent.clear()
+        elevation.breakSegment()
     }
 
     fun resume(nowMs: Long) {
         if (status != WorkoutStatus.PAUSED) return
         status = WorkoutStatus.RUNNING
         segmentStartMs = nowMs
+        lastTickMs = nowMs
         segment++
     }
 
     fun finish(nowMs: Long) {
         pause(nowMs)
         status = WorkoutStatus.FINISHED
+    }
+
+    /** Credits the active time since the last tick to the current activity (run/walk split). */
+    fun tick(nowMs: Long) {
+        val last = lastTickMs
+        if (status == WorkoutStatus.RUNNING && last != null && nowMs > last) {
+            activityMs[activity] = (activityMs[activity] ?: 0L) + (nowMs - last)
+        }
+        lastTickMs = nowMs
     }
 
     fun elapsedMs(nowMs: Long): Long =
@@ -96,12 +124,14 @@ class WorkoutTracker(
         val step = distanceMeters(from, sample)
         if (step < minStepM) return
         distanceM += step
+        elevation.add(sample.altitudeM, step)
+        calories += Calories.kcal(activity, step, (sample.timeMs - from.timeMs) / 1000.0, elevation.grade, weightKg)
         countPoint(sample)
     }
 
     private fun countPoint(sample: LocationSample) {
         anchor = sample
-        points += TrackPoint(sample, segment)
+        points += TrackPoint(sample, segment, activity)
         recent.addLast(sample.timeMs to distanceM)
     }
 
@@ -126,10 +156,15 @@ class WorkoutTracker(
 
     fun snapshot(nowMs: Long) = WorkoutSnapshot(
         status = status,
+        activity = activity,
         elapsedMs = elapsedMs(nowMs),
         distanceM = distanceM,
         currentPaceSecPerKm = currentPaceSecPerKm(nowMs),
         averagePaceSecPerKm = averagePaceSecPerKm(nowMs),
+        calories = calories,
+        ascentM = elevation.ascentM,
+        runMs = activityMs[Activity.RUN] ?: 0L,
+        walkMs = activityMs[Activity.WALK] ?: 0L,
         hasFix = hasFix,
         pointCount = points.size,
     )

@@ -22,11 +22,13 @@ object CueText {
             (if (cue.speedUp) "조금 빠르게. " else "조금 천천히. ") + "지금 ${pace(cue.currentPaceSecPerKm)} 페이스예요."
         is Cue.GoalReached -> "목표 달성! ${km(cue.distanceM)}, ${duration(cue.totalMs)}."
         Cue.Paused -> "일시정지."
+        Cue.AutoPaused -> "자동 일시정지."
         Cue.Resumed -> "다시 시작합니다."
         is Cue.Finished ->
             if (cue.distanceM < 10) "운동을 마쳤습니다. 총 시간 ${duration(cue.totalMs)}."
             else "운동을 마쳤습니다. ${km(cue.distanceM)}, ${duration(cue.totalMs)}." +
-                (cue.averagePaceSecPerKm?.let { " 평균 페이스 ${pace(it)}." } ?: "")
+                (cue.averagePaceSecPerKm?.let { " 평균 페이스 ${pace(it)}." } ?: "") +
+                (if (cue.calories >= 1) " 약 ${cue.calories.roundToLong()}킬로칼로리." else "")
     }
 
     private fun goalPhrase(goal: Goal) = when (goal) {

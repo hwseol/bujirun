@@ -34,6 +34,7 @@ import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.coach.Goal
 import com.mhmh2.bujirun.tracking.WorkoutSnapshot
 import com.mhmh2.bujirun.tracking.WorkoutStatus
+import com.mhmh2.bujirun.tracking.activityLabel
 import com.mhmh2.bujirun.tracking.formatDuration
 import com.mhmh2.bujirun.tracking.formatKm
 import com.mhmh2.bujirun.tracking.formatPace
@@ -64,9 +65,10 @@ fun LiveWorkoutScreen(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             StatusBadge(
                 when {
+                    state.autoPaused -> "자동 일시정지"
                     paused -> "일시정지"
                     !state.hasFix -> "GPS 찾는 중"
-                    else -> "기록 중" // becomes 달리는 중 / 걷는 중 with M3's detection
+                    else -> activityLabel(state.activity)
                 },
                 emphasized = !paused && state.hasFix
             )
@@ -88,7 +90,13 @@ fun LiveWorkoutScreen(
             if (state.goal is Goal.Free) BigStat("평균 페이스", formatPace(state.averagePaceSecPerKm), "/km")
             else BigStat("현재 페이스", formatPace(state.currentPaceSecPerKm), "/km")
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "약 ${state.calories.roundToInt()}kcal",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(24.dp))
         GoalPanel(state)
         Spacer(Modifier.weight(1f))
 
