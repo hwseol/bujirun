@@ -1,0 +1,2 @@
+# Server files run on Linux: keep LF even on a Windows checkout (CRLF breaks bash scripts).
+backend/** text eol=lf
