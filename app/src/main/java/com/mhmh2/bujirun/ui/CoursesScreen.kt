@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -61,7 +62,7 @@ object PendingImport {
 }
 
 @Composable
-fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit) {
+fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val courses by remember { CourseStore.observeAll() }.collectAsState(initial = null)
@@ -87,8 +88,12 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit) {
 
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         Text("코스", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
+        Button(onClick = onSuggest, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Icon(Icons.Filled.NearMe, null); Spacer(Modifier.padding(start = 6.dp)); Text("내 주변 추천 코스")
+        }
+        Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onDraw, modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = onDraw, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Filled.Add, null); Spacer(Modifier.padding(start = 6.dp)); Text("지도에서 만들기")
             }
             // GPX has no reliable MIME type across apps and file managers; accept anything and

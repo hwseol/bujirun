@@ -20,6 +20,11 @@ class RouteRequest(BaseModel):
     end: list[float]
 
 
+class LoopRequest(BaseModel):
+    start: list[float]  # [lat, lon]
+    distance_m: float
+
+
 def _user(authorization: str | None):
     user = accounts.user_by_token(authorization) if authorization else None
     if user is None:
@@ -95,6 +100,18 @@ def pedestrian_route(req: RouteRequest, authorization: str | None = Header(None)
     try:
         routes.charge(user["id"])
         return routes.pedestrian(req.start, req.end)
+    except routes.RouteError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/routes/loops")
+def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
+    """Suggested loop courses of about [distance_m] starting and ending at [start]."""
+    user = _user(authorization)
+    if len(req.start) != 2 or not 1_000 <= req.distance_m <= 21_100:
+        raise HTTPException(status_code=400, detail="1~21km 사이로 골라 주세요.")
+    try:
+        return {"loops": routes.loops(req.start, req.distance_m, user["id"])}
     except routes.RouteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
