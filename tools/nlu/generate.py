@@ -1,16 +1,22 @@
-"""Have Claude write realistic course requests with their readings - the one-time, paid step of
+"""Have a large model write realistic course requests with their readings - the one-time step of
 docs/NL_COURSES.md section 6. Everything after this (training, the phone) is free.
 
-The key is read from ANTHROPIC_API_KEY or ~/.secrets/anthropic_api_key.txt (never the repo).
+Uses Gemini on Google AI Studio's free tier. The key is read from GEMINI_API_KEY or
+~/.secrets/gemini_api_key.txt (never the repo).
 
-    python generate.py preview                      # print one request; no key, no cost
-    python generate.py sample 2 data/sample.jsonl   # 2 requests right away (cents), to check quality
-    python generate.py batch train 400 data/claude_train.jsonl   # batch, 50% off, ~1 hour
-    python generate.py batch eval 10 data/claude_eval.jsonl      # held-out set, other instructions
+    python generate.py preview                          # print one request; no key needed
+    python generate.py models                           # which models this key can use
+    python generate.py run train 2 data/sample.jsonl    # a quick look at the quality
+    python generate.py run train 400 data/gen_train.jsonl
+    python generate.py run eval 10 data/gen_eval.jsonl  # held-out set, other instructions
 
 Each request asks for 50 examples for one combination of who is asking, where, in what style
 and about what, so the set covers far more than templates can. Examples that don't check out
 (a labelled span that isn't in the sentence, unknown values) are dropped, not repaired.
+
+`run` is resumable: finished requests are recorded next to the output (<out>.done), so after
+the free tier's daily limit just run the same command again the next day. GEN_MODEL picks the
+model.
 """
 
 import json
@@ -18,13 +24,13 @@ import os
 import random
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
-
-import anthropic
 
 from schema import ACTIVITIES, MAX_LEN, SHAPES, THEMES, normalize, validate
 
-MODEL = "claude-opus-5-5"
+MODEL = os.environ.get("GEN_MODEL", "gemini-2.5-flash")
 PER_REQUEST = 50
 
 SYSTEM = f"""You write training data for 부지런, a Korean running and walking app. Users type (or
@@ -43,6 +49,7 @@ Reading rules (follow exactly; a model learns from them):
     destination). Named rivers and streams are AROUND places ("한강 따라" -> 한강).
   Never places: where the user is now (집, 회사, 숙소, 호텔, 여기, 학교 when it means "from
   here"), generic words (공원, 강변, 바다, 동네, 근처 공원), or things that aren't destinations.
+  Only label what the words ask for: imagery or similes ("바닷바람 같은") are not themes.
   Nicknames and short forms are places as written ("올팍", "뚝섬", "반포").
 - shape: OUT_AND_BACK for 왕복 / 갔다가 돌아오기 / 찍고 오기 / 반환, also along a river and back;
   ONE_WAY when it ends at a destination and doesn't come back ("광화문까지", "회사에서 집까지");
@@ -109,32 +116,29 @@ EXAMPLE_SCHEMA = {
     "required": ["text", "distance", "time", "places", "shape", "themes", "activity", "flat"],
     "additionalProperties": False,
 }
-OUTPUT = {"format": {"type": "json_schema", "schema": {
+RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {"examples": {"type": "array", "items": EXAMPLE_SCHEMA}},
     "required": ["examples"],
     "additionalProperties": False,
-}}}
+}
 
 
-def request_params(rng: random.Random, kind: str) -> dict:
+def request(kind: str, index: int) -> tuple[str, str]:
+    """The system text and the prompt for request [index]. The same index always gives the same
+    request, which is what makes `run` resumable."""
+    rng = random.Random(f"{kind}-{index}")
     who, where, focus = rng.choice(WHO), rng.choice(WHERE), rng.choice(FOCUS)
-    prompt = (f"Write {PER_REQUEST} requests. Who: {who}. Region: {where}. Mostly about: {focus}, "
-              f"but mix in other kinds too.")
+    prompt = (f"Write {PER_REQUEST} requests. Who: {who}. Region: {where}. About a third of them: {focus}; "
+              "the rest ordinary everyday requests of every kind.\n\nAnswer with JSON only, matching this schema:\n"
+              + json.dumps(RESPONSE_SCHEMA, ensure_ascii=False))
     if kind == "eval":
         prompt = EVAL_NOTE + "\n\n" + prompt
-    return {
-        "model": MODEL,
-        "max_tokens": 32000,
-        # The rules are fixed and long; cache them across the batch's requests.
-        "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-        "messages": [{"role": "user", "content": prompt}],
-        "output_config": {**OUTPUT, "effort": "medium"},
-    }
+    return SYSTEM, prompt
 
 
 def to_example(raw: dict) -> dict | None:
-    """Claude's reading -> schema.py's span format; None if anything doesn't check out."""
+    """The model's reading -> schema.py's span format; None if anything doesn't check out."""
     text = normalize(raw["text"])
     if not text or len(text) > MAX_LEN:
         return None
@@ -172,82 +176,128 @@ def to_example(raw: dict) -> dict | None:
     return ex
 
 
-def client() -> anthropic.Anthropic:
-    key = os.environ.get("ANTHROPIC_API_KEY")
+def api_key() -> str:
+    key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        path = Path.home() / ".secrets" / "anthropic_api_key.txt"
+        path = Path.home() / ".secrets" / "gemini_api_key.txt"
         if not path.exists():
-            sys.exit(f"No API key: set ANTHROPIC_API_KEY or write it to {path}")
+            sys.exit(f"No API key: set GEMINI_API_KEY or write it to {path}")
         key = path.read_text(encoding="utf-8").strip()
-    return anthropic.Anthropic(api_key=key)
+    return key
 
 
-def collect(message, out, seen, stats):
-    stats["input"] += message.usage.input_tokens + (message.usage.cache_read_input_tokens or 0) + (message.usage.cache_creation_input_tokens or 0)
-    stats["output"] += message.usage.output_tokens
-    if message.stop_reason != "end_turn":
-        stats["incomplete"] += 1  # max_tokens or refusal: the JSON may be cut, skip it
-        return
-    text = next(b.text for b in message.content if b.type == "text")
-    for raw in json.loads(text)["examples"]:
-        ex = to_example(raw)
-        if ex is None:
-            stats["dropped"] += 1
-        elif ex["text"] not in seen:
-            seen.add(ex["text"])
-            out.write(json.dumps(ex, ensure_ascii=False) + "\n")
-            stats["kept"] += 1
+class DailyLimit(Exception):
+    pass
 
 
-def cost(stats, batch: bool) -> str:
-    # Claude Opus 5.5: $4 / $20 per million input / output tokens; batches are half price.
-    usd = (stats["input"] * 4 + stats["output"] * 20) / 1e6 * (0.5 if batch else 1)
-    return f"{stats['input']} in / {stats['output']} out tokens, about ${usd:.2f}"
+def call(path: str, body: dict | None = None) -> dict:
+    """One Gemini REST call. Waits and retries on per-minute limits and server hiccups; raises
+    DailyLimit when the day's free quota is used up."""
+    url = "https://generativelanguage.googleapis.com/v1beta/" + path
+    for attempt in range(8):
+        req = urllib.request.Request(url, data=json.dumps(body).encode() if body else None,
+                                     headers={"x-goog-api-key": api_key(), "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")
+            if e.code == 429:
+                if "PerDay" in detail or "per day" in detail.lower():
+                    raise DailyLimit(detail[:300])
+                wait = 60
+                try:
+                    for d in json.loads(detail).get("error", {}).get("details", []):
+                        if "retryDelay" in d:
+                            wait = int(float(d["retryDelay"].rstrip("s"))) + 2
+                except ValueError:
+                    pass
+                print(f"  rate limited, waiting {wait}s")
+                time.sleep(wait)
+            elif e.code >= 500:
+                time.sleep(10 * (attempt + 1))
+            else:
+                raise RuntimeError(f"{e.code}: {detail[:500]}") from None
+        except (urllib.error.URLError, TimeoutError):
+            time.sleep(10 * (attempt + 1))
+    raise RuntimeError("gave up after retries")
+
+
+def generate(system: str, prompt: str) -> tuple[list[dict] | None, int, int]:
+    """(examples, or None if the answer was cut off or unreadable; input tokens; output tokens)."""
+    body = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 1.0, "maxOutputTokens": 32000},
+    }
+    r = call(f"models/{MODEL}:generateContent", body)
+    usage = r.get("usageMetadata", {})
+    tokens_in, tokens_out = usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0)
+    cand = (r.get("candidates") or [{}])[0]
+    if cand.get("finishReason") != "STOP":
+        return None, tokens_in, tokens_out
+    text = "".join(p.get("text", "") for p in cand.get("content", {}).get("parts", []) if not p.get("thought"))
+    try:
+        data = json.loads(text)
+        examples = data["examples"] if isinstance(data, dict) else data
+        return list(examples), tokens_in, tokens_out
+    except (ValueError, KeyError, TypeError):
+        return None, tokens_in, tokens_out
+
+
+def run(kind: str, n: int, path: str):
+    done_path = Path(path + ".done")
+    done = set(done_path.read_text().split()) if done_path.exists() else set()
+    seen = set()
+    if Path(path).exists():
+        seen = {json.loads(line)["text"] for line in open(path, encoding="utf-8") if line.strip()}
+    stats = {"requests": 0, "kept": 0, "dropped": 0, "bad_answers": 0, "in": 0, "out": 0}
+    with open(path, "a", encoding="utf-8") as out, open(done_path, "a") as done_file:
+        for i in range(n):
+            if str(i) in done:
+                continue
+            try:
+                examples, tin, tout = generate(*request(kind, i))
+            except DailyLimit as e:
+                print(f"daily free limit reached after {stats['requests']} requests; run again tomorrow\n  {e}")
+                break
+            stats["requests"] += 1
+            stats["in"] += tin
+            stats["out"] += tout
+            if examples is None:
+                stats["bad_answers"] += 1
+                continue  # not marked done: a rerun tries it again
+            for raw in examples:
+                try:
+                    ex = to_example(raw)
+                except (KeyError, TypeError, AttributeError):
+                    ex = None
+                if ex is None:
+                    stats["dropped"] += 1
+                elif ex["text"] not in seen:
+                    seen.add(ex["text"])
+                    out.write(json.dumps(ex, ensure_ascii=False) + "\n")
+                    stats["kept"] += 1
+            out.flush()
+            done_file.write(f"{i}\n")
+            done_file.flush()
+            print(f"  request {i}: {len(examples)} examples, {stats['kept']} kept so far")
+    print(stats, f"total in file: {len(seen)}")
 
 
 def main():
-    mode = sys.argv[1]
-    rng = random.Random(int(os.environ.get("SEED", "7")))
+    mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "preview":
-        print(json.dumps(request_params(rng, "train"), ensure_ascii=False, indent=1)[:6000])
-        return
-
-    stats = {"input": 0, "output": 0, "kept": 0, "dropped": 0, "incomplete": 0}
-    if mode == "sample":
-        n, path = int(sys.argv[2]), sys.argv[3]
-        c = client()
-        seen = set()
-        with open(path, "w", encoding="utf-8") as out:
-            for _ in range(n):
-                with c.messages.stream(**request_params(rng, "train")) as stream:
-                    collect(stream.get_final_message(), out, seen, stats)
-        print(stats, cost(stats, batch=False))
-        return
-
-    if mode == "batch":
-        kind, n, path = sys.argv[2], int(sys.argv[3]), sys.argv[4]
-        if kind == "eval":
-            rng = random.Random(1000 + rng.randint(0, 999))
-        c = client()
-        batch = c.messages.batches.create(requests=[
-            {"custom_id": f"{kind}-{i}", "params": request_params(rng, kind)} for i in range(n)
-        ])
-        print(f"batch {batch.id} submitted ({n} requests); waiting")
-        while batch.processing_status != "ended":
-            time.sleep(60)
-            batch = c.messages.batches.retrieve(batch.id)
-            print(f"  {batch.request_counts.succeeded} done, {batch.request_counts.processing} processing")
-        seen = set()
-        with open(path, "w", encoding="utf-8") as out:
-            for result in c.messages.batches.results(batch.id):
-                if result.result.type == "succeeded":
-                    collect(result.result.message, out, seen, stats)
-                else:
-                    stats["incomplete"] += 1
-        print(stats, cost(stats, batch=True))
-        return
-
-    sys.exit(__doc__)
+        system, prompt = request("train", 0)
+        print(system, "\n---\n", prompt[:3000])
+    elif mode == "models":
+        for m in call("models?pageSize=200").get("models", []):
+            if "generateContent" in m.get("supportedGenerationMethods", []):
+                print(m["name"].removeprefix("models/"), "-", m.get("displayName", ""))
+    elif mode == "run":
+        run(sys.argv[2], int(sys.argv[3]), sys.argv[4])
+    else:
+        sys.exit(__doc__)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,212 @@
+한강 따라 5km	0,2,PA;6,9,DIST	LOOP	RIVER	NONE	0
+남산까지 갔다가 돌아오기	0,2,PD	OUT_AND_BACK		NONE	0
+공원 돌아서 30분	7,10,TIME	LOOP	PARK	NONE	0
+올림픽 공원에서 한 시간 반 뛰기	0,6,PA;9,15,TIME	LOOP	PARK	RUN	0
+반포한강공원에서부터 잠수교까지	0,6,PS;11,14,PD	ONE_WAY		NONE	0
+평지로 가볍게 3키로	8,11,DIST	LOOP		NONE	1
+석촌호수 두 바퀴 산책	0,4,PA	LOOP	LAKE	WALK	0
+해운대 바다 보면서 오킬로	0,3,PA;11,14,DIST	LOOP	COAST	NONE	0
+퇴근하고 동네 한바퀴		LOOP		NONE	0
+양재천따라 40분 조깅 ㄱㄱ	0,3,PA;6,9,TIME	LOOP	RIVER	RUN	0
+x		ONE_WAY	RIVER,PARK,LAKE,SIGHTS	NONE	1
+광화문 경복궁 명소 구경하면서 걷기 2시간	0,3,PA;4,7,PA;20,23,TIME	LOOP	SIGHTS	WALK	0
+언덕 좀 피해서 여기서부터 동래읍성까지 조깅으로 한 시간 반 정도 갈래	9,12,PS;15,19,PD;27,33,TIME	ONE_WAY		RUN	1
+20k 뛸건데 시민공원 크게 한바퀴 도는 코스 만들어줘 무릎 아파서 평평한 곳으로	0,3,DIST;8,12,PA	LOOP	PARK	RUN	1
+수영강 따라 쭉 갔다가 반환하는 왕복 15킬로 러닝 코스 부탁해	0,3,PA;21,25,DIST	OUT_AND_BACK	RIVER	RUN	0
+사직구장에서 출발해서 부전역으로 가는 10km 루트 짜줘 달리기 할거야	0,4,PS;12,15,PD;21,25,DIST	ONE_WAY		RUN	0
+명소 구경하면서 뛰고 싶은데 송상현광장 근처 8키로 정도	16,21,PA;25,28,DIST	LOOP	SIGHTS	RUN	0
+광안리까지 걸어서 갈 건데 오르막 없이 한 2시간 코스로	0,3,PD;24,27,TIME	ONE_WAY		WALK	1
+하프 거리로 온천천 강변으로 달릴 수 있는 코스 찾아봐	0,2,DIST;7,10,PA	LOOP	RIVER	RUN	0
+동래역에서 시작해서 명륜역까지 5km만 가볍게 뛸래	0,3,PS;11,14,PD;17,20,DIST	ONE_WAY		RUN	0
+오늘은 산책 좀 할까 하는데 금정산성 쪽으로 1시간30분	16,20,PD;25,31,TIME	ONE_WAY		WALK	0
+15km 장거리 훈련할건데 아시아드주경기장 근처 뺑뺑이로	0,4,DIST;15,23,PA	LOOP		NONE	0
+회사에서 해운대까지 10k 뛰어서 가고 싶음	5,8,PD;11,14,DIST	ONE_WAY		RUN	0
+스포원파크 쪽으로 25키로미터 롱런 ㄱㄱ 평지 위주로	0,5,PD;10,16,DIST	ONE_WAY		RUN	1
+집에서 출발할건데 온천천 따라 쭉 갔다가 돌아오는 30k 러닝	10,13,PA;28,31,DIST	OUT_AND_BACK	RIVER	RUN	0
+평평한 코스로 센텀파크처럼 수영강변 뛸 수 있는 18km	8,10,PA;15,19,PA;27,31,DIST	LOOP	RIVER	RUN	1
+서면에서 연산교차로까지 편도로 5.5킬로 달리기	0,2,PS;5,10,PD;17,22,DIST	ONE_WAY		RUN	0
+황령산 봉수대 찍고 오기 10키로 빡세게 페이스 올려서	0,7,PD;14,18,DIST	OUT_AND_BACK		NONE	0
+동래향교 주변으로 고즈넉하게 40분 산보할래	0,4,PA;16,19,TIME	LOOP	SIGHTS	WALK	0
+그냥 동네 공원 말고 회동수원지 호수 둘레길 2시간 걷기	13,17,PA;25,28,TIME	LOOP	PARK,LAKE	WALK	0
+전포역에서 수영역으로 가는 7키로 코스 런닝	0,3,PS;6,9,PD;15,18,DIST	ONE_WAY		RUN	0
+교대역에서 15분 정도만 워밍업 조깅 평지 코스	0,3,PS;6,9,TIME	LOOP		RUN	1
+부산대역부터 온천장역까지 걷고 싶은데 오르막 없이	0,4,PS;7,11,PD	ONE_WAY		WALK	1
+시민공원 남문에서 출발 송상현광장 찍고 다시 돌아오기 8k	0,7,PS;13,18,PD;30,32,DIST	OUT_AND_BACK		NONE	0
+센텀시티까지 인터벌 할건데 6km 평평하게	0,4,PD;15,18,DIST	ONE_WAY		RUN	1
+동천 따라 5키로 갔다가 돌아오는 강변 러닝	0,2,PA;6,9,DIST	OUT_AND_BACK	RIVER	RUN	0
+주말 장거리 러닝 할거라 이기대 해안가 쪽 30킬로미터	14,17,PA;24,30,DIST	LOOP	COAST	RUN	0
+부산시청에서 출발해 연제구청까지 걸어서 2.5km	0,4,PS;11,15,PD;22,27,DIST	ONE_WAY		WALK	0
+명륜역 근처에서 1시간 반 조깅할건데 언덕 피해서	0,3,PA;9,14,TIME	LOOP		RUN	1
+해운대 동백섬 한바퀴 돌고 올건데 바다 보면서 10km	0,3,PA;4,7,PA;26,30,DIST	LOOP	COAST	NONE	0
+삼광사 갔다가 돌아오는 12km 코스로 달려보자	0,3,PD;13,17,DIST	OUT_AND_BACK		RUN	0
+벡스코까지 가는 편도 8.5km 달리기 코스	0,3,PD;12,17,DIST	ONE_WAY		RUN	0
+3.5키로미터 걷기 부전시장 안쪽은 복잡하니 그 주변으로	0,7,DIST;11,15,PA	LOOP		WALK	0
+나루공원 위주로 15키로 달리기 할래 공원 풍경 보며	0,4,PA;9,13,DIST	LOOP	PARK	RUN	0
+안락역에서 반여동까지 4k 가볍게 조깅	0,3,PS;6,9,PD;12,14,DIST	ONE_WAY		RUN	0
+서면 로터리에서 45분 페이스 주 평지 코스로	0,2,PA;3,6,PA;9,12,TIME	LOOP		NONE	1
+광안리 해수욕장 찍고 오기 왕복 2시간 뛰기	0,8,PD;18,21,TIME	OUT_AND_BACK	COAST	RUN	0
+범어사 명소 쪽으로 16킬로 러닝 훈련	0,2,PA;11,15,DIST	ONE_WAY	SIGHTS	RUN	0
+충렬사 근처 50분 산책 언덕길은 말고	0,3,PA;7,10,TIME	LOOP		WALK	1
+사직야구장에서 종합운동장역까지 1시간 걸어서	0,5,PS;8,14,PD;17,20,TIME	ONE_WAY		WALK	0
+온천천 따라 부산대 앞까지 가는 7키로 편도 러닝	0,3,PA;7,10,PD;18,21,DIST	ONE_WAY	RIVER	RUN	0
+서면에서 출발해서 부암역까지 3km 평지 위주 산보	0,2,PS;10,13,PD;16,19,DIST	ONE_WAY		WALK	1
+25키로 뛸건데 온천천 벚꽃길 강변 따라서 왕복 코스	0,4,DIST;9,16,PA	OUT_AND_BACK	RIVER	RUN	0
+배산 등산로 말고 그 밑에 둘레길로 2시간 반 걷기	20,25,TIME	LOOP		WALK	0
+수영사적공원 3바퀴 도는 6km 달리기	0,6,PA;14,17,DIST	LOOP	PARK	RUN	0
+양정역에서 30분 뛰고 싶은데 무릎 아파서 평평한	0,3,PS;6,9,TIME	LOOP		RUN	1
+맥도생태공원 쪽으로 하프 거리 뛰기	0,6,PD;11,13,DIST	ONE_WAY	PARK	RUN	0
+민락동에서 출발해서 광안리까지 5.5키로 바닷길 달리기	0,3,PS;11,14,PD;17,22,DIST	ONE_WAY	COAST	RUN	0
+금정구청에서 5k 런닝 구서동으로 가는 길	0,4,PA;7,9,DIST	ONE_WAY		RUN	0
+황령산 벚꽃길 따라 10km 왕복 달리기 코스	0,7,PA;11,15,DIST	OUT_AND_BACK		RUN	0
+수영강변로에서 1시간 반 걷기	0,5,PA;8,13,TIME	LOOP	RIVER	WALK	0
+여기서 송정해수욕장까지 20킬로 장거리 러닝 평지	4,10,PD;13,17,DIST	ONE_WAY		RUN	1
+용두암까지 갔다가 돌아오는 달리기 5km 하고 싶습니다	0,3,PD;19,22,DIST	OUT_AND_BACK		RUN	0
+호텔 출발 천지연폭포 찍고 오기 조깅 30분	6,11,PD;21,24,TIME	OUT_AND_BACK		RUN	0
+산방산 향해서 걷기 한 다음 왕복할래요 두 시간	22,26,TIME	OUT_AND_BACK		WALK	0
+이호테우 해변까지 달리고 다시 여기로 돌아옵니다 7키로	0,7,PD;27,30,DIST	OUT_AND_BACK		RUN	0
+뛰기 왕복 성산일출봉으로 10k 코스 주세요	6,7,PA;8,9,PA;14,17,DIST	OUT_AND_BACK		RUN	0
+오 킬로 걷다 만장굴까지 그리고 리턴	0,4,DIST;9,11,PD	OUT_AND_BACK		WALK	0
+숙소부터 삼성혈 찍고 돌아오는 평평한 달리기	5,8,PD	OUT_AND_BACK		RUN	1
+왕복으로 조깅 45분 섭지코지 갔다가 오기	8,11,TIME;13,16,PD	OUT_AND_BACK		RUN	0
+비자림까지 뛰어가서 돌아오기 원합니다 육 킬로미터	0,3,PD;21,27,DIST	OUT_AND_BACK		RUN	0
+정방폭포 도착하고 왕복으로 런닝 1시간	0,7,PD;18,21,TIME	OUT_AND_BACK		RUN	0
+동문시장 찍고 오고 걷기 코스 4km 산보	0,4,PD;17,20,DIST	OUT_AND_BACK		WALK	0
+갔다가 오기 용머리해안으로 8킬로 평지 뛰고싶다	7,8,PA;15,18,DIST	OUT_AND_BACK		RUN	1
+러닝 반환 코스 관음사까지 15k	10,12,PD;15,18,DIST	OUT_AND_BACK		RUN	0
+협재해수욕장 갓다가 돌아오기 십 킬로 달린다	0,6,PD;16,20,DIST	OUT_AND_BACK		RUN	0
+돌아오기 코스 카멜리아힐까지 3시간 걷는 길	8,13,PD;16,19,TIME	OUT_AND_BACK		WALK	0
+왕복 제주목관아 찍고 달리기 평평한 길 40분	3,8,PD;22,25,TIME	OUT_AND_BACK		RUN	1
+오설록티뮤지엄 까지 달리고 다시 숙소로 리턴 5키로	0,7,PD;16,17,TIME;25,28,DIST	OUT_AND_BACK		RUN	0
+나는 뛰고 싶다 5km 해변가 따라서	9,12,DIST	LOOP	COAST	RUN	0
+탑동광장 에서 출발 걷기 1시간30분 오르막 없는	0,4,PS;14,20,TIME	LOOP		WALK	1
+한라수목원 근처 나무들 보며 달리기 3.5킬로미터	0,5,PA;20,27,DIST	LOOP	SIGHTS	RUN	0
+제주도 바다 걷기 이십 분 동안	2,3,PA;10,14,TIME	LOOP	COAST	WALK	0
+평평한 곳 4km 조깅 곽지 한바퀴	6,9,DIST	LOOP		RUN	1
+산책로 따라 걷다 두 시간 호수 구경하면서	2,3,PA;10,14,TIME	LOOP	LAKE,SIGHTS	WALK	0
+회사에서 신산공원 까지 뛰기 편도	5,9,PD	ONE_WAY		RUN	0
+애월 한담해안산책로 따라 5k 달리기 원해	1,10,PA;14,16,DIST	LOOP	COAST	RUN	0
+구경하면서 명소 걷기 10키로	12,16,DIST	LOOP	SIGHTS	WALK	0
+제주올레길 걷고 싶어요 5시간 언덕 없이	0,5,PA;13,16,TIME	LOOP		WALK	1
+어떻게 백록담 으로 가는 8시간 걷기 길?	14,17,TIME	ONE_WAY		WALK	0
+용연계곡 에서 45분 조깅 합니다	0,4,PA;8,11,TIME	LOOP		RUN	0
+러닝 강변으로 칠 킬로미터 평지 원해요	8,14,DIST	LOOP	RIVER	RUN	1
+여기부터 한라생태숲 까지 달리기 12k	0,2,PS;5,10,PD;18,21,DIST	ONE_WAY		RUN	0
+나 걷기 원해 삼십 분 중문관광단지 한바퀴	8,12,TIME;13,19,PA	LOOP	SIGHTS	WALK	0
+새별오름 근처 런닝 3km 오르막 피해서	3,4,PA;11,14,DIST	LOOP		RUN	1
+바닷바람 같은 산책 사 킬로 금능 에서 출발	11,12,DIST;13,15,DIST;17,18,PS	LOOP	COAST	WALK	0
+서귀포 칠십리시공원 걷습니다 1시간 위주 공원	4,10,PA;16,19,TIME	LOOP	PARK	WALK	0
+평평한 2k 달리기 쇠소깍 따라	4,6,DIST	LOOP		RUN	1
+나는 숙소에서 시작 곽지 까지 걷는다 편도 5킬로	8,10,PD;11,13,PD;24,27,DIST	ONE_WAY		WALK	0
+조깅 삼 킬로미터 산지천 한바퀴 돌기	3,9,DIST;10,13,PA	LOOP	RIVER	RUN	0
+러닝 평지 한 시간 반 송악산 둘레길 주변	6,10,TIME;11,12,TIME;13,20,PA	LOOP		RUN	1
+바다 근처 달린다 45분 런닝	10,13,TIME	LOOP	COAST	RUN	0
+외돌개 구경하면서 걷기 1.5키로	0,3,PA;13,18,DIST	LOOP	SIGHTS	WALK	0
+호수 위주로 뛰고싶다 5키로 수산저수지	12,15,DIST;16,20,PA	LOOP	LAKE	RUN	0
+사라봉 에서부터 걷기 오 킬로미터	0,3,PS;12,18,DIST	LOOP		WALK	0
+조깅 제주월드컵경기장 근처 30분 동안 평지	3,11,PA;15,18,TIME	LOOP		RUN	1
+달리기 한 시간 함덕해수욕장 으로 가는	4,8,TIME;9,15,PD	ONE_WAY		RUN	0
+우도 한바퀴 걸어서 십오 킬로미터 여행 명소	0,2,PA;11,18,DIST;19,20,PA	LOOP	SIGHTS	WALK	0
+엉또폭포 에서 20분 런닝 합니다	0,4,PA;8,11,TIME	LOOP		RUN	0
+어승생악 까지 산보 편도로 삼 킬로	0,4,PD;15,19,DIST	ONE_WAY		WALK	0
+공원 달린다 4km 걸매생태공원 안에서	7,10,DIST;12,17,PA	LOOP	PARK	RUN	0
+호텔 출발 용담해안도로 따라 뛰기 무릎 아파서 평평한 코스	6,12,PA	LOOP	COAST	RUN	1
+수업 끝나고 석촌호수에서 딱 40분만 조깅할 건데 오르막은 피해서 짜줘	7,11,PA;16,19,TIME	LOOP	LAKE	RUN	1
+일산호수공원 한바퀴 도는 5키로 걷기 코스 학교에서 갈만한데로	0,6,PA;14,17,DIST	LOOP	PARK	WALK	0
+강릉 경포호 따라 15km 달릴 건데 무릎 아파서 평평한 길로 줘	3,6,PA;10,14,DIST	LOOP	LAKE	RUN	1
+바닷바람 맞으면서 뛰고 싶네 해운대 왕복으로 8km 코스 줘	16,19,PD;25,28,DIST	OUT_AND_BACK	COAST	RUN	0
+속초해수욕장 찍고 다시 숙소로 오는 1시간 반 산책로	0,6,PD;20,25,TIME	OUT_AND_BACK		WALK	0
+석촌호수까지 3km 정도 걸어서 가볼까 해 언덕 없이	0,4,PD;7,10,DIST	ONE_WAY		WALK	1
+바다 보면서 40분 러닝할래 강문해변 근처에서	7,10,TIME;14,15,PA;16,20,PA	LOOP	COAST	RUN	0
+우면지 한 바퀴 돌고 3k 뛰어볼래 평지 위주로	0,1,PA;2,3,PA;12,14,DIST	LOOP	SIGHTS	RUN	1
+부산 송정해수욕장에서 출발해 청사포까지 가는 5킬로미터 조깅	3,9,PS;16,19,PD;25,30,DIST	ONE_WAY		RUN	0
+근처에 좋은 데 있나 호숫가 따라서 10k 뛰고 싶은데	20,23,DIST	LOOP	LAKE	RUN	0
+양재시민의숲역에서 출발해 양재천 따라 걷다가 왕복하는 한시간 코스	0,7,PS;14,17,PA;30,33,TIME	OUT_AND_BACK	RIVER	WALK	0
+광교호수공원에서 무릎 안 아프게 평지로만 7키로 조깅할래	0,6,PA;23,26,DIST	LOOP	PARK	RUN	1
+기숙사에서 송지호해변까지 걷기 좋은 길 있니 왕복으로	0,3,PS;6,11,PD	OUT_AND_BACK		WALK	0
+제주도 함덕해수욕장 근처로 한 45분 뛸만한 곳 추천점	2,3,PA;4,10,PA;17,20,TIME	LOOP	COAST	RUN	0
+천천히 2km 산보할래 학교 뒤쪽에 있는 호수 구경하면서	4,7,DIST	LOOP	LAKE,SIGHTS	WALK	0
+강릉 안목해변에서 시작해서 사천진해변까지 가는 10km 달리기	3,7,PS;15,20,PD;26,30,DIST	ONE_WAY		RUN	0
+석촌호수에서부터 시작해서 그냥 5k 정도 뛰다가 끝나는 원점회귀 코스	0,4,PS;17,19,DIST	LOOP		RUN	0
+강남역에서 뱅뱅사거리까지 갔다가 돌아오는 4키로 러닝코스	0,3,PS;6,11,PD;23,26,DIST	OUT_AND_BACK		RUN	0
+서리풀공원 한바퀴 30분 동안 걷고 싶어 언덕 피해서	0,5,PA;10,13,TIME	LOOP	PARK	WALK	1
+양재역에서 강남역까지 가는 3km 편도 달리기	0,3,PS;6,9,PD;15,18,DIST	ONE_WAY		RUN	0
+오늘 인터벌 할건데 반포트랙에서 1시간 뛰게 세팅해줘	11,14,PA;18,21,TIME	LOOP		RUN	0
+잠원한강공원 따라서 5.5킬로미터 명소 구경하면서 뛸래	0,6,PA;11,18,DIST	LOOP	PARK,SIGHTS	RUN	0
+논현역에서 신논현역 거리가 얼마나 되지 편도로 걸어갈건데	0,3,PS;6,10,PS	ONE_WAY		WALK	0
+강남세브란스병원 근처에서 40분 정도 오르막 없이 가볍게 산책	0,8,PA;14,17,TIME	LOOP		WALK	1
+뛰고 돌아오기 10k 양재천 강변으로	8,11,DIST;12,15,PA	OUT_AND_BACK	RIVER	RUN	0
+올팍에서 30분만 페이스주 할게	0,2,PA;5,8,TIME	LOOP	PARK	RUN	0
+청담역에서 코엑스까지 걸어가는 길에 구경하면서 가고파	0,3,PS;6,9,PD	ONE_WAY	SIGHTS	WALK	0
+추천 좀 2km 걷기 코스 신사동 가로수길 명소 위주로	5,8,DIST;16,23,PA	LOOP	SIGHTS	WALK	0
+도곡역에서 출발, 매봉산 갔다가 다시 돌아오는 5k 조깅	0,3,PS;10,13,PD;26,28,DIST	OUT_AND_BACK		RUN	0
+고속터미널역에서 1시간 반 걷고 싶은데 평평한 코스로	0,6,PS;9,14,TIME	LOOP		WALK	1
+반포에서 출발해서 뚝섬까지 15킬로미터 원웨이 러닝	0,2,PS;10,12,PD;15,21,DIST	ONE_WAY		RUN	0
+우면산 근처로 오르막 피해서 45분 달릴 수 있어?	0,1,PA;2,3,PA;16,19,TIME	LOOP		RUN	1
+선릉역에서 테헤란로 따라서 삼성역까지 뛰는 2k 코스	0,3,PS;6,10,PA;15,18,PD;24,26,DIST	ONE_WAY		RUN	0
+한강 한바퀴 돌 건데 1시간 코스로 짜줘	0,2,PA;12,15,TIME	LOOP	RIVER	NONE	0
+서래마을에서 40분 걸을래 오르막 없이	0,3,PA;7,10,TIME	LOOP		WALK	1
+매헌시민의숲 안에서만 5km 빙글빙글 달리기 할래	0,6,PA;12,15,DIST	LOOP	PARK	RUN	0
+양재역부터 강남대로 따라 3키로 정도 걷고 싶음 왕복으로	0,3,PS;6,10,PA;14,17,DIST	OUT_AND_BACK		WALK	0
+서초역 찍고 교대역으로 가는 3.5킬로미터 걷기	0,3,PD;7,10,PD;16,23,DIST	ONE_WAY		WALK	0
+강변북로 따라서 10k 뛰고 싶은데 한강 위주로	2,4,PA;9,12,DIST	LOOP	RIVER	RUN	0
+압구정로데오역에서 30분 산책할건데 평지로 부탁해	0,7,PS;10,13,TIME	LOOP		WALK	1
+역삼역에서부터 학동역까지 오르막 피해서 20분만 걷자	0,3,PS;8,11,PD;22,25,TIME	ONE_WAY		WALK	1
+청담근린공원 한바퀴 도는 평평한 조깅 코스 3키로	0,6,PA;24,27,DIST	LOOP	PARK	RUN	1
+하프 달리기 반포대교 찍고 오기	0,2,DIST;7,11,PD	OUT_AND_BACK		RUN	0
+도산공원 위주로 명소 구경하면서 1시간 걷는 길	0,4,PA;18,21,TIME	LOOP	PARK,SIGHTS	WALK	0
+선릉과정릉 한 바퀴 4km 러닝	0,5,PA;11,14,DIST	LOOP		RUN	0
+학여울역에서 45분 페이스주 평지로 코스 만들어줘	2,4,PS;7,10,TIME	LOOP		RUN	1
+양재시민의숲역에서 시작해서 역삼역에서 끝나는 5km 러닝	0,7,PS;25,28,DIST	LOOP		RUN	0
+반포 한강공원에서 뚝섬 한강공원까지 10k 뛰러 갈래	0,7,PS;10,17,PD;20,23,DIST	ONE_WAY		RUN	0
+대치역에서 탄천 따라 5킬로미터 걷기 코스	0,3,PS;6,8,PA;12,17,DIST	LOOP	RIVER	WALK	0
+선정릉역에서 30분 조깅할 건데 오르막 없는 코스	0,4,PS;7,10,TIME	LOOP		RUN	1
+오늘 밤에는 바닷가 쪽에서 뛰고 싶은데 코스 좀		LOOP	COAST	RUN	0
+무릎 상태가 별로 안 좋아서 그런데 완전 평평한 길로만 40분 정도?	31,34,TIME	LOOP		RUN	1
+수업 끝나고 스트레스 풀 겸 5키로만 빡세게 달릴래	12,13,DIST;16,19,DIST	LOOP		RUN	0
+근처 공원 아무데나 왕복으로 한 시간 쯤 걷기	16,20,TIME	OUT_AND_BACK	PARK	WALK	0
+그냥 아무 생각 없이 3km 조깅	12,15,DIST	LOOP		RUN	1
+오르막길 진짜 싫어 평지로만 30분 산책코스 알려줘	16,19,TIME	LOOP		WALK	1
+강변으로 30분 뛰다가 돌아오는 루트	5,8,TIME	OUT_AND_BACK	RIVER	RUN	0
+오늘 걷기 좋은 날씨네 한 5k 정도 평지로	15,17,DIST	LOOP		WALK	1
+동네 한바퀴 가볍게 30분 런	11,14,TIME	LOOP		RUN	0
+10km 하프마라톤 연습할 만한 평지 코스	0,4,DIST;5,7,DIST	LOOP		NONE	1
+호수공원 위주로 뷰 좋은 데서 한시간 반 걷기	17,22,TIME	LOOP	PARK,LAKE	WALK	0
+너무 멀지 않게 2.5킬로미터만 뛰자	9,16,DIST	LOOP		RUN	0
+40분 동안 명소들 구경하면서 천천히 걷고 싶어요	0,3,TIME	LOOP	SIGHTS	WALK	0
+땀 쫙 빼게 45분 인터벌 러닝	7,10,TIME	LOOP		RUN	0
+바닷가 길로만 왕복 4키로 정도	11,14,DIST	OUT_AND_BACK	COAST	NONE	0
+걍 숙소 근처 동네 한바퀴 20분만 걷자	15,18,TIME	LOOP	SIGHTS	WALK	0
+언덕 없는 코스로 7km 러닝	10,13,DIST	LOOP		RUN	1
+편도로 학교에서 안목해변까지 5.5킬로미터 조깅할 건데 평지 위주로	9,13,PD;16,23,DIST	ONE_WAY		RUN	1
+한 40분 정도 경포호 한바퀴 도는 거 뛰면 될까?	2,5,TIME;9,12,PA	LOOP	LAKE	RUN	0
+학교에서 출발해서 강문해변 찍고 다시 돌아오는 왕복 6km 런	10,14,PD;29,32,DIST	OUT_AND_BACK		RUN	0
+오르막 없이 1시간 영랑호 벚꽃길 따라서 걷기	7,10,TIME;11,13,PA;16,17,PA	LOOP		WALK	1
+한 3.5km 편도로 학교 말고 속초해수욕장까지 뛰고 싶어	2,7,DIST;18,24,PD	ONE_WAY		RUN	0
+야경 보면서 청초호수공원 5k 산책하기	7,13,PA;14,16,DIST	LOOP	PARK	WALK	0
+오죽헌에서 시작해서 45분 동안 언덕 피해서 조깅	0,3,PS;11,14,TIME	LOOP		RUN	1
+왕복으로 돌아오게 강릉남대천 따라서 8키로 뛰고 싶네	10,15,PA;20,23,DIST	OUT_AND_BACK	RIVER	RUN	0
+2시간 속초등대 전망대 구경하면서 산보	0,3,TIME;4,8,PA;10,12,PA	LOOP	SIGHTS	WALK	0
+아바이마을까지 기숙사에서 걷는 1시간 반 코스	0,5,PD;17,22,TIME	ONE_WAY		WALK	0
+언덕 피해서 정동진 바닷길 따라서 10km 달리기	7,10,PA;12,13,PA;19,23,DIST	LOOP	COAST	RUN	1
+평평한 길로 송지호 주변에서 30분 정도 가볍게 산책할래	7,10,PA;16,19,TIME	LOOP	LAKE	WALK	1
+영금정 찍고 다시 여기로 돌아오는 5.5km 러닝	0,3,PD;19,24,DIST	OUT_AND_BACK		RUN	0
+엑스포기념관 근처 공원길 4km 뛰기	0,6,PA;14,17,DIST	LOOP	PARK	RUN	0
+왕복으로 동네 하천인 쌍천 따라서 5키로만 러닝	12,14,PA;19,22,DIST	OUT_AND_BACK	RIVER	RUN	0
+한 시간 조깅 허균허난설헌기념공원 안에서	0,4,TIME;8,18,PA	LOOP	PARK	RUN	0
+중앙시장 쪽에서 시작해가지고 영랑호까지 걷기	0,4,PS;16,19,PD	ONE_WAY		WALK	0
+강릉 남대천 수변길로 10k 뛰고 반환할래	3,6,PA;8,10,PA;12,15,DIST	OUT_AND_BACK	RIVER	RUN	0
+1시간 30분 걷기 코스 주문진 항구 쪽 바닷가 따라서	0,7,TIME;16,17,PA;18,20,PA	LOOP	COAST	WALK	0
+평평한 길로 3km 사천해변에서 달리기	7,10,DIST;11,15,PA	LOOP	COAST	RUN	1
+2시간 정도 산책 경포대 명소들 지나면서	0,3,TIME;10,13,PA;16,17,PA	LOOP	SIGHTS	WALK	0
+숙소에서 영진해변까지 편도로 7km 조깅	5,9,PD;16,19,DIST	ONE_WAY		RUN	0
+반환하는 4킬로미터 코스 청초천 둔치 따라서 걷고 싶어	5,10,DIST;14,20,PA	OUT_AND_BACK	RIVER	WALK	0
+속초 엑스포공원 한바퀴 도는 30분 런 평지 위주로	3,8,PA;16,19,TIME	LOOP	PARK	RUN	1
+걸어서 40분 평지 코스 기숙사부터 해맞이공원까지	4,7,TIME;20,25,PD	ONE_WAY		NONE	1
+5km 러닝할 건데 무릎 아파서 평평한 경포호 둘레길 따라서	0,3,DIST;22,24,PA	LOOP	LAKE	RUN	1
+밥 먹을 거니까 아바이마을 거기로 3km 걷기 편도로	10,14,PA;19,22,DIST	LOOP		WALK	0
+평지 위주로 쌍천 근처 45분 페이스 훈련	7,9,PA;13,16,TIME	LOOP	RIVER	RUN	1
+해안도로 따라 5k 달리기 정동진역에서 시작해서	8,10,DIST;15,19,PS	LOOP	COAST	RUN	0
+걷기 한 7km 되나 영랑호 한 바퀴 다 돌면?	5,8,DIST;12,14,PA	LOOP	LAKE	WALK	0
+왕복 10키로 인터벌 송지호수 갔다가 돌아오기	3,7,DIST;12,16,PD	OUT_AND_BACK	LAKE	RUN	0
+속초해변에서 청초호까지 걷는 편도 1시간 루트 평지로	0,4,PS;7,10,PD;19,22,TIME	ONE_WAY		WALK	1
+외옹치해변 찍고 오는 8km 러닝 코스 바다 구경하면서	0,5,PD;12,15,DIST	OUT_AND_BACK	COAST,SIGHTS	RUN	0

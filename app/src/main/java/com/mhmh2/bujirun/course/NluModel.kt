@@ -90,7 +90,19 @@ class NluModel private constructor(
             }
         }
         close()
-        val trimmed = spans.mapNotNull { sp ->
+        // A place name split into touching pieces of different roles ("삼|광사") is one place; it
+        // takes the role that covers most of it (the later one on a tie). Same as train.py.
+        val merged = mutableListOf<Span>()
+        for (sp in spans) {
+            val last = merged.lastOrNull()
+            if (last != null && last.end == sp.start && last.kind in PLACE_KINDS && sp.kind in PLACE_KINDS) {
+                val kind = if (last.end - last.start > sp.end - sp.start) last.kind else sp.kind
+                merged[merged.size - 1] = Span(last.start, sp.end, kind)
+            } else {
+                merged += sp
+            }
+        }
+        val trimmed = merged.mapNotNull { sp ->
             var a = sp.start
             var b = sp.end
             while (a < b && s[a] == ' ') a++
@@ -140,6 +152,7 @@ class NluModel private constructor(
         val SHAPES = listOf("LOOP", "OUT_AND_BACK", "ONE_WAY")
         val THEMES = listOf("RIVER", "PARK", "LAKE", "COAST", "SIGHTS")
         val ACTIVITIES = listOf("NONE", "RUN", "WALK")
+        private val PLACE_KINDS = setOf("PS", "PD", "PA")
         const val MAX_LEN = 64
         private const val VERSION = 1
         private val TENSORS = listOf(

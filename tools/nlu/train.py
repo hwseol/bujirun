@@ -115,6 +115,9 @@ def load(paths):
 
 # ---- reading the outputs (mirrored in NluModel.kt) -------------------------------------
 
+PLACE_KINDS = ("PS", "PD", "PA")
+
+
 def decode(text, tag_logits, sent_logits):
     tags = [TAGS[i] for i in tag_logits[: len(text)].argmax(-1).tolist()]
     spans, cur = [], None
@@ -132,6 +135,16 @@ def decode(text, tag_logits, sent_logits):
             cur = None
     if cur:
         spans.append(cur)
+    # A place name split into touching pieces of different roles ("삼|광사") is one place; it
+    # takes the role that covers most of it (the later one on a tie).
+    merged = []
+    for s, e, k in spans:
+        if merged and merged[-1][1] == s and k in PLACE_KINDS and merged[-1][2] in PLACE_KINDS:
+            ps, pe, pk = merged[-1]
+            merged[-1] = [ps, e, pk if pe - ps > e - s else k]
+        else:
+            merged.append([s, e, k])
+    spans = merged
     # Trim spaces a span may have swallowed at its edges.
     cleaned = []
     for s, e, k in spans:
@@ -234,6 +247,19 @@ def write_fixture(model, vocab, texts, path):
             f.write(t + "\t" + " ".join(f"{v:.5f}" for v in nums) + "\n")
 
 
+def write_readings(model, vocab, texts, path):
+    """One line per sentence: text, then the decoded reading as
+    spans (start,end,kind;...) | shape | themes (,) | activity | flat (0/1)."""
+    model.eval()
+    with torch.no_grad(), open(path, "w", encoding="utf-8") as f:
+        for t in texts:
+            t = normalize(t)[:MAX_LEN]
+            tag_logits, sent_logits = model(*encode([t], vocab))
+            r = decode(t, tag_logits[0], sent_logits[0])
+            spans = ";".join(f"{a},{b},{k}" for a, b, k in r["spans"])
+            f.write("\t".join([t, spans, r["shape"], ",".join(r["themes"]), r["activity"], str(int(r["flat"]))]) + "\n")
+
+
 FIXTURE_SENTENCES = [
     "한강 따라 5km", "남산까지 갔다가 돌아오기", "공원 돌아서 30분", "올림픽 공원에서 한 시간 반 뛰기",
     "반포한강공원에서부터 잠수교까지", "평지로 가볍게 3키로", "석촌호수 두 바퀴 산책", "해운대 바다 보면서 오킬로",
@@ -242,6 +268,7 @@ FIXTURE_SENTENCES = [
 
 
 def main():
+    global EMB, HIDDEN
     ap = argparse.ArgumentParser()
     ap.add_argument("train", nargs="+")
     ap.add_argument("--eval", nargs="*", default=[])
@@ -249,7 +276,10 @@ def main():
     ap.add_argument("--out")
     ap.add_argument("--fixture")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--emb", type=int, default=EMB)
+    ap.add_argument("--hidden", type=int, default=HIDDEN)
     args = ap.parse_args()
+    EMB, HIDDEN = args.emb, args.hidden
 
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -305,6 +335,8 @@ def main():
         evaluate(model, d, vocab, show=15)
     if args.fixture:
         write_fixture(model, vocab, FIXTURE_SENTENCES, args.fixture)
+        extra = [ex["text"] for d in evals.values() for ex in d][:200]
+        write_readings(model, vocab, FIXTURE_SENTENCES + extra, args.fixture.replace(".tsv", "_readings.tsv"))
 
 
 if __name__ == "__main__":

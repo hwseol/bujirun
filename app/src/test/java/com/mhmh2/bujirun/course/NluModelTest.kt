@@ -27,6 +27,24 @@ class NluModelTest {
         }
     }
 
+    @Test fun decodesLikePython() {
+        val lines = javaClass.classLoader!!.getResourceAsStream("nlu_fixture_readings.tsv")!!.bufferedReader().readLines()
+        check(lines.size > 100)
+        for (line in lines) {
+            val f = line.split('\t')
+            val want = NluModel.Reading(
+                spans = f[1].split(';').filter { it.isNotEmpty() }.map { s ->
+                    val (a, b, k) = s.split(','); NluModel.Span(a.toInt(), b.toInt(), k)
+                },
+                shape = f[2],
+                themes = f[3].split(',').filter { it.isNotEmpty() },
+                activity = f[4],
+                flat = f[5] == "1",
+            )
+            assertEquals(f[0], want, model.read(f[0]))
+        }
+    }
+
     @Test fun jamoMatchesUnicodeDecomposition() {
         assertEquals(Triple(1, 1, 1), NluModel.jamo('가'))
         assertEquals(Triple(19, 21, 28), NluModel.jamo('힣'))
