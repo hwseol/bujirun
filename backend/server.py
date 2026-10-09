@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 import accounts
 import routes
+import trails
 
 app = FastAPI(title="Bujirun API")
 accounts.init_db()
@@ -114,6 +115,22 @@ def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
         return {"loops": routes.loops(req.start, req.distance_m, user["id"])}
     except routes.RouteError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/trails/nearby")
+def trails_nearby(lat: float, lon: float, authorization: str | None = Header(None)):
+    """Official walking trails closest to (lat, lon), with a light preview line each."""
+    _user(authorization)
+    return {"trails": trails.nearby(lat, lon), "source": trails.SOURCE}
+
+
+@app.get("/trails/{trail_id}")
+def trail(trail_id: str, authorization: str | None = Header(None)):
+    _user(authorization)
+    t = trails.get(trail_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요.")
+    return t
 
 
 @app.get("/health")

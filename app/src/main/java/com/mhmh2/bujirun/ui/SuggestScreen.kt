@@ -17,7 +17,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.style.TextOverflow
+import com.mhmh2.bujirun.course.Trail
+import com.mhmh2.bujirun.course.TrailApi
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -59,11 +67,146 @@ import kotlin.coroutines.resume
 private val DISTANCES = listOf(3000, 5000, 7000, 10000)
 
 /**
- * Loop courses around where the user is now: pick a distance, get a few real walking loops that
- * start and end right here, run one or keep it.
+ * Courses around where the user is now, two ways: loops generated from here (pick a distance),
+ * and official walking trails nearby (Durunubi). Either can be run right away or kept.
  */
 @Composable
 fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
+    var tab by rememberSaveable { mutableStateOf(0) }
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+            Text("내 주변 추천 코스", style = MaterialTheme.typography.titleLarge)
+        }
+        TabRow(selectedTabIndex = tab) {
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("순환 코스") })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("걷기길") })
+        }
+        Spacer(Modifier.height(12.dp))
+        if (tab == 0) LoopsTab(onOpen, onRun) else TrailsTab(onOpen, onRun)
+    }
+}
+
+/** Asks for location permission if needed, then runs [action] with the current position. */
+@Composable
+private fun rememberWithLocation(onError: (String) -> Unit, action: suspend (GeoPoint) -> Unit): () -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun go() {
+        scope.launch {
+            val here = currentLocation(context)
+            if (here == null) onError("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.") else action(here)
+        }
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) go() else onError("주변 코스를 찾으려면 위치 권한이 필요해요.")
+    }
+    return {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) go()
+        else permission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+}
+
+@Composable
+private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(false) }
+    var busyId by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var trails by remember { mutableStateOf<List<Trail>?>(null) }
+
+    val load = rememberWithLocation(onError = { error = it; loading = false }) { here ->
+        try {
+            trails = TrailApi.nearby(here)
+        } catch (e: ApiException) {
+            error = e.message
+        } finally {
+            loading = false
+        }
+    }
+    LaunchedEffect(Unit) { loading = true; error = null; load() }
+
+    fun keep(t: Trail, then: (Long) -> Unit) {
+        busyId = t.id
+        scope.launch {
+            try {
+                then(CourseStore.save(t.name, CourseSource.RECOMMENDED, TrailApi.points(t.id)))
+            } catch (e: ApiException) {
+                error = e.message
+            } finally {
+                busyId = null
+            }
+        }
+    }
+
+    Column(Modifier.padding(horizontal = 24.dp)) {
+        Text(
+            "코리아둘레길 등 공식 걷기길을 가까운 순서로 보여드려요.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (loading) CircularProgressIndicator(Modifier.padding(top = 16.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
+    }
+    LazyColumn {
+        items(trails.orEmpty(), key = { it.id }) { t ->
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                tonalElevation = 1.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    CourseLineView(t.preview)
+                    Spacer(Modifier.height(10.dp))
+                    Text(t.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        listOfNotNull(
+                            t.region.takeIf { it.isNotBlank() },
+                            "${formatKm(t.distanceM)}km",
+                            if (t.loop) "순환" else "편도",
+                            t.levelLabel,
+                            t.hours?.let { "약 ${com.mhmh2.bujirun.coach.CueText.duration((it * 3_600_000).toLong())}" },
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "여기서 ${formatKm(t.awayM)}km",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (t.summary.isNotBlank()) {
+                        Text(
+                            t.summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { keep(t, onRun) }, enabled = busyId == null, modifier = Modifier.weight(1f)) { Text("바로 달리기") }
+                        OutlinedButton(onClick = { keep(t, onOpen) }, enabled = busyId == null, modifier = Modifier.weight(1f)) { Text("내 코스에 저장") }
+                    }
+                }
+            }
+        }
+        if (!trails.isNullOrEmpty()) {
+            item {
+                Text(
+                    "걷기길 정보: ${TrailApi.SOURCE}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var distance by remember { mutableStateOf(5000) }
@@ -103,11 +246,7 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
         }
     }
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
-            Text("내 주변 추천 코스", style = MaterialTheme.typography.titleLarge)
-        }
+    Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 24.dp)) {
             Text(
                 "지금 있는 곳에서 출발해 다시 돌아오는 코스를 찾아드려요.",
