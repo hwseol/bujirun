@@ -37,6 +37,15 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - The DB is at version 4 (v2 `simulated`, v3 course tables, v4 `workouts.courseId`); testers
   hold real data, so add migrations, never destructive fallbacks.
 
+## Natural-language courses
+- Design in docs/NL_COURSES.md. The phone reads the request (course/IntentParser rules for numbers
+  + course/NluModel, a 94 KB char BiGRU in assets/nlu.bin); the server plans the course
+  (backend/planner.py, POST /routes/plan) from places.db (parks, lakes, beaches, rivers).
+- Retraining the model: tools/nlu (generate.py writes data with Gemini, free-tier key in
+  ~/.secrets/gemini_free_api_key.txt; train.py exports nlu.bin plus the Kotlin parity fixtures).
+  Never run generation on a key whose project has billing without asking.
+- places.db is built on the PC (places.py sync, osm.py sync) and copied to the server, so the
+  shared server does no heavy work. Keep server usage minimal: the user pays for it.
 ## Pinned versions
 - `connect-client` is on 1.1.0-alpha12 because 1.1.0 stable needs AGP 8.9.1 (we're on 8.7.2).
 - NAVER map client ID lives in app/build.gradle.kts manifestPlaceholders; it's public by design.
