@@ -2,7 +2,7 @@
 docs/NL_COURSES.md section 6. Everything after this (training, the phone) is free.
 
 Uses Gemini on Google AI Studio's free tier. The key is read from GEMINI_API_KEY or
-~/.secrets/gemini_api_key.txt (never the repo).
+~/.secrets/gemini_free_api_key.txt (GEMINI_KEY_FILE names another file there); never the repo.
 
     python generate.py preview                          # print one request; no key needed
     python generate.py models                           # which models this key can use
@@ -179,7 +179,8 @@ def to_example(raw: dict) -> dict | None:
 def api_key() -> str:
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        path = Path.home() / ".secrets" / "gemini_api_key.txt"
+        # A free-tier key (project without billing) by default; another file only when named.
+        path = Path.home() / ".secrets" / os.environ.get("GEMINI_KEY_FILE", "gemini_free_api_key.txt")
         if not path.exists():
             sys.exit(f"No API key: set GEMINI_API_KEY or write it to {path}")
         key = path.read_text(encoding="utf-8").strip()
@@ -232,7 +233,9 @@ def generate(system: str, prompt: str) -> tuple[list[dict] | None, int, int]:
     }
     r = call(f"models/{MODEL}:generateContent", body)
     usage = r.get("usageMetadata", {})
-    tokens_in, tokens_out = usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0)
+    # Thinking is billed as output too, but reported separately.
+    tokens_in = usage.get("promptTokenCount", 0)
+    tokens_out = usage.get("candidatesTokenCount", 0) + usage.get("thoughtsTokenCount", 0)
     cand = (r.get("candidates") or [{}])[0]
     if cand.get("finishReason") != "STOP":
         return None, tokens_in, tokens_out

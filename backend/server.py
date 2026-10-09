@@ -9,6 +9,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 import accounts
+import places
 import routes
 import trails
 
@@ -131,6 +132,20 @@ def trail(trail_id: str, authorization: str | None = Header(None)):
     if t is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요.")
     return t
+
+
+@app.get("/places/nearby")
+def places_nearby(lat: float, lon: float, radius_m: float = 3000, authorization: str | None = Header(None)):
+    """Parks worth running in near (lat, lon), nearest first."""
+    _user(authorization)
+    return {"places": places.nearby(lat, lon, min(radius_m, 10_000)), "source": places.SOURCE}
+
+
+@app.get("/places/search")
+def places_search(q: str, lat: float, lon: float, authorization: str | None = Header(None)):
+    """Places with this name (or alias), the likeliest one first."""
+    _user(authorization)
+    return {"places": places.find(q[:40], lat, lon), "source": places.SOURCE}
 
 
 @app.get("/health")
