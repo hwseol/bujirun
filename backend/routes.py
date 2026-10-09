@@ -87,6 +87,41 @@ def pedestrian(start: list[float], end: list[float], via: list[list[float]] | No
         raise RouteError("경로를 계산하지 못했어요. 잠시 후 다시 해 주세요.")
 
 
+POI_URL = "https://apis.openapi.sk.com/tmap/pois"
+
+
+def poi_search(keyword: str, near: list[float], radius_km: int = 30) -> list[dict]:
+    """TMAP place search around [near], for names places.db doesn't know (landmarks, buildings,
+    stations). [{name, lat, lon, away_m}], closest match first as TMAP ranks them."""
+    key = os.environ.get("TMAP_APP_KEY")
+    if not key:
+        return []
+    qs = urllib.parse.urlencode({
+        "version": 1, "searchKeyword": keyword, "count": 10, "searchType": "all",
+        "centerLat": near[0], "centerLon": near[1], "radius": min(radius_km, 33),
+        "reqCoordType": "WGS84GEO", "resCoordType": "WGS84GEO", "searchtypCd": "A",
+    })
+    req = urllib.request.Request(f"{POI_URL}?{qs}", headers={"appKey": key, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            body = r.read()
+    except (urllib.error.URLError, TimeoutError):
+        return []
+    if not body:  # TMAP answers 204 with no body when nothing matches
+        return []
+    pois = ((json.loads(body).get("searchPoiInfo") or {}).get("pois") or {}).get("poi") or []
+    out = []
+    for p in pois:
+        try:
+            lat, lon = float(p["noorLat"]), float(p["noorLon"])
+        except (KeyError, ValueError):
+            continue
+        kx = M_PER_DEG * math.cos(math.radians(near[0]))
+        away = math.hypot((lon - near[1]) * kx, (lat - near[0]) * M_PER_DEG)
+        out.append({"name": p.get("name", keyword), "lat": lat, "lon": lon, "away_m": round(away)})
+    return out
+
+
 # --- Loop suggestions -------------------------------------------------------------------------
 
 M_PER_DEG = 111_195.0

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -64,11 +64,9 @@ private val DISTANCE_CHOICES = listOf(2000, 3000, 5000, 7000, 10000)
 
 /**
  * "말로 만들기": the user describes a course, the phone reads it into chips right away (on-device
- * model + rules, no server),
- * the user fixes any chip, and only then is a course requested. See docs/NL_COURSES.md.
- *
- * Until the planner (N4) exists the request is answered with a loop of the right distance, and
- * the screen says which parts of the request that doesn't cover yet.
+ * model + rules, no server), the user fixes any chip, and only then is a course requested from
+ * the server's planner (along a river, laps of a park, to a place and back...). See
+ * docs/NL_COURSES.md.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -85,8 +83,7 @@ internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     var pace by remember { mutableStateOf<Int?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var notice by remember { mutableStateOf<String?>(null) }
-    var loops by remember { mutableStateOf<List<List<GeoPoint>>>(emptyList()) }
+    var plan by remember { mutableStateOf<RouteApi.Plan?>(null) }
     LaunchedEffect(Unit) { pace = WorkoutStore.typicalRunPace() }
 
     fun edit(newText: String) {
@@ -96,13 +93,11 @@ internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
 
     val request = rememberWithLocation(onError = { error = it; loading = false }) { here ->
         val asked = intent
-        val target = asked.targetDistanceM(pace) ?: CourseIntent.DEFAULT_DISTANCE_M
-        notice = notYetCovered(asked)?.let { "$it 반영은 곧 지원돼요. 지금은 ${km(target)}km 순환 코스를 보여드려요." }
         try {
-            loops = RouteApi.loops(here, target)
+            plan = RouteApi.plan(here, asked, asked.targetDistanceM(pace))
         } catch (e: ApiException) {
             error = e.message
-            loops = emptyList()
+            plan = null
         } finally {
             loading = false
         }
@@ -115,11 +110,8 @@ internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         request()
     }
 
-    fun save(points: List<GeoPoint>, then: (Long) -> Unit) {
-        scope.launch {
-            val name = text.trim().take(30).ifEmpty { "추천 순환 ${formatKm(CourseGeometry.distanceM(points))}km" }
-            then(CourseStore.save(name, CourseSource.RECOMMENDED, points))
-        }
+    fun save(course: RouteApi.PlannedCourse, then: (Long) -> Unit) {
+        scope.launch { then(CourseStore.save(course.title, CourseSource.RECOMMENDED, course.points)) }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -145,14 +137,14 @@ internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     if (loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) else Text("코스 만들기")
                 }
             }
-            notice?.let {
+            plan?.notes?.forEach {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
             }
         }
-        if (loops.isEmpty() && !loading && error == null && text.isBlank()) {
+        if (plan == null && !loading && error == null && text.isBlank()) {
             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                 Text(
                     "거리나 시간, 가고 싶은 곳을 말하듯 적어 보세요.\n알아들은 내용은 아래 칩으로 보여드리고, 탭해서 고칠 수 있어요.",
@@ -162,8 +154,18 @@ internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             }
         }
         LazyColumn(Modifier.weight(1f)) {
-            itemsIndexed(loops) { i, points ->
-                LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) })
+            items(plan?.courses.orEmpty()) { c ->
+                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) })
+            }
+            plan?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
+                item {
+                    Text(
+                        "장소 정보: " + sources.joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    )
+                }
             }
             item { Spacer(Modifier.height(16.dp)) }
         }
@@ -229,13 +231,6 @@ private fun nextShape(intent: CourseIntent): CourseShape {
     return options[(options.indexOf(intent.shape) + 1) % options.size]
 }
 
-/** The parts of a request the interim loop answer ignores, in words; null if it covers it all. */
-private fun notYetCovered(intent: CourseIntent): String? = listOfNotNull(
-    "장소".takeIf { intent.places.isNotEmpty() },
-    intent.themes.joinToString("·") { it.label }.takeIf { it.isNotEmpty() },
-    intent.shape.label.takeIf { intent.shape != CourseShape.LOOP },
-    "평지".takeIf { intent.flat },
-).takeIf { it.isNotEmpty() }?.joinToString(", ")
 
 /** "5", "4.5", "2.25": whole and half kilometres without trailing zeros. */
 private fun km(m: Int) = if (m % 1000 == 0) "${m / 1000}" else formatKm(m.toDouble()).trimEnd('0').trimEnd('.')

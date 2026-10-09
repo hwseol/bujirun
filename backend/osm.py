@@ -176,6 +176,35 @@ def area_rows(elements: list[dict], existing_parks: list) -> list[dict]:
     return rows
 
 
+def chain_lines(lines, tol_m: float = 30):
+    """Joins open lines whose ends meet (within [tol_m]) into as few long lines as possible, so a
+    river can be followed for kilometres without jumping between pieces."""
+    pieces = [list(l) for l in lines]
+    out = []
+    near = lambda a, b: places.distance_m(a[0], a[1], b[0], b[1]) <= tol_m
+    while pieces:
+        line = pieces.pop()
+        changed = True
+        while changed:
+            changed = False
+            for i, p in enumerate(pieces):
+                if near(p[0], line[-1]):
+                    line += p[1:]
+                elif near(p[-1], line[-1]):
+                    line += p[::-1][1:]
+                elif near(p[-1], line[0]):
+                    line = p[:-1] + line
+                elif near(p[0], line[0]):
+                    line = p[::-1][:-1] + line
+                else:
+                    continue
+                pieces.pop(i)
+                changed = True
+                break
+        out.append(line)
+    return sorted(out, key=len, reverse=True)
+
+
 def river_rows(elements: list[dict]) -> list[dict]:
     """Named rivers and streams. OSM splits a river into many ways; ways with the same name that
     touch (within JOIN_M) become one place, while same-named streams in different towns stay
@@ -185,7 +214,7 @@ def river_rows(elements: list[dict]) -> list[dict]:
         name = " ".join(el.get("tags", {}).get("name", "").split())
         line = lines_of(el)
         if name and line:
-            by_name.setdefault(name, []).append((el["id"], line[0]))
+            by_name.setdefault(name, []).append((el["id"], line[0], el["tags"].get("waterway")))
     rows = []
     for name, ways in by_name.items():
         parent = list(range(len(ways)))
@@ -214,13 +243,15 @@ def river_rows(elements: list[dict]) -> list[dict]:
         for i in range(len(ways)):
             groups.setdefault(root(i), []).append(ways[i])
         for members in groups.values():
-            lines = [simplify(l) for _, l in members]
+            lines = [simplify(l) for l in chain_lines([l for _, l, _ in members])]
             total = sum(length_m(l) for l in lines)
             if total < MIN_RIVER_M:
                 continue
             mid = _middle(lines)
             rows.append({
-                "id": f"osm:river:{min(w for w, _ in members)}", "kind": "river", "name": name,
+                "id": f"osm:river:{min(w for w, _, _ in members)}", "kind": "river", "name": name,
+                # river / stream / canal: how wide it is, roughly (a river's banks are far apart)
+                "subtype": "river" if any(t == "river" for _, _, t in members) else members[0][2],
                 "lat": mid[0], "lon": mid[1], **box(lines), "length_m": round(total),
                 "shape": json.dumps(lines, separators=(",", ":")),
             })

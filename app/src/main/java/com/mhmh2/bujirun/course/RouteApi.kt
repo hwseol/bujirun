@@ -30,6 +30,44 @@ object RouteApi {
         return (0 until loops.length()).map { points(loops.getJSONObject(it).getJSONArray("points")) }
     }
 
+    data class PlannedCourse(val title: String, val distanceM: Int, val points: List<GeoPoint>, val via: List<String>)
+
+    /** Courses for a request, plus anything the user should know and the data sources to credit. */
+    data class Plan(val courses: List<PlannedCourse>, val notes: List<String>, val sources: List<String>)
+
+    /**
+     * A course built around what the user asked for (backend planner.py): along a river, laps of
+     * a park or lake, to a place and back, through parks. [distanceM] is the target already
+     * worked out on the phone (time at the user's pace, or a default); null to a destination.
+     */
+    suspend fun plan(start: GeoPoint, intent: CourseIntent, distanceM: Int?): Plan {
+        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val body = JSONObject()
+            .put("shape", intent.shape.name)
+            .put("themes", JSONArray(intent.themes.map { it.name }))
+            .put("places", JSONArray(intent.places.map { JSONObject().put("name", it.name).put("role", it.role.name) }))
+            .put("flat", intent.flat)
+        if (distanceM != null) body.put("distance_m", distanceM)
+        val json = Api.post(
+            "/routes/plan",
+            JSONObject().put("start", JSONArray().put(start.lat).put(start.lon)).put("intent", body),
+            token,
+        )
+        val courses = json.getJSONArray("courses")
+        return Plan(
+            courses = (0 until courses.length()).map { i ->
+                val c = courses.getJSONObject(i)
+                val via = c.optJSONArray("via") ?: JSONArray()
+                PlannedCourse(c.getString("title"), c.getInt("distance_m"), points(c.getJSONArray("points")),
+                    (0 until via.length()).map { via.getString(it) })
+            },
+            notes = json.optJSONArray("notes").strings(),
+            sources = json.optJSONArray("sources").strings(),
+        )
+    }
+
+    private fun JSONArray?.strings() = if (this == null) emptyList() else (0 until length()).map { getString(it) }
+
     private fun points(arr: JSONArray) =
         (0 until arr.length()).map { i -> arr.getJSONArray(i).let { GeoPoint(it.getDouble(0), it.getDouble(1)) } }
 }

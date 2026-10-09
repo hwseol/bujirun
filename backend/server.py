@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 import accounts
 import places
+import planner
 import routes
 import trails
 
@@ -114,6 +115,42 @@ def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
         raise HTTPException(status_code=400, detail="1~21km 사이로 골라 주세요.")
     try:
         return {"loops": routes.loops(req.start, req.distance_m, user["id"])}
+    except routes.RouteError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class PlanPlace(BaseModel):
+    name: str
+    role: str = "AROUND"  # START / DEST / AROUND
+
+
+class PlanIntent(BaseModel):
+    distance_m: float | None = None
+    shape: str = "LOOP"  # LOOP / OUT_AND_BACK / ONE_WAY
+    themes: list[str] = []
+    places: list[PlanPlace] = []
+    flat: bool = False
+
+
+class PlanRequest(BaseModel):
+    start: list[float]  # [lat, lon]
+    intent: PlanIntent
+
+
+@app.post("/routes/plan")
+def plan_route(req: PlanRequest, authorization: str | None = Header(None)):
+    """A course for a request the app has already read ("한강 따라 5km" -> distance, shape,
+    themes, places). See planner.py."""
+    user = _user(authorization)
+    i = req.intent
+    if len(req.start) != 2 or (i.distance_m is not None and not 500 <= i.distance_m <= 42_200) or len(i.places) > 3:
+        raise HTTPException(status_code=400, detail="요청을 이해하지 못했어요.")
+    intent = {
+        "distance_m": i.distance_m, "shape": i.shape, "themes": i.themes[:5], "flat": i.flat,
+        "places": [{"name": p.name[:30], "role": p.role} for p in i.places],
+    }
+    try:
+        return planner.cached_plan(req.start, intent, planner.Planner(user["id"]))
     except routes.RouteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
