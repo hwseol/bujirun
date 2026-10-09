@@ -6,6 +6,7 @@ import unittest
 
 _tmp = tempfile.TemporaryDirectory()
 os.environ["BJ_DATA_DIR"] = _tmp.name
+os.environ["BUJIRUN_ADMIN_EMAIL"] = "Admin@Example.com"
 
 import accounts  # noqa: E402
 
@@ -47,7 +48,7 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(str(wrong.exception), str(unknown.exception))
 
     def test_admin_flag(self):
-        admin = accounts.create_user("MHMH2090@gmail.com", "관리자", "password1")
+        admin = accounts.create_user("ADMIN@example.com", "관리자", "password1")
         other = accounts.create_user("a@b.co", "러너", "password1")
         self.assertTrue(accounts.public(admin)["is_admin"])
         self.assertFalse(accounts.public(other)["is_admin"])

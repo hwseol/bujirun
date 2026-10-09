@@ -14,7 +14,9 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-ADMIN_EMAIL = "admin@example.com"
+# The admin account's email, set on the server (BUJIRUN_ADMIN_EMAIL in the root-only systemd
+# secret file) rather than in this public repo. Unset means no admin.
+ADMIN_EMAIL = os.environ.get("BUJIRUN_ADMIN_EMAIL", "").strip().lower()
 SESSION_LIFETIME = timedelta(days=180)  # a phone stays signed in; logout drops the session
 # ~260k rounds matches Django's default: slow enough that a stolen hash is impractical to
 # brute-force, fast enough that a login doesn't feel slow.
@@ -80,7 +82,7 @@ def _hash(password: str, salt_hex: str | None = None) -> tuple[str, str]:
 
 def public(row: sqlite3.Row) -> dict:
     """What the app may see about a user - never the hash or salt."""
-    return {"email": row["email"], "nickname": row["nickname"], "is_admin": row["email"] == ADMIN_EMAIL}
+    return {"email": row["email"], "nickname": row["nickname"], "is_admin": bool(ADMIN_EMAIL) and row["email"] == ADMIN_EMAIL}
 
 
 def create_user(email: str, nickname: str, password: str) -> sqlite3.Row:

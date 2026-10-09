@@ -24,8 +24,10 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - Login is required. Accounts live on the Bujirun API (backend/, deploy notes in
   backend/deploy/README.md): unique email and nickname, password (PBKDF2), opaque session token
   stored on the phone. No email verification; forgotten passwords go through
-  backend/reset_password.py on the server. Admin = `admin@example.com` (backend
-  accounts.ADMIN_EMAIL); the app trusts the server's `is_admin`.
+  backend/reset_password.py on the server. The admin email is the server secret
+  `BUJIRUN_ADMIN_EMAIL` (not in this public repo); the app trusts the server's `is_admin`.
+- The repo is public on GitHub (hwseol/bujirun): never commit keys, the admin email, or SSH
+  details. Server access notes live outside the repo.
 - Test the app against a local server: run `uvicorn server:app --port 8100` in backend/ (the
   EnglishBite venv has fastapi) and build with `-PbujirunApi=http://10.0.2.2:8100/`.
   Backend tests: `python -m unittest test_accounts` in backend/.

@@ -14,7 +14,7 @@ itself: SSH key, security group, backups), as a separate service with its own da
 ## First time
 ```
 scp -i <your-key>.pem -r backend <user>@<server>:~/bujirun/
-ssh -i <your-key>.pem <user>@<server> 'bash ~/bujirun/backend/deploy/provision.sh'
+ssh -i <your-key>.pem <user>@<server> 'CERTBOT_EMAIL=you@example.com bash ~/bujirun/backend/deploy/provision.sh'
 ```
 
 ## Updating
@@ -24,10 +24,10 @@ stay installed).
 
 ## Secrets
 `/etc/systemd/system/bujirun-api.service.d/secrets.conf` (root-only, never in git) holds
-`TMAP_APP_KEY` (walking routes) and `DURUNUBI_KEY` (data.go.kr, decoded form). Local copies:
-`~/.secrets/bujirun_tmap_appkey.txt`, `~/.secrets/bujirun_durunubi_key.txt`. When editing it,
-rewrite the whole file with every key - reading it needs sudo, and a failed read once wiped
-the TMAP key.
+`TMAP_APP_KEY` (walking routes), `DURUNUBI_KEY` (data.go.kr, decoded form) and
+`BUJIRUN_ADMIN_EMAIL` (the admin account; unset = no admin). Keep a local copy of each. When
+editing the file, rewrite it whole with every entry - reading it needs sudo, and a failed read
+once wiped a key.
 
 ## Official trails (Durunubi)
 Copied into `~/bujirun/data/trails.db`, not fetched per request. Refresh occasionally:

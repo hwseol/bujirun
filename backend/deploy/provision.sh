@@ -61,7 +61,7 @@ server {
 EOF
   sudo nginx -t
   sudo systemctl reload nginx
-  sudo certbot --nginx -d "$HOST" --non-interactive --agree-tos -m admin@example.com --redirect
+  sudo certbot --nginx -d "$HOST" --non-interactive --agree-tos -m "${CERTBOT_EMAIL:?set CERTBOT_EMAIL}" --redirect
 fi
 
 sleep 2
