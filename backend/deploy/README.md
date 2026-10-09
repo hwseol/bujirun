@@ -38,6 +38,19 @@ cd ~/bujirun/backend && sudo sed -n "s/^Environment=DURUNUBI_KEY=//p" \
 ```
 The app must keep crediting the source (한국관광공사 두루누비).
 
+## Places (parks, lakes, beaches, rivers)
+`~/bujirun/data/places.db`, refreshed monthly from two sources; each sync replaces only its own
+rows (run `places.py` first, `osm.py` skips the parks it already has):
+```
+cd ~/bujirun/backend && sudo sed -n "s/^Environment=DURUNUBI_KEY=//p" \
+  /etc/systemd/system/bujirun-api.service.d/secrets.conf > /tmp/d && \
+  DURUNUBI_KEY=$(cat /tmp/d) BJ_DATA_DIR=~/bujirun/data .venv/bin/python places.py sync; rm /tmp/d
+BJ_DATA_DIR=~/bujirun/data .venv/bin/python osm.py sync
+```
+The park data uses the same data.go.kr key as Durunubi. OSM comes from the public Overpass
+servers (no key; they're often busy, the script retries). Credits shown by the app:
+공공데이터포털 전국도시공원정보표준데이터, © OpenStreetMap 기여자.
+
 ## Forgotten password
 ```
 cd ~/bujirun/backend && BJ_DATA_DIR=~/bujirun/data .venv/bin/python reset_password.py someone@example.com

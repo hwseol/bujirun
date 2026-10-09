@@ -136,16 +136,18 @@ def trail(trail_id: str, authorization: str | None = Header(None)):
 
 @app.get("/places/nearby")
 def places_nearby(lat: float, lon: float, radius_m: float = 3000, authorization: str | None = Header(None)):
-    """Parks worth running in near (lat, lon), nearest first."""
+    """Parks, lakes, beaches and rivers worth running at near (lat, lon), nearest first."""
     _user(authorization)
-    return {"places": places.nearby(lat, lon, min(radius_m, 10_000)), "source": places.SOURCE}
+    found = places.nearby(lat, lon, min(radius_m, 10_000))
+    return {"places": found, "sources": sorted({p["source"] for p in found})}
 
 
 @app.get("/places/search")
 def places_search(q: str, lat: float, lon: float, authorization: str | None = Header(None)):
     """Places with this name (or alias), the likeliest one first."""
     _user(authorization)
-    return {"places": places.find(q[:40], lat, lon), "source": places.SOURCE}
+    found = places.find(q[:40], lat, lon)
+    return {"places": found, "sources": sorted({p["source"] for p in found})}
 
 
 @app.get("/health")
