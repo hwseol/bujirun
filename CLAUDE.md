@@ -32,8 +32,8 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - Admin's start button offers a real workout or a fake-GPS test run at 1x/5x/10x (FakeRun +
   a scaled clock in WorkoutService, everything reads `now()`). Test runs are saved with
   `simulated = 1`, titled "(테스트)", and never exported to Health Connect.
-- The DB is at version 2 (added `simulated`); testers hold real data, so add migrations, never
-  destructive fallbacks.
+- The DB is at version 4 (v2 `simulated`, v3 course tables, v4 `workouts.courseId`); testers
+  hold real data, so add migrations, never destructive fallbacks.
 
 ## Pinned versions
 - `connect-client` is on 1.1.0-alpha12 because 1.1.0 stable needs AGP 8.9.1 (we're on 8.7.2).
