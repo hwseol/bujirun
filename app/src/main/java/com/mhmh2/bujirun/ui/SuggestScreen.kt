@@ -67,8 +67,8 @@ import kotlin.coroutines.resume
 private val DISTANCES = listOf(3000, 5000, 7000, 10000)
 
 /**
- * Courses around where the user is now, two ways: loops generated from here (pick a distance),
- * and official walking trails nearby (Durunubi). Either can be run right away or kept.
+ * Courses around where the user is now: loops generated from here (pick a distance), official
+ * walking trails nearby (Durunubi), or a course described in words. Any can be run or kept.
  */
 @Composable
 fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
@@ -81,15 +81,20 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("순환 코스") })
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("걷기길") })
+            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("말로 만들기") })
         }
         Spacer(Modifier.height(12.dp))
-        if (tab == 0) LoopsTab(onOpen, onRun) else TrailsTab(onOpen, onRun)
+        when (tab) {
+            0 -> LoopsTab(onOpen, onRun)
+            1 -> TrailsTab(onOpen, onRun)
+            else -> NaturalTab(onOpen, onRun)
+        }
     }
 }
 
 /** Asks for location permission if needed, then runs [action] with the current position. */
 @Composable
-private fun rememberWithLocation(onError: (String) -> Unit, action: suspend (GeoPoint) -> Unit): () -> Unit {
+internal fun rememberWithLocation(onError: (String) -> Unit, action: suspend (GeoPoint) -> Unit): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     fun go() {
@@ -279,30 +284,36 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         }
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(loops) { i, points ->
-                val meters = CourseGeometry.distanceM(points)
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    tonalElevation = 1.dp,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        CourseLineView(points)
-                        Spacer(Modifier.height(10.dp))
-                        Text("추천 ${i + 1} · ${formatKm(meters)}km 순환", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "달리기 약 ${formatDuration((meters / 1000 * 390_000).toLong())} · 걷기 약 ${formatDuration((meters / 1000 * 720_000).toLong())}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { save(points, onRun) }, modifier = Modifier.weight(1f)) { Text("바로 달리기") }
-                            OutlinedButton(onClick = { save(points, onOpen) }, modifier = Modifier.weight(1f)) { Text("내 코스에 저장") }
-                        }
-                    }
-                }
+                LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) })
             }
             item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+/** One suggested course: its shape, a title, walking/running time, and run / keep buttons. */
+@Composable
+internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, onSave: () -> Unit) {
+    val meters = CourseGeometry.distanceM(points)
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            CourseLineView(points)
+            Spacer(Modifier.height(10.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "달리기 약 ${formatDuration((meters / 1000 * 390_000).toLong())} · 걷기 약 ${formatDuration((meters / 1000 * 720_000).toLong())}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRun, modifier = Modifier.weight(1f)) { Text("바로 달리기") }
+                OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text("내 코스에 저장") }
+            }
         }
     }
 }

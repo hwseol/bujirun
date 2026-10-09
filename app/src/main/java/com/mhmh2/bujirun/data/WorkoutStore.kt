@@ -3,6 +3,7 @@ package com.mhmh2.bujirun.data
 import android.content.Context
 import androidx.room.Room
 import com.mhmh2.bujirun.coach.Goal
+import com.mhmh2.bujirun.course.CourseIntent
 import com.mhmh2.bujirun.tracking.Activity
 import com.mhmh2.bujirun.tracking.LocationSample
 import com.mhmh2.bujirun.tracking.TrackPoint
@@ -11,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -100,6 +102,11 @@ object WorkoutStore {
     }
 
     fun observeDone(): Flow<List<WorkoutEntity>> = dao.observeDone()
+
+    /** Median pace (s/km) of the user's recent real runs, or null without enough of them. */
+    suspend fun typicalRunPace(): Int? = CourseIntent.typicalRunPace(
+        dao.observeDone().first().filter { it.isRun && !it.simulated }.map { it.distanceM to it.durationMs }
+    )
     fun observe(id: Long): Flow<WorkoutEntity?> = dao.observe(id)
     fun observePoints(id: Long): Flow<List<TrackPointEntity>> = dao.observePoints(id)
 }
