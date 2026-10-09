@@ -1,0 +1,53 @@
+# Hand-written course requests with their reading, for evaluation only (never trained on).
+# text <TAB> fields separated by ";": DIST= TIME= PS= PD= PA= (substring of the text, first
+# occurrence), shape= (default LOOP), themes= (comma list), act= (RUN/WALK), flat=1
+한강 따라 5km	PA=한강;DIST=5km;themes=RIVER
+남산까지 갔다가 돌아오기	PD=남산;shape=OUT_AND_BACK
+공원 돌아서 30분	TIME=30분;themes=PARK
+집 근처 가볍게 30분 뛰고 싶어	TIME=30분;act=RUN
+반포에서 출발해서 한강 따라 10키로 달리기	PS=반포;PA=한강;DIST=10키로;themes=RIVER;act=RUN
+숙소 앞 바닷가 산책 한 시간	TIME=한 시간;themes=COAST;act=WALK
+석촌호수 세 바퀴	PA=석촌호수;themes=LAKE
+양재천 40분 걷기	PA=양재천;TIME=40분;themes=RIVER;act=WALK
+서울숲 한바퀴 돌고 싶음	PA=서울숲;themes=PARK
+올팍 5키로	PA=올팍;DIST=5키로;themes=PARK
+광화문까지 편도로 뛰어갈래	PD=광화문;shape=ONE_WAY;act=RUN
+회사에서 집까지 뛰어서 퇴근	shape=ONE_WAY;act=RUN
+오늘은 평지로만 7km	DIST=7km;flat=1
+오르막 없는 코스로 3키로 산책	DIST=3키로;flat=1;act=WALK
+경복궁 덕수궁 들러서 구경하며 걷기	PA=경복궁;themes=SIGHTS;act=WALK
+해운대에서 광안리까지 달리기	PS=해운대;PD=광안리;shape=ONE_WAY;act=RUN
+탄천 따라 하프 뛰기	PA=탄천;DIST=하프;themes=RIVER;act=RUN
+10분만 동네 산책	TIME=10분;act=WALK
+아침 조깅 이십분	TIME=이십분;act=RUN
+뚝섬유원지까지 왕복 6km	PD=뚝섬유원지;shape=OUT_AND_BACK;DIST=6km
+보라매공원에서 인터벌 30분	PA=보라매공원;TIME=30분;themes=PARK
+안양천 자전거길 옆으로 8킬로	PA=안양천;DIST=8킬로;themes=RIVER
+잠실역에서 시작해서 석촌호수 돌고 오기	PS=잠실역;PA=석촌호수;themes=LAKE
+5k 가볍게	DIST=5k
+1시간 반 정도 걷고 싶은데 공원 위주로	TIME=1시간 반;themes=PARK;act=WALK
+남산 찍고 내려오기	PD=남산;shape=OUT_AND_BACK
+청계천따라걷기	PA=청계천;themes=RIVER;act=WALK
+불광천 왕복 4키로 러닝	PA=불광천;shape=OUT_AND_BACK;DIST=4키로;themes=RIVER;act=RUN
+점심시간에 15분 걷기	TIME=15분;act=WALK
+호수공원 두바퀴 뛰기	PA=호수공원;themes=PARK;act=RUN
+연남동 골목 구경하면서 산책	PA=연남동;themes=SIGHTS;act=WALK
+3km만 뛸게요	DIST=3km;act=RUN
+한강공원 가서 5키로 뛰고 오기	PA=한강공원;DIST=5키로;themes=RIVER,PARK;act=RUN
+북한산 둘레길 2시간	PA=북한산 둘레길;TIME=2시간;themes=PARK
+퇴근길에 시청에서 집까지	PS=시청;shape=ONE_WAY
+언덕 없는 길로 한시간 걷기	TIME=한시간;flat=1;act=WALK
+경포호 한바퀴 조깅	PA=경포호;themes=LAKE;act=RUN
+협재 해변 따라 걷기	PA=협재 해변;themes=COAST;act=WALK
+아이랑 놀이터 있는 공원 산책	themes=PARK;act=WALK
+가까운 강변으로 6km	DIST=6km;themes=RIVER
+성수역 출발 서울숲 거쳐서 뚝섬까지	PS=성수역;PA=서울숲;PD=뚝섬;shape=ONE_WAY;themes=PARK
+오천미터 기록 재고 싶어	DIST=오천미터
+러닝 45분	TIME=45분;act=RUN
+이태원에서 남산타워까지 갔다 와요	PS=이태원;PD=남산타워;shape=OUT_AND_BACK
+여의도공원 2바퀴 산책	PA=여의도공원;themes=PARK;act=WALK
+오늘 10km 장거리	DIST=10km
+망원한강공원에서 출발해서 선유도 찍고 오기	PS=망원한강공원;PD=선유도;shape=OUT_AND_BACK
+한 시간 동안 명소 위주로 걷기	TIME=한 시간;themes=SIGHTS;act=WALK
+중랑천 산책로 20분	PA=중랑천;TIME=20분;themes=RIVER
+판교역 근처 3킬로	PA=판교역;DIST=3킬로

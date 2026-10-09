@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,7 +48,8 @@ import com.mhmh2.bujirun.course.CourseShape
 import com.mhmh2.bujirun.course.CourseSource
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
-import com.mhmh2.bujirun.course.IntentParser
+import com.mhmh2.bujirun.course.CourseReader
+import com.mhmh2.bujirun.course.NluModel
 import com.mhmh2.bujirun.course.PlaceMention
 import com.mhmh2.bujirun.course.PlaceRole
 import com.mhmh2.bujirun.course.RouteApi
@@ -61,7 +63,8 @@ private val EXAMPLES = listOf("한강 따라 5km", "공원 돌아서 30분", "�
 private val DISTANCE_CHOICES = listOf(2000, 3000, 5000, 7000, 10000)
 
 /**
- * "말로 만들기": the user describes a course, the phone reads it into chips right away (no server),
+ * "말로 만들기": the user describes a course, the phone reads it into chips right away (on-device
+ * model + rules, no server),
  * the user fixes any chip, and only then is a course requested. See docs/NL_COURSES.md.
  *
  * Until the planner (N4) exists the request is answered with a loop of the right distance, and
@@ -70,9 +73,15 @@ private val DISTANCE_CHOICES = listOf(2000, 3000, 5000, 7000, 10000)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // The on-device model; if it can't load for any reason the rules alone still work.
+    val reader = remember {
+        val model = runCatching { context.assets.open("nlu.bin").use { NluModel.load(it) } }.getOrNull()
+        CourseReader(model?.let { it::read })
+    }
     var text by rememberSaveable { mutableStateOf("") }
-    var intent by remember { mutableStateOf(IntentParser.parse(text)) }
+    var intent by remember { mutableStateOf(reader.read(text)) }
     var pace by remember { mutableStateOf<Int?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -82,7 +91,7 @@ internal fun NaturalTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
 
     fun edit(newText: String) {
         text = newText
-        intent = IntentParser.parse(newText)
+        intent = reader.read(newText)
     }
 
     val request = rememberWithLocation(onError = { error = it; loading = false }) { here ->
