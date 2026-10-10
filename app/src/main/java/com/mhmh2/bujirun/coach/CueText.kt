@@ -52,8 +52,10 @@ object CueText {
         CourseCue.RightWayAgain -> "좋아요, 맞는 방향이에요."
         CourseCue.BackOnCourse -> "코스로 돌아왔어요."
         is CourseCue.Remaining -> "코스 " + (if (c.doneM > 0) "${km(c.doneM)} 왔어요. " else "") + "남은 거리 ${km(c.meters)}."
+        is CourseCue.LoopLearned ->
+            "한 바퀴 ${km(c.lapM)}를 ${duration(c.lapMs)}에 돌았어요. 같은 길로 계속 돌면 바퀴마다 알려드릴게요."
         is CourseCue.LapDone ->
-            (if (c.done >= c.total) "${c.total}바퀴 모두 돌았어요! " else "${c.done}바퀴 완료, ${c.total - c.done}바퀴 남았어요. ") +
+            (if (c.total <= 0) "${c.done}바퀴 완료. " else if (c.done >= c.total)"${c.total}바퀴 모두 돌았어요! " else "${c.done}바퀴 완료, ${c.total - c.done}바퀴 남았어요. ") +
                 (if (c.lapMs > 0 && c.lapM > 0) "이번 바퀴 ${duration(c.lapMs)}, 페이스 ${pace(c.lapMs / c.lapM)}." else "")
         CourseCue.Halfway -> "코스 절반 왔어요."
         CourseCue.Finished -> "코스 완주!"

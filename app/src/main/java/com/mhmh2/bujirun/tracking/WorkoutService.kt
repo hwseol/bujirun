@@ -44,6 +44,7 @@ import com.mhmh2.bujirun.course.CourseNavigator
 import com.mhmh2.bujirun.course.CourseRoute
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
+import com.mhmh2.bujirun.course.LoopLearner
 import com.mhmh2.bujirun.course.RouteApi
 import com.mhmh2.bujirun.data.WorkoutStore
 import kotlinx.coroutines.Job
@@ -211,6 +212,8 @@ class WorkoutService : LifecycleService() {
         workoutId = null
         savedPoints = 0
         speedMeter = SpeedMeter()
+        learner = LoopLearner()
+        autoReroutes = 0
         cadenceMeter = CadenceMeter()
         classifier = ActivityClassifier()
         autoPause = AutoPauseDetector()
@@ -263,6 +266,7 @@ class WorkoutService : LifecycleService() {
                     cues.forEach { say(Cue.Course(it)) }
                     autoReroute(nav, cues, now())
                 }
+                if (here != null && t.status == WorkoutStatus.RUNNING) learnLoop(here, now())
                 val snapshot = publish() ?: break
                 coach?.onTick(snapshot)?.forEach(::say)
                 // Save as we go, so a workout killed by the system mid-run isn't lost.
@@ -301,20 +305,43 @@ class WorkoutService : LifecycleService() {
         runCatching { withTimeout(8_000) { RouteApi.walk(from, to) } }.getOrNull()?.takeIf { it.size >= 2 }
 
     // The runner took another road: after a while off the course (or going further from it), a
-    // new route from where they are instead of repeating "off course". At most once a minute -
-    // each is a walking-route request to the server.
+    // new route from where they are instead of repeating "off course". At most once a minute,
+    // and twice a workout - each is a walking-route request to the server, and someone who keeps
+    // leaving the course is running their own way (LoopLearner picks that up).
     private var offSinceMs: Long? = null
     private var lastAutoRerouteMs = 0L
+    private var autoReroutes = 0
 
     private fun autoReroute(nav: CourseNavigator, cues: List<CourseCue>, now: Long) {
         val p = nav.progress()
-        if (p.onCourse || !p.started || p.finished) { offSinceMs = null; return }
+        if (p.onCourse || !p.started || p.finished || nav.openLaps) { offSinceMs = null; return }
         val since = offSinceMs ?: now.also { offSinceMs = it }
-        if (now - since >= AUTO_REROUTE_AFTER_MS && now - lastAutoRerouteMs >= 60_000) {
+        if (autoReroutes < 2 && now - since >= AUTO_REROUTE_AFTER_MS && now - lastAutoRerouteMs >= 60_000) {
             lastAutoRerouteMs = now
             offSinceMs = null
+            autoReroutes++
             reroute()
         }
+    }
+
+    // Going round a loop of their own (a park's running track instead of the course round the
+    // whole park, or just a loop on a free run): after one lap, that loop is what's guided and
+    // its laps counted. Only the runner's own way counts - a free run, a course already finished,
+    // or away from the course - so a lap course followed as planned isn't replaced.
+    private var learner = LoopLearner()
+
+    private fun learnLoop(here: GeoPoint, now: Long) {
+        val nav = navigator
+        val loop = learner.add(here, now) ?: return
+        learner.reset()
+        val p = nav?.progress()
+        val ownWay = p == null || p.finished || (p.started && !p.onCourse)
+        if (!ownWay || nav?.openLaps == true) return
+        val route = CourseRoute(loop.points)
+        navigator = CourseNavigator("내 바퀴", route, announceHalfway = false, openLaps = true, lapsAlready = 1, lapStartMs = now)
+        offSinceMs = null
+        say(Cue.Course(CourseCue.LoopLearned(route.lengthM, loop.lapMs)))
+        publish()
     }
 
     /** "경로 다시 찾기": a new route from here to the nearest part of the course not yet run. */

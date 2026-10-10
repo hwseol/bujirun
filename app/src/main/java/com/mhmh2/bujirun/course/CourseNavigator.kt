@@ -253,6 +253,8 @@ sealed interface CourseCue {
     data class Rerouted(val toCourseM: Int) : CourseCue
     /** Asked for the way back before there was a GPS position. */
     data object RerouteNoFix : CourseCue
+    /** The runner went round a loop of their own ([lapM] long, in [lapMs]): laps of it are counted from now. */
+    data class LoopLearned(val lapM: Double, val lapMs: Long) : CourseCue
     /** The workout began before the runner's position (and so the course from there) was known. */
     data object Locating : CourseCue
 }
@@ -272,6 +274,14 @@ class CourseNavigator(
     private val approachM: Double = 0.0,
     /** False for a route rebuilt mid-run (CourseJoin.rejoin): its halfway isn't the course's. */
     announceHalfway: Boolean = true,
+    /**
+     * A loop the runner chose themselves (LoopLearner): run round it as often as they like, each
+     * lap announced, never "finished". [lapsAlready] laps of it are done, the last ending at
+     * [lapStartMs].
+     */
+    val openLaps: Boolean = false,
+    lapsAlready: Int = 0,
+    lapStartMs: Long? = null,
 ) {
     // Recent positions, for the runner's own heading (needed to say "the course is to your
     // right" and to notice running the wrong way).
@@ -292,9 +302,9 @@ class CourseNavigator(
     private val climbsAnnounced = mutableSetOf<Int>()
     private var nextRemainingKm = 1
     /** Laps, if the course goes round the same ring several times (CourseLaps). */
-    val laps: Laps? = CourseLaps.detect(route)
-    private var lapsDone = 0
-    private var lapStartedMs: Long? = null
+    val laps: Laps? = if (openLaps) null else CourseLaps.detect(route)
+    private var lapsDone = lapsAlready
+    private var lapStartedMs: Long? = lapStartMs
     private var halfwayAnnounced = !announceHalfway
 
     // What's at each turn (by index into route.turns), filled in when the server answers.
@@ -420,6 +430,18 @@ class CourseNavigator(
             cues += CourseCue.Halfway
         }
         val laps = laps
+        if (openLaps) {
+            // Round the runner's own loop again: count it, and start the loop over (turns,
+            // climbs and all) from the top.
+            if (progress >= route.lengthM - 15) {
+                lapsDone++
+                cues += CourseCue.LapDone(lapsDone, 0, nowMs - (lapStartedMs ?: nowMs), route.lengthM)
+                lapStartedMs = nowMs
+                progress = 0.0
+                aheadAnnounced.clear(); nowAnnounced.clear(); climbsAnnounced.clear()
+            }
+            return cues
+        }
         if (laps != null) {
             // Lap courses: where you are is "lap 2 of 5", said at the end of every lap with
             // that lap's time and pace (km marks would just talk over it).
@@ -452,7 +474,7 @@ class CourseNavigator(
         started = started,
         finished = finished,
         nextTurn = if (started && !finished) route.turns.firstOrNull { it.atM > progress - 5 } else null,
-        lap = laps?.let { (lapsDone + 1).coerceAtMost(it.count) },
+        lap = if (openLaps) lapsDone + 1 else laps?.let { (lapsDone + 1).coerceAtMost(it.count) },
         laps = laps?.count,
     )
 
@@ -461,7 +483,10 @@ class CourseNavigator(
      * line is truer than GPS under trees). Null while off it or going the wrong way.
      */
     fun matchedAlongM(): Double? =
-        progress.takeIf { started && !offCourse && !wrongWay && lastOffDistance <= onCourseM }
+        // Round an open loop, laps already run count on (the distance must never step back).
+        (progress + if (openLaps) (lapsDone - lapsAtStart) * route.lengthM else 0.0)
+            .takeIf { started && !offCourse && !wrongWay && lastOffDistance <= onCourseM }
+    private val lapsAtStart = lapsAlready
 
     private fun roundTo10(m: Double) = ((m / 10).roundToInt() * 10).coerceAtLeast(10)
 
