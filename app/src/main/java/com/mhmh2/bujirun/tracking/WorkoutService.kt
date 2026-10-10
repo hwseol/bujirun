@@ -241,6 +241,9 @@ class WorkoutService : LifecycleService() {
                     say(Cue.Course(nav.begin()))
                 }
             }
+            // The voice engine takes a second or two to start; counting down before it's up
+            // leaves "셋 둘 하나" trailing behind the numbers on screen.
+            withTimeoutOrNull(3_000) { while (voice?.ready == false) delay(50) }
             for (n in COUNTDOWN_FROM downTo 1) {
                 countdown = n
                 say(Cue.Countdown(n))
@@ -464,8 +467,13 @@ class WorkoutService : LifecycleService() {
     }
 
     private fun say(cue: Cue) {
-        if (Prefs.voiceEnabled.value) voice?.speak(CueText.of(cue))
+        if (Prefs.voiceEnabled.value) voice?.speak(CueText.of(cue), urgent = isUrgent(cue))
     }
+
+    // Said the moment they happen, cutting off a routine line (a split summary) still playing:
+    // the countdown in step with the screen, and the course instructions that are about now.
+    private fun isUrgent(cue: Cue) = cue is Cue.Countdown || (cue is Cue.Course && (
+        cue.cue is CourseCue.TurnNow || cue.cue is CourseCue.OffCourse || cue.cue == CourseCue.WrongWay))
 
     private fun publish(): WorkoutSnapshot? {
         val t = tracker ?: return null
