@@ -364,10 +364,28 @@ internal fun estimateText(meters: Double, paces: Paces): String {
  * ([shade] %, when the server knows), and run / keep buttons.
  */
 @Composable
-internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, onSave: () -> Unit, shade: Int? = null) {
+internal fun LoopCard(
+    points: List<GeoPoint>,
+    title: String,
+    onRun: () -> Unit,
+    onSave: () -> Unit,
+    shade: Int? = null,
+    legs: List<RouteApi.Leg> = emptyList(),
+) {
     val meters = CourseGeometry.distanceM(points)
     val paces = rememberPaces()
+    var details by remember { mutableStateOf(false) }
+    if (details) {
+        CoursePreviewDialog(
+            CourseInfo(title, points, shade, legs),
+            onDismiss = { details = false },
+            onRun = { details = false; onRun() },
+            onSave = { details = false; onSave() },
+        )
+    }
+    // Tapping the card (its map is static) opens the course up close.
     Surface(
+        onClick = { details = true },
         shape = RoundedCornerShape(20.dp),
         tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
@@ -384,7 +402,15 @@ internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(10.dp))
+            if (legs.isNotEmpty()) {
+                Text(
+                    legs.joinToString(" → ") { it.label.substringBefore(" (") },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                )
+            }
+            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("지도 크게 보기 · 자세히 ›") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onRun, modifier = Modifier.weight(1f)) { Text("바로 달리기") }
                 OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text("내 코스에 저장") }

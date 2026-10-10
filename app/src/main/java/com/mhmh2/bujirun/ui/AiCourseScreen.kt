@@ -195,7 +195,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                 }
             }
             items(plan?.courses.orEmpty()) { c ->
-                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade)
+                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs)
             }
             plan?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
                 item {

@@ -230,10 +230,18 @@ class Planner:
                 out.courses.sort(key=lambda c: -c.get("shade", 0))
         return out
 
-    def add(self, out, title, points, via=()):
+    def add(self, out, title, points, via=(), legs=()):
+        """[legs]: (label, points) parts of the course in order ("가는 길", "효창공원 3바퀴",
+        "돌아오는 길"), each reported with its own distance and shade."""
         course = {"title": title, "distance_m": round(path_length(points)), "points": points, "via": list(via)}
         if shade.has_map():
             course["shade"] = round(shade.ratio(points) * 100)
+        if legs:
+            course["legs"] = [
+                {"label": label, "distance_m": round(path_length(pts)),
+                 **({"shade": round(shade.ratio(pts) * 100)} if shade.has_map() else {})}
+                for label, pts in legs if len(pts) >= 2 and path_length(pts) >= 30
+            ]
         out.courses.append(course)
 
     # "남산까지", "남산까지 왕복"
@@ -241,7 +249,8 @@ class Planner:
         there = self.route(origin, dest["pt"])
         if shape == "OUT_AND_BACK":
             pts = join(there, there[::-1])
-            self.add(out, f"{dest['name']} 왕복", pts, [dest["name"]])
+            self.add(out, f"{dest['name']} 왕복", pts, [dest["name"]],
+                     legs=[(f"{dest['name']}까지 가는 길", there), ("돌아오는 길", there[::-1])])
         else:
             pts = there
             self.add(out, f"{dest['name']}까지", pts, [dest["name"]])
@@ -323,7 +332,8 @@ class Planner:
             turn = plane.ll(*offset(q_xy, q_normal, side * bank))
             out_pts = self.route(origin, turn, [entry])
             pts = join(out_pts, out_pts[::-1])
-        self.add(out, f"{name} 따라 왕복", pts, [name])
+        self.add(out, f"{name} 따라 왕복", pts, [name],
+                 legs=[(f"{name} 따라 가는 길", out_pts), ("되돌아오는 길", out_pts[::-1])])
 
     # --- parks and lakes ---------------------------------------------------------------------
 
@@ -420,7 +430,9 @@ class Planner:
             out.notes.append(f"{name}까지 가고 오는 {km(2 * lead_m)}가 거리에 포함돼 있어요.")
         pts = join(lead, *([lap] * n), lead[::-1])
         title = f"{name} {n}바퀴" if n > 1 else f"{name} 한 바퀴"
-        self.add(out, title, pts, [name])
+        laps_label = f"{name} {n}바퀴 (한 바퀴 {km(lap_m)})" if n > 1 else f"{name} 한 바퀴"
+        self.add(out, title, pts, [name],
+                 legs=[(f"{name}까지 가는 길", lead), (laps_label, join(*([lap] * n))), ("돌아오는 길", lead[::-1])])
 
     def shady_laps(self, graph, ring, budget, count, origin):
         """Like parkpaths.fit_laps, but a lap under more trees may be up to ~15% off the

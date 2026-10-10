@@ -168,7 +168,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             }
         }
         items(plan?.courses.orEmpty()) { c ->
-            LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade)
+            LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs)
         }
         if (sources.isNotEmpty()) {
             item {
@@ -202,7 +202,7 @@ private fun ParkCard(p: RouteApi.LapPark, selected: Boolean, onClick: () -> Unit
             )
             Text(
                 (if (p.kind == "lake") "호숫가 산책로" else if (p.paths) "공원 산책로 따라" else "공원 둘레") +
-                    (p.shade?.let { " · 🌳$it%" } ?: ""),
+                    (p.shade?.let { " · 숲 $it%" } ?: ""),
                 style = MaterialTheme.typography.labelSmall, color = colors.primary, maxLines = 2
             )
         }

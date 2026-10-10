@@ -36,8 +36,18 @@ object RouteApi {
         }
     }
 
+    /** One part of a course ("가는 길", "효창공원 3바퀴", "돌아오는 길"). */
+    data class Leg(val label: String, val distanceM: Int, val shade: Int?)
+
     /** [shade]: percent of the course under trees (docs/SHADE.md), when known. */
-    data class PlannedCourse(val title: String, val distanceM: Int, val points: List<GeoPoint>, val via: List<String>, val shade: Int?)
+    data class PlannedCourse(
+        val title: String,
+        val distanceM: Int,
+        val points: List<GeoPoint>,
+        val via: List<String>,
+        val shade: Int?,
+        val legs: List<Leg> = emptyList(),
+    )
 
     /**
      * Courses for a request, plus anything the user should know and the data sources to credit.
@@ -78,8 +88,13 @@ object RouteApi {
             courses = (0 until courses.length()).map { i ->
                 val c = courses.getJSONObject(i)
                 val via = c.optJSONArray("via") ?: JSONArray()
+                val legs = c.optJSONArray("legs") ?: JSONArray()
                 PlannedCourse(c.getString("title"), c.getInt("distance_m"), points(c.getJSONArray("points")),
-                    (0 until via.length()).map { via.getString(it) }, c.optIntOrNull("shade"))
+                    (0 until via.length()).map { via.getString(it) }, c.optIntOrNull("shade"),
+                    (0 until legs.length()).map { j ->
+                        val l = legs.getJSONObject(j)
+                        Leg(l.getString("label"), l.getInt("distance_m"), l.optIntOrNull("shade"))
+                    })
             },
             notes = json.optJSONArray("notes").strings(),
             sources = json.optJSONArray("sources").strings(),
