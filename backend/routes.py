@@ -92,7 +92,7 @@ POI_URL = "https://apis.openapi.sk.com/tmap/pois"
 
 def poi_search(keyword: str, near: list[float], radius_km: int = 30) -> list[dict]:
     """TMAP place search around [near], for names places.db doesn't know (landmarks, buildings,
-    stations). [{name, lat, lon, away_m}], closest match first as TMAP ranks them."""
+    stations). [{name, lat, lon, away_m, address}], best match first as TMAP ranks them."""
     key = os.environ.get("TMAP_APP_KEY")
     if not key:
         return []
@@ -118,7 +118,9 @@ def poi_search(keyword: str, near: list[float], radius_km: int = 30) -> list[dic
             continue
         kx = M_PER_DEG * math.cos(math.radians(near[0]))
         away = math.hypot((lon - near[1]) * kx, (lat - near[0]) * M_PER_DEG)
-        out.append({"name": p.get("name", keyword), "lat": lat, "lon": lon, "away_m": round(away)})
+        address = " ".join(x for x in (p.get("upperAddrName"), p.get("middleAddrName"), p.get("lowerAddrName"),
+                                        p.get("roadName") or p.get("detailAddrName")) if x)
+        out.append({"name": p.get("name", keyword), "lat": lat, "lon": lon, "away_m": round(away), "address": address})
     return out
 
 

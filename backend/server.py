@@ -223,6 +223,31 @@ def places_parks(lat: float, lon: float, authorization: str | None = Header(None
     return {"places": found, "sources": sorted({p["source"] for p in found} | ({shade.SOURCE} if shade.has_map() else set()))}
 
 
+@app.get("/places/lookup")
+def places_lookup(q: str, lat: float, lon: float, authorization: str | None = Header(None)):
+    """Anything to start a course from, by name or address (출발지 검색): our parks, lakes and
+    rivers first, then TMAP's place search (stations, buildings, addresses). One TMAP call."""
+    _user(authorization)
+    q = q.strip()[:40]
+    if len(q) < 2:
+        return {"places": []}
+    kinds = {"park": "공원", "lake": "호수", "beach": "해변", "river": "하천"}
+    ours = [{"name": p["name"], "lat": p["lat"], "lon": p["lon"], "away_m": p["away_m"],
+             "address": p.get("region") or kinds.get(p["kind"], "")} for p in places.find(q, lat, lon, limit=3)]
+    # Ours lead only on an exact name ("한얼공원"); a partial match ("KTX 기념공원" for "KT")
+    # goes after TMAP's results, which are ranked for the query and the area.
+    exact = [p for p in ours if "".join(p["name"].split()) == "".join(q.split())]
+    found = exact + routes.poi_search(q, [lat, lon], radius_km=33) + [p for p in ours if p not in exact]
+    # The same place from two sources (or OSM and the public data): keep the first.
+    out = []
+    for p in found:
+        key = "".join(p["name"].split())
+        if not any("".join(o["name"].split()) == key and places.distance_m(o["lat"], o["lon"], p["lat"], p["lon"]) < 500
+                   for o in out):
+            out.append(p)
+    return {"places": out[:10]}
+
+
 @app.get("/places/search")
 def places_search(q: str, lat: float, lon: float, authorization: str | None = Header(None)):
     """Places with this name (or alias), the likeliest one first."""

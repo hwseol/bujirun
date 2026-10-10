@@ -2,6 +2,23 @@ package com.mhmh2.bujirun.ui
 
 import android.content.Context
 import androidx.compose.foundation.background
+import kotlinx.coroutines.delay
+import com.naver.maps.map.CameraUpdate
+import com.mhmh2.bujirun.tracking.formatKm
+import com.mhmh2.bujirun.net.ApiException
+import com.mhmh2.bujirun.course.RouteApi
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,11 +100,6 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(bars)) {
-                Text(
-                    "지도를 움직여 핀을 출발점에 맞추세요",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
                 val at = opening
                 if (at == null) {
                     Box(Modifier.weight(1f).fillMaxWidth())
@@ -97,6 +109,38 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                     NaverMapOptions().camera(CameraPosition(LatLng(at.lat, at.lon), 16.0))
                         .zoomControlEnabled(true).scaleBarEnabled(true).compassEnabled(false)
                 )
+                // Search by name or address; a result moves the map there (the pin then marks it,
+                // and the map can still be nudged before "여기서 출발").
+                var query by remember { mutableStateOf("") }
+                var results by remember { mutableStateOf<List<RouteApi.FoundPlace>>(emptyList()) }
+                var searching by remember { mutableStateOf(false) }
+                var nothingFound by remember { mutableStateOf(false) }
+                // Set when a result fills in its name: that's not a new search.
+                var justPicked by remember { mutableStateOf(false) }
+                val keyboard = LocalSoftwareKeyboardController.current
+                LaunchedEffect(query) {
+                    nothingFound = false
+                    if (justPicked) { justPicked = false; return@LaunchedEffect }
+                    if (query.trim().length < 2) { results = emptyList(); return@LaunchedEffect }
+                    delay(500)
+                    searching = true
+                    results = try { RouteApi.lookup(query.trim(), at) } catch (e: ApiException) { emptyList() }
+                    nothingFound = results.isEmpty()
+                    searching = false
+                }
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("장소·주소 검색 (예: 금정역, 산본로 323)") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    trailingIcon = {
+                        if (searching) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "지우기") }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
                     // The pin's tip marks the centre of the map.
@@ -105,7 +149,45 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                         Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE8541E)))
                         Box(Modifier.height(44.dp))
                     }
+                    if (results.isNotEmpty()) {
+                        Surface(shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(max = 320.dp)) {
+                            LazyColumn {
+                                items(results) { r ->
+                                    Column(
+                                        Modifier.fillMaxWidth().clickable {
+                                            mapView.getMapAsync { map ->
+                                                map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(r.point.lat, r.point.lon), 17.0))
+                                            }
+                                            results = emptyList()
+                                            justPicked = true
+                                            query = r.name
+                                            keyboard?.hide()
+                                        }.padding(horizontal = 16.dp, vertical = 10.dp)
+                                    ) {
+                                        Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            listOf(r.address, "${formatKm(r.awayM.toDouble())}km").filter { it.isNotBlank() }.joinToString(" · "),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                    } else if (nothingFound) {
+                        Text(
+                            "검색 결과가 없어요",
+                            modifier = Modifier.padding(16.dp).background(MaterialTheme.colorScheme.surface).padding(8.dp)
+                        )
+                    }
                 }
+                Text(
+                    "지도를 움직여 핀을 출발점에 맞출 수도 있어요",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp)
+                )
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { CourseStart.picked = null; onDismiss() }, modifier = Modifier.weight(1f).height(52.dp)) {
                         Text("내 위치에서 출발")

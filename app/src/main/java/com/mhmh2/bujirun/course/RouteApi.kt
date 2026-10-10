@@ -101,6 +101,20 @@ object RouteApi {
         } to json.optJSONArray("sources").strings()
     }
 
+    /** A place found by name or address, to start from. */
+    data class FoundPlace(val name: String, val address: String, val point: GeoPoint, val awayM: Int)
+
+    /** Places matching [query] (names, stations, addresses), the best match first. */
+    suspend fun lookup(query: String, near: GeoPoint): List<FoundPlace> {
+        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val q = java.net.URLEncoder.encode(query, "UTF-8")
+        val arr = Api.get("/places/lookup?q=$q&lat=${near.lat}&lon=${near.lon}", token).getJSONArray("places")
+        return (0 until arr.length()).map { i ->
+            val p = arr.getJSONObject(i)
+            FoundPlace(p.getString("name"), p.optString("address"), GeoPoint(p.getDouble("lat"), p.getDouble("lon")), p.getInt("away_m"))
+        }
+    }
+
     private fun JSONObject.optIntOrNull(key: String): Int? = if (has(key) && !isNull(key)) getInt(key) else null
 
     private fun JSONArray?.strings() = if (this == null) emptyList() else (0 until length()).map { getString(it) }
