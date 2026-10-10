@@ -57,11 +57,16 @@ data class CourseIntent(
          * The user's usual running pace: median over their latest 10 runs of 1 km or more, given
          * as (distance m, active ms). Null with fewer than 3 such runs.
          */
-        fun typicalRunPace(runs: List<Pair<Double, Long>>): Int? {
-            val paces = runs.filter { (m, ms) -> m >= 1000 && ms > 0 }.take(10)
+        fun typicalRunPace(runs: List<Pair<Double, Long>>): Int? = typicalPace(runs, 180..900)
+
+        /** The same for walks (a walk's plausible range is slower). */
+        fun typicalWalkPace(walks: List<Pair<Double, Long>>): Int? = typicalPace(walks, 360..1500)
+
+        private fun typicalPace(workouts: List<Pair<Double, Long>>, range: IntRange): Int? {
+            val paces = workouts.filter { (m, ms) -> m >= 1000 && ms > 0 }.take(10)
                 .map { (m, ms) -> ms / 1000.0 / (m / 1000) }.sorted()
             if (paces.size < 3) return null
-            return paces[paces.size / 2].roundToInt().coerceIn(180, 900)
+            return paces[paces.size / 2].roundToInt().coerceIn(range)
         }
     }
 }

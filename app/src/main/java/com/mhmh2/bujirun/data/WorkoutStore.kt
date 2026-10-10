@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -104,9 +105,18 @@ object WorkoutStore {
     fun observeDone(): Flow<List<WorkoutEntity>> = dao.observeDone()
 
     /** Median pace (s/km) of the user's recent real runs, or null without enough of them. */
-    suspend fun typicalRunPace(): Int? = CourseIntent.typicalRunPace(
-        dao.observeDone().first().filter { it.isRun && !it.simulated }.map { it.distanceM to it.durationMs }
-    )
+    suspend fun typicalRunPace(): Int? = paces(dao.observeDone().first()).runOrNull
+
+    /** The user's own running and walking paces, kept up to date as workouts are saved. */
+    fun observePaces(): Flow<Paces> = dao.observeDone().map(::paces)
+
+    private fun paces(done: List<WorkoutEntity>): Paces {
+        val real = done.filter { !it.simulated }
+        return Paces(
+            CourseIntent.typicalRunPace(real.filter { it.isRun }.map { it.distanceM to it.durationMs }),
+            CourseIntent.typicalWalkPace(real.filter { !it.isRun }.map { it.distanceM to it.durationMs }),
+        )
+    }
     fun observe(id: Long): Flow<WorkoutEntity?> = dao.observe(id)
     fun observePoints(id: Long): Flow<List<TrackPointEntity>> = dao.observePoints(id)
 }
@@ -131,3 +141,12 @@ fun TrackPointEntity.toTrackPoint() = TrackPoint(
     distanceM = distanceM,
     activeMs = activeMs,
 )
+
+/** Seconds per km running and walking: the user's own when there are enough workouts to tell
+ *  ([CourseIntent.typicalRunPace]), else an easy 6:30 run and a 12:00 walk. */
+data class Paces(val runOrNull: Int?, val walkOrNull: Int?) {
+    val run: Int get() = runOrNull ?: 390
+    val walk: Int get() = walkOrNull ?: 720
+    fun runMs(meters: Double) = (meters / 1000 * run * 1000).toLong()
+    fun walkMs(meters: Double) = (meters / 1000 * walk * 1000).toLong()
+}

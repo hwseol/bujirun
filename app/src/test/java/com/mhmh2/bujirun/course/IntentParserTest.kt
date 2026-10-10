@@ -45,6 +45,8 @@ class IntentParserTest {
         val runs = listOf(5000.0 to 1_800_000L, 3000.0 to 1_200_000L, 10000.0 to 3_300_000L, 500.0 to 60_000L)
         assertEquals(360, CourseIntent.typicalRunPace(runs)) // 360, 400, 330 s/km; the 500 m run is ignored
         assertNull(CourseIntent.typicalRunPace(runs.take(2)))
+        val walks = listOf(3000.0 to 1_800_000L, 2000.0 to 1_500_000L, 4000.0 to 2_640_000L)
+        assertEquals(660, CourseIntent.typicalWalkPace(walks)) // 600, 750, 660 s/km
     }
 
     @Test fun themes() {

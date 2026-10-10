@@ -73,10 +73,12 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth()) {
                 Stat("오르막", if (c.ascentM > 0) "${c.ascentM.roundToInt()}m" else "-", Modifier.weight(1f))
-                // At an easy 6:30/km run and a 12:00/km walk - a feel for the time, not a target.
+                // At the user's own paces when their workouts tell them, else an easy 6:30/km run
+                // and a 12:00/km walk - a feel for the time, not a target.
+                val paces = rememberPaces()
                 Stat(
                     "예상 시간",
-                    "달리기 ${formatDuration((c.distanceM / 1000 * 390_000).toLong())} · 걷기 ${formatDuration((c.distanceM / 1000 * 720_000).toLong())}",
+                    "달리기 ${formatDuration(paces.runMs(c.distanceM))} · 걷기 ${formatDuration(paces.walkMs(c.distanceM))}",
                     Modifier.weight(1f), small = true,
                 )
             }

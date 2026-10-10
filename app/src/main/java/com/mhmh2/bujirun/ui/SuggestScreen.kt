@@ -43,6 +43,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +62,8 @@ import com.mhmh2.bujirun.course.CourseSource
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
 import com.mhmh2.bujirun.course.RouteApi
+import com.mhmh2.bujirun.data.Paces
+import com.mhmh2.bujirun.data.WorkoutStore
 import com.mhmh2.bujirun.net.ApiException
 import com.mhmh2.bujirun.tracking.formatDuration
 import com.mhmh2.bujirun.tracking.formatKm
@@ -306,10 +309,23 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
 }
 
+/** The user's own running and walking paces (from their workouts), for time estimates. */
+@Composable
+internal fun rememberPaces(): Paces =
+    remember { WorkoutStore.observePaces() }.collectAsState(initial = Paces(null, null)).value
+
+/** "달리기 약 32:10 · 걷기 약 1:01:00", at the user's own paces when known ("내 페이스"). */
+internal fun estimateText(meters: Double, paces: Paces): String {
+    val run = "달리기 약 ${formatDuration(paces.runMs(meters))}" + if (paces.runOrNull != null) " (내 페이스)" else ""
+    val walk = "걷기 약 ${formatDuration(paces.walkMs(meters))}" + if (paces.walkOrNull != null) " (내 페이스)" else ""
+    return "$run · $walk"
+}
+
 /** One suggested course: its shape, a title, walking/running time, and run / keep buttons. */
 @Composable
 internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, onSave: () -> Unit) {
     val meters = CourseGeometry.distanceM(points)
+    val paces = rememberPaces()
     Surface(
         shape = RoundedCornerShape(20.dp),
         tonalElevation = 1.dp,
@@ -320,7 +336,7 @@ internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, 
             Spacer(Modifier.height(10.dp))
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(
-                "달리기 약 ${formatDuration((meters / 1000 * 390_000).toLong())} · 걷기 약 ${formatDuration((meters / 1000 * 720_000).toLong())}",
+                estimateText(meters, paces),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
