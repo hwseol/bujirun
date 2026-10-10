@@ -101,7 +101,7 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> U
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MakeCard(Icons.Filled.Draw, "DIY 코스 만들기", "지도에 점을 찍어\n나만의 코스", onDraw, Modifier.weight(1f))
-            MakeCard(Icons.Filled.NearMe, "내 주변 코스", "순환 코스와\n공식 걷기길", onSuggest, Modifier.weight(1f))
+            MakeCard(Icons.Filled.NearMe, "AI 주변 코스", "공원·트랙·순환 코스를\nAI가 바로 짜 드려요", onSuggest, Modifier.weight(1f), ai = true)
         }
         // GPX has no reliable MIME type across apps and file managers; accept anything and let
         // the parser decide.
@@ -170,10 +170,26 @@ private fun AiHeroCard(onClick: () -> Unit) {
 }
 
 @Composable
-private fun MakeCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier) {
+private fun MakeCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier, ai: Boolean = false) {
     Surface(onClick = onClick, shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp, modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+                if (ai) {
+                    // Planned by the same AI as the hero card above: say so.
+                    Spacer(Modifier.weight(1f))
+                    Row(
+                        Modifier.clip(RoundedCornerShape(50))
+                            .background(Brush.linearGradient(listOf(Color(0xFFFF6A2B), Color(0xFFFF3D6E))))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("AI", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             Spacer(Modifier.height(10.dp))
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
