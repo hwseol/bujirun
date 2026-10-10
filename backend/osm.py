@@ -2,8 +2,8 @@
 streams as lines. `python osm.py sync` (monthly; two nationwide Overpass queries, a few minutes).
 
 Data © OpenStreetMap contributors, ODbL; the app credits it wherever these places are used.
-Parks the public standard data already has (same name within 1 km) are skipped so a park isn't
-offered twice; OSM adds the ones it lacks (서울숲, 보라매공원, the Han river parks...).
+OSM adds the parks the public standard data lacks (서울숲, 보라매공원, the Han river parks...) and
+the outlines of the ones it has; places.py prefers the OSM row of a park found in both.
 """
 
 import json
@@ -142,12 +142,10 @@ def _middle(lines):
 
 # --- elements -> rows ------------------------------------------------------------------------
 
-def area_rows(elements: list[dict], existing_parks: list) -> list[dict]:
-    """Parks, lakes and beaches. [existing_parks]: (name, lat, lon) already known from the
-    standard data, to skip."""
-    known = {}
-    for name, lat, lon in existing_parks:
-        known.setdefault("".join(name.split()), []).append((lat, lon))
+def area_rows(elements: list[dict], existing_parks: list = ()) -> list[dict]:
+    """Parks, lakes and beaches, with outlines. Parks the standard data also has are kept: only
+    OSM has their outline (and paths); places.nearby/find prefer the row with a shape.
+    [existing_parks] is unused, kept for callers."""
     rows = []
     for el in elements:
         tags = el.get("tags", {})
@@ -156,9 +154,6 @@ def area_rows(elements: list[dict], existing_parks: list) -> list[dict]:
         if not name or not lines:
             continue
         kind = "park" if tags.get("leisure") == "park" else "beach" if tags.get("natural") == "beach" else "lake"
-        if kind == "park" and any(places.distance_m(lat, lon, *_middle(lines)) < 1000
-                                  for lat, lon in known.get("".join(name.split()), [])):
-            continue
         rings = join_rings(lines) if el["type"] == "relation" else lines
         rings = [simplify(r) for r in rings if len(r) >= 2]
         area = sum(ring_area_m2(r) for r in rings if r[0] == r[-1] or len(r) > 3)
@@ -258,6 +253,45 @@ def river_rows(elements: list[dict]) -> list[dict]:
     return rows
 
 
+PATHS_QUERY = f"""[out:json][timeout:1200][maxsize:1073741824];{KR}
+(way["leisure"="park"](area.kr); relation["leisure"="park"](area.kr);)->.parks;
+.parks map_to_area ->.pa;
+(
+  way["highway"~"^(footway|path|track|cycleway|pedestrian|living_street|service)$"](area.pa);
+  way["leisure"="track"](area.pa);
+);
+out geom qt;"""
+
+
+def park_path_rows(elements: list[dict], park_rows: list[dict]) -> dict:
+    """Footways -> {park id: [lines]}: each way goes to the parks whose outline holds most of
+    its points. Ways are kept as mapped, not simplified: the vertices they share are what joins
+    them into a network (parkpaths.py), and simplifying could drop a junction."""
+    grid = {}
+    parks = []
+    for r in park_rows:
+        if r["kind"] != "park" or not r.get("shape"):
+            continue
+        rings = json.loads(r["shape"])
+        parks.append((r["id"], rings))
+        i = len(parks) - 1
+        for gx in range(int(r["min_lat"] * 100), int(r["max_lat"] * 100) + 1):
+            for gy in range(int(r["min_lon"] * 100), int(r["max_lon"] * 100) + 1):
+                grid.setdefault((gx, gy), []).append(i)
+    out = {}
+    for el in elements:
+        line = [[round(p["lat"], 6), round(p["lon"], 6)] for p in el.get("geometry") or [] if p]
+        if len(line) < 2:
+            continue
+        mid = line[len(line) // 2]
+        for i in grid.get((int(mid[0] * 100), int(mid[1] * 100)), []):
+            pid, rings = parks[i]
+            inside = sum(any(places._inside(p[0], p[1], ring) for ring in rings) for p in line)
+            if inside * 2 >= len(line):
+                out.setdefault(pid, []).append(line)
+    return out
+
+
 def sync(fetch=None, log=print) -> int:
     places.init_db()
     conn = places._connect()
@@ -269,7 +303,11 @@ def sync(fetch=None, log=print) -> int:
     log(f"{len(areas)} parks, lakes and beaches")
     rivers = river_rows(overpass(RIVERS_QUERY, fetch))
     log(f"{len(rivers)} rivers and streams")
-    return places.replace_source("osm", areas + rivers)
+    n = places.replace_source("osm", areas + rivers)
+    paths = park_path_rows(overpass(PATHS_QUERY, fetch), areas)
+    log(f"paths for {len(paths)} parks")
+    places.replace_park_paths(paths)
+    return n
 
 
 if __name__ == "__main__":
@@ -284,5 +322,8 @@ if __name__ == "__main__":
         conn.close()
         rows = area_rows(a, existing) + river_rows(r)
         print(f"stored {places.replace_source('osm', rows)} OSM places in {places.db_path()}")
+        if len(sys.argv) > 4:
+            paths = park_path_rows(json.load(open(sys.argv[4], encoding="utf-8"))["elements"], rows)
+            print(f"stored paths for {places.replace_park_paths(paths)} parks")
     else:
         sys.exit("usage: osm.py sync   (BJ_DATA_DIR set)")

@@ -45,7 +45,9 @@ object RouteApi {
         val body = JSONObject()
             .put("shape", intent.shape.name)
             .put("themes", JSONArray(intent.themes.map { it.name }))
-            .put("places", JSONArray(intent.places.map { JSONObject().put("name", it.name).put("role", it.role.name) }))
+            .put("places", JSONArray(intent.places.map { p ->
+                JSONObject().put("name", p.name).put("role", p.role.name).also { o -> p.id?.let { o.put("id", it) } }
+            }))
             .put("flat", intent.flat)
             .put("repeat", intent.repeat)
         intent.laps?.let { body.put("laps", it) }
@@ -66,6 +68,19 @@ object RouteApi {
             notes = json.optJSONArray("notes").strings(),
             sources = json.optJSONArray("sources").strings(),
         )
+    }
+
+    /** A park or lake nearby that can be lapped. [lapM]: once around its outline. */
+    data class LapPark(val id: String, val name: String, val kind: String, val awayM: Int, val lapM: Int, val paths: Boolean)
+
+    suspend fun lapParks(near: GeoPoint): Pair<List<LapPark>, List<String>> {
+        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val json = Api.get("/places/parks?lat=${near.lat}&lon=${near.lon}", token)
+        val arr = json.getJSONArray("places")
+        return (0 until arr.length()).map { i ->
+            val p = arr.getJSONObject(i)
+            LapPark(p.getString("id"), p.getString("name"), p.getString("kind"), p.getInt("away_m"), p.getInt("lap_m"), p.optBoolean("paths"))
+        } to json.optJSONArray("sources").strings()
     }
 
     private fun JSONArray?.strings() = if (this == null) emptyList() else (0 until length()).map { getString(it) }

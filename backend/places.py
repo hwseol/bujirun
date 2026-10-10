@@ -69,6 +69,10 @@ def init_db() -> None:
                 updated TEXT
             );
             CREATE INDEX IF NOT EXISTS places_box ON places (min_lat, max_lat, min_lon, max_lon);
+            CREATE TABLE IF NOT EXISTS park_paths (
+                id TEXT PRIMARY KEY,          -- the park's places.id
+                lines TEXT NOT NULL           -- JSON [[[lat, lon], ...], ...]: footways inside it
+            );
             CREATE INDEX IF NOT EXISTS places_name ON places (name);
             """
         )
@@ -234,8 +238,9 @@ def nearby(lat: float, lon: float, radius_m: float = 3000, limit: int = 50,
             away = _away(r, lat, lon)
             if away <= radius_m:
                 found.append((away, r))
-    found.sort(key=lambda t: t[0])
-    # The same park from both sources: keep the first (nearest) of a name.
+    # Nearest first; between equals, the row with an outline (OSM) before a bare point.
+    found.sort(key=lambda t: (round(t[0], -1), not t[1]["shape"]))
+    # The same park from both sources: keep the first of a name.
     seen, out = set(), []
     for away, r in found:
         key = (r["kind"], "".join(r["name"].split()))
@@ -266,7 +271,8 @@ def find(name: str, lat: float, lon: float, limit: int = 5) -> list[dict]:
         size = r["area_m2"] or (r["length_m"] or 0) * 50 or 1
         # An exact name beats a partial one; then bigger places (more likely the one meant) and
         # nearer ones, a place twice as far counting like one a quarter the size.
-        return (not exact, distance_m(lat, lon, r["lat"], r["lon"]) / math.sqrt(max(size, 1)))
+        # Between equals the row with an outline wins: only it can be lapped or followed.
+        return (not exact, distance_m(lat, lon, r["lat"], r["lon"]) / math.sqrt(max(size, 1)) * (1 if r["shape"] else 1.5))
 
     out, seen = [], set()
     for r in sorted(rows, key=rank):
@@ -275,6 +281,59 @@ def find(name: str, lat: float, lon: float, limit: int = 5) -> list[dict]:
             seen.add(key)
             out.append(_public(r, (lat, lon)))
     return out[:limit]
+
+
+def get(place_id: str, here: tuple[float, float] | None = None) -> dict | None:
+    conn = _connect()
+    try:
+        r = conn.execute("SELECT * FROM places WHERE id = ?", (place_id,)).fetchone()
+    finally:
+        conn.close()
+    return _public(r, here) if r else None
+
+
+def lap_parks(lat: float, lon: float, radius_m: float = 2000, limit: int = 15) -> list[dict]:
+    """Parks and lakes near (lat, lon) that can be lapped: with an outline of 400 m or more.
+    Each gets lap_m (the outline's length) and paths (whether its own footways are known)."""
+    out = []
+    for p in nearby(lat, lon, radius_m, limit=60, kinds=("park", "lake")):
+        rings = shape(p["id"])
+        if not rings:
+            continue
+        ring = max(rings, key=len)
+        lap_m = sum(distance_m(a[0], a[1], b[0], b[1]) for a, b in zip(ring, ring[1:]))
+        if lap_m < 400:
+            continue
+        out.append({**p, "lap_m": round(lap_m), "paths": park_paths(p["id"]) is not None})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def park_paths(place_id: str) -> list | None:
+    """The footways inside a park (OSM), for laps along its own paths (parkpaths.py)."""
+    if not place_id:
+        return None
+    conn = _connect()
+    try:
+        r = conn.execute("SELECT lines FROM park_paths WHERE id = ?", (place_id,)).fetchone()
+    finally:
+        conn.close()
+    return json.loads(r["lines"]) if r else None
+
+
+def replace_park_paths(rows: dict) -> int:
+    """{park id: lines} replaces all stored park paths."""
+    init_db()
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM park_paths")
+        conn.executemany("INSERT INTO park_paths (id, lines) VALUES (?, ?)",
+                         [(pid, json.dumps(lines, separators=(",", ":"))) for pid, lines in rows.items()])
+        conn.commit()
+    finally:
+        conn.close()
+    return len(rows)
 
 
 def shape(place_id: str) -> list | None:

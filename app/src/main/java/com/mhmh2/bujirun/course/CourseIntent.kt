@@ -11,7 +11,8 @@ enum class CourseTheme(val label: String) { RIVER("강변"), PARK("공원"), LAK
 /** How a named place is used: where to start, where to go, or what to run in/around/along. */
 enum class PlaceRole { START, DEST, AROUND }
 
-data class PlaceMention(val name: String, val role: PlaceRole)
+/** [id]: a place picked from a list (공원 코스), so the server uses exactly it, not a name match. */
+data class PlaceMention(val name: String, val role: PlaceRole, val id: String? = null)
 
 /**
  * What the user asked for, in a form the course planner understands. Built from a sentence by

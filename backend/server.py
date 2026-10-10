@@ -144,6 +144,7 @@ _loop_cache: dict = {}
 class PlanPlace(BaseModel):
     name: str
     role: str = "AROUND"  # START / DEST / AROUND
+    id: str | None = None  # a place picked from /places/parks: no lookup by name
 
 
 class PlanIntent(BaseModel):
@@ -172,7 +173,7 @@ def plan_route(req: PlanRequest, authorization: str | None = Header(None)):
     intent = {
         "distance_m": i.distance_m, "shape": i.shape, "themes": i.themes[:5], "flat": i.flat,
         "laps": i.laps if i.laps and 1 <= i.laps <= 30 else None, "repeat": i.repeat,
-        "places": [{"name": p.name[:30], "role": p.role} for p in i.places],
+        "places": [{"name": p.name[:30], "role": p.role, **({"id": p.id[:40]} if p.id else {})} for p in i.places],
     }
     try:
         return planner.cached_plan(req.start, intent, planner.Planner(user["id"]))
@@ -201,6 +202,14 @@ def places_nearby(lat: float, lon: float, radius_m: float = 3000, authorization:
     """Parks, lakes, beaches and rivers worth running at near (lat, lon), nearest first."""
     _user(authorization)
     found = places.nearby(lat, lon, min(radius_m, 10_000))
+    return {"places": found, "sources": sorted({p["source"] for p in found})}
+
+
+@app.get("/places/parks")
+def places_parks(lat: float, lon: float, authorization: str | None = Header(None)):
+    """Parks and lakes nearby that can be lapped, nearest first (공원 코스)."""
+    _user(authorization)
+    found = places.lap_parks(lat, lon)
     return {"places": found, "sources": sorted({p["source"] for p in found})}
 
 

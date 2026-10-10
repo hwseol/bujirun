@@ -71,9 +71,10 @@ import kotlin.coroutines.resume
 private val DISTANCES = listOf(3000, 5000, 7000, 10000)
 
 /**
- * Courses around where the user is now: loops generated from here (pick a distance) and official
- * walking trails nearby (Durunubi). Either can be run right away or kept. (Courses described in
- * words are AiCourseScreen.)
+ * Courses around where the user is now: laps of the parks right here (along their own paths),
+ * loops generated from here (pick a distance), and official walking trails that come within
+ * reach (Durunubi). Any can be run right away or kept. (Courses described in words are
+ * AiCourseScreen.)
  */
 @Composable
 fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
@@ -84,13 +85,21 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
             Text("내 주변 코스", style = MaterialTheme.typography.titleLarge)
         }
         TabRow(selectedTabIndex = tab) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("순환 코스") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("걷기길") })
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("공원 코스") })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("순환 코스") })
+            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("걷기길") })
         }
         Spacer(Modifier.height(12.dp))
-        if (tab == 0) LoopsTab(onOpen, onRun) else TrailsTab(onOpen, onRun)
+        when (tab) {
+            0 -> ParksTab(onOpen, onRun)
+            1 -> LoopsTab(onOpen, onRun)
+            else -> TrailsTab(onOpen, onRun)
+        }
     }
 }
+
+/** Official trails farther than this aren't "around here"; the tab says so instead. */
+private const val TRAIL_REACH_M = 15_000
 
 /** Asks for location permission if needed, then runs [action] with the current position. */
 @Composable
@@ -144,17 +153,28 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         }
     }
 
+    val inReach = trails.orEmpty().filter { it.awayM <= TRAIL_REACH_M }
     Column(Modifier.padding(horizontal = 24.dp)) {
         Text(
-            "코리아둘레길 등 공식 걷기길을 가까운 순서로 보여드려요.",
+            "코리아둘레길 등 공식 걷기길 중 ${TRAIL_REACH_M / 1000}km 안에 지나는 길이에요.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (loading) CircularProgressIndicator(Modifier.padding(top = 16.dp))
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
+        val nearest = trails?.firstOrNull()
+        if (trails != null && inReach.isEmpty()) {
+            Text(
+                "근처를 지나는 공식 걷기길이 없어요." +
+                    (nearest?.let { " 가장 가까운 길은 ${it.name} (${formatKm(it.awayM)}km)예요." } ?: "") +
+                    "\n공원 코스나 순환 코스를 이용해 보세요.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
     }
     LazyColumn {
-        items(trails.orEmpty(), key = { it.id }) { t ->
+        items(inReach, key = { it.id }) { t ->
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 tonalElevation = 1.dp,
@@ -197,7 +217,7 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                 }
             }
         }
-        if (!trails.isNullOrEmpty()) {
+        if (inReach.isNotEmpty()) {
             item {
                 Text(
                     "걷기길 정보: ${TrailApi.SOURCE}",

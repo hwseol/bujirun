@@ -46,10 +46,17 @@ class GeometryTest(unittest.TestCase):
                "bounds": {"minlat": 37.507, "minlon": 127.098, "maxlat": 37.511, "maxlon": 127.106}}
         self.assertEqual(osm.area_rows([rel], [])[0]["kind"], "lake")
 
-    def test_parks_the_standard_data_has_are_skipped(self):
+    def test_a_park_in_both_sources_is_offered_once_with_its_outline(self):
         p = way(1, {"leisure": "park", "name": "반포 근린공원"}, square(37.5, 127.0, 3))
-        self.assertEqual(osm.area_rows([p], [("반포근린공원", 37.501, 127.001)]), [])
-        self.assertEqual(len(osm.area_rows([p], [("반포근린공원", 35.1, 129.0)])), 1)  # same name, elsewhere
+        places.db_path().unlink(missing_ok=True)
+        places.replace_source("data.go.kr", [{"id": "s1", "kind": "park", "name": "반포근린공원", "subtype": "근린공원",
+            "lat": 37.5015, "lon": 127.0015, "min_lat": 37.5015, "max_lat": 37.5015, "min_lon": 127.0015,
+            "max_lon": 127.0015, "area_m2": 90_000}])
+        places.replace_source("osm", osm.area_rows([p]))
+        near = places.nearby(37.5015, 127.0015, 1000)
+        self.assertEqual(len(near), 1)
+        self.assertTrue(near[0]["id"].startswith("osm:"))
+        self.assertTrue(places.find("반포근린공원", 37.5, 127.0)[0]["id"].startswith("osm:"))
 
     def test_river_pieces_join_but_namesakes_far_apart_stay_apart(self):
         a = way(10, {"waterway": "stream", "name": "신천"}, [(37.5, 127.0), (37.5 + 8 * D, 127.0)])

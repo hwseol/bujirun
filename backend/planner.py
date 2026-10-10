@@ -15,6 +15,7 @@ import math
 import time
 from dataclasses import dataclass, field
 
+import parkpaths
 import places
 import routes
 
@@ -136,13 +137,14 @@ def km(m) -> str:
 
 class Planner:
     def __init__(self, user_id: int, route=None, find=None, nearby=None, shape=None, charge=None, loops=None,
-                 poi=None):
+                 poi=None, paths=None):
         self.route_fn = route or routes.pedestrian
         self.find = find or places.find
         # Names places.db doesn't have (landmarks, stations, buildings): TMAP place search.
         self.poi = poi or routes.poi_search
         self.nearby = nearby or places.nearby
         self.shape = shape or places.shape
+        self.paths = paths or places.park_paths
         # Every TMAP request counts against the user's daily allowance (routes.charge).
         self.charge = charge or (lambda: routes.charge(user_id))
         self.loops = loops or (lambda s, d: routes.loops(s, d, user_id, count=2, route=self.route_fn))
@@ -169,7 +171,12 @@ class Planner:
                 continue
             near = resolved.get("START", {}).get("pt", start)
             limit = NEAR_KM[role] * 1000
-            hits = [h for h in self.find(m["name"], near[0], near[1]) if h["away_m"] <= limit]
+            if m.get("id"):
+                # A place the app picked from a list (공원 코스): exactly that one.
+                hit = places.get(m["id"], tuple(near))
+                hits = [hit] if hit else []
+            else:
+                hits = [h for h in self.find(m["name"], near[0], near[1]) if h["away_m"] <= limit]
             if not hits:
                 # Shown by the name the user said: TMAP's listing names are things like
                 # "YTN서울타워" for 남산타워.
@@ -352,12 +359,25 @@ class Planner:
             # take for one long dead end and remove whole.
             return corners, self.route(corners[0], corners[0], corners[1:], spurs=True)
 
-        corners, lap = lap_route()
-        lap_m = path_length(lap)
+        # Best: the park's own paths (OSM footways), joined into a lap here - it follows the
+        # path runners use, and needs no routing request at all.
+        on_paths, path_laps = None, None
+        lines = self.paths(place["id"]) if place["kind"] == "park" else None
+        if lines:
+            graph = parkpaths.PathGraph(lines)
+            if graph.length() >= 300:
+                on_paths, path_laps = parkpaths.fit_laps(graph, ring, budget, count, origin)
+        if on_paths:
+            lap = routes.remove_spurs(on_paths, max_spur_m=150)
+            corners = [lap[0]]
+            lap_m = path_length(lap)
+        else:
+            corners, lap = lap_route()
+            lap_m = path_length(lap)
         # One correction when the laps miss the distance by more than 15%: resize the ring by
         # the miss (only an inner ring can be resized; a full outline is what it is).
         n_est = count or max(1, round(budget / lap_m)) if lap_m > 0 else 1
-        if lap_m > 0 and place["kind"] == "park" and abs(n_est * lap_m - budget) > 0.15 * budget:
+        if not on_paths and lap_m > 0 and place["kind"] == "park" and abs(n_est * lap_m - budget) > 0.15 * budget:
             new_scale = min(1.0, max(0.3, scale * budget / (n_est * lap_m)))
             if abs(new_scale - scale) > 0.05:
                 # Paths inside a park don't scale evenly with the ring: keep whichever lap fits.
@@ -374,7 +394,7 @@ class Planner:
         else:
             lead = self.route(origin, corners[0]) if d > 60 else [origin, corners[0]]
         lead_m = path_length(lead)
-        n = count or (max(1, round((target - 2 * lead_m) / lap_m)) if lap_m > 0 else 1)
+        n = count or path_laps or (max(1, round((target - 2 * lead_m) / lap_m)) if lap_m > 0 else 1)
         pts = join(lead, *([lap] * n), lead[::-1])
         title = f"{name} {n}바퀴" if n > 1 else f"{name} 한 바퀴"
         self.add(out, title, pts, [name])
