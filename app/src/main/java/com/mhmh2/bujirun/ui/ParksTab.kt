@@ -154,7 +154,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         }
         LazyColumn(Modifier.weight(1f)) {
             items(plan?.courses.orEmpty()) { c ->
-                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) })
+                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade)
             }
             if (sources.isNotEmpty()) {
                 item {
@@ -187,8 +187,11 @@ private fun ParkCard(p: RouteApi.LapPark, selected: Boolean, onClick: () -> Unit
                 (if (p.awayM < 50) "바로 여기" else "${formatKm(p.awayM.toDouble())}km") + " · 둘레 ${formatKm(p.lapM.toDouble())}km",
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1
             )
-            Text(if (p.kind == "lake") "호숫가 산책로" else if (p.paths) "공원 산책로 따라" else "공원 둘레",
-                style = MaterialTheme.typography.labelSmall, color = colors.primary)
+            Text(
+                (if (p.kind == "lake") "호숫가 산책로" else if (p.paths) "공원 산책로 따라" else "공원 둘레") +
+                    (p.shade?.let { " · 🌳$it%" } ?: ""),
+                style = MaterialTheme.typography.labelSmall, color = colors.primary, maxLines = 1
+            )
         }
     }
 }

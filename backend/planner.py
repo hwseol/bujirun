@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 import parkpaths
 import places
 import routes
+import shade
 
 M = places.M_PER_DEG
 DETOUR = 1.25          # walking route vs straight line, as in routes.py
@@ -32,12 +33,15 @@ class PlanError(routes.RouteError):
 
 @dataclass
 class Plan:
-    courses: list = field(default_factory=list)   # {title, distance_m, points, via}
+    courses: list = field(default_factory=list)   # {title, distance_m, points, via, shade}
     notes: list = field(default_factory=list)     # things the user should know, in Korean
     sources: set = field(default_factory=set)
+    sun: dict | None = None                       # {elevation, azimuth} at planning time
+    prefer_shade: bool = False
 
     def to_json(self):
-        return {"courses": self.courses, "notes": self.notes, "sources": sorted(self.sources)}
+        return {"courses": self.courses, "notes": self.notes, "sources": sorted(self.sources),
+                "sun": self.sun, "prefer_shade": self.prefer_shade}
 
 
 # --- geometry on a local flat plane around a reference point ---------------------------------
@@ -137,7 +141,7 @@ def km(m) -> str:
 
 class Planner:
     def __init__(self, user_id: int, route=None, find=None, nearby=None, shape=None, charge=None, loops=None,
-                 poi=None, paths=None):
+                 poi=None, paths=None, now=None):
         self.route_fn = route or routes.pedestrian
         self.find = find or places.find
         # Names places.db doesn't have (landmarks, stations, buildings): TMAP place search.
@@ -149,6 +153,8 @@ class Planner:
         self.charge = charge or (lambda: routes.charge(user_id))
         self.loops = loops or (lambda s, d: routes.loops(s, d, user_id, count=2, route=self.route_fn))
         self.calls = 0
+        self.now = now  # planning time, for the sun (tests pass a fixed one)
+        self.prefer_shade = False
 
     def route(self, a, b, via=None, spurs=False):
         """Walking route a -> via -> b. Dead-end detours are cut (a via point at the end of a
@@ -192,6 +198,14 @@ class Planner:
         origin = resolved["START"]["pt"] if "START" in resolved else start
         if intent.get("flat"):
             out.notes.append("오르막 정보는 아직 반영하지 못했어요.")
+        # Shade first when asked for, or by default while the sun is high (docs/SHADE.md).
+        elevation, azimuth = shade.sun(origin[0], origin[1], self.now)
+        out.sun = {"elevation": round(elevation), "azimuth": round(azimuth)}
+        asked = intent.get("shade")
+        self.prefer_shade = shade.has_map() and (asked if asked is not None else elevation >= 35)
+        out.prefer_shade = self.prefer_shade
+        if self.prefer_shade and asked is None:
+            out.notes.append(f"지금 해가 높아요 (고도 {round(elevation)}°). 나무 그늘이 많은 길 위주로 골랐어요.")
 
         count = intent.get("laps")
         repeat = bool(intent.get("repeat") or count)
@@ -210,11 +224,18 @@ class Planner:
             self.plain_loop(out, origin, target or 3000)
         if not out.courses:
             raise PlanError(out.notes[-1] if out.notes else "알맞은 코스를 찾지 못했어요.")
+        if any("shade" in c for c in out.courses):
+            out.sources.add(shade.SOURCE)
+            if self.prefer_shade:
+                # Shadiest first (every course here was already fitted to the distance).
+                out.courses.sort(key=lambda c: -c.get("shade", 0))
         return out
 
     def add(self, out, title, points, via=()):
-        out.courses.append({"title": title, "distance_m": round(path_length(points)), "points": points,
-                            "via": list(via)})
+        course = {"title": title, "distance_m": round(path_length(points)), "points": points, "via": list(via)}
+        if shade.has_map():
+            course["shade"] = round(shade.ratio(points) * 100)
+        out.courses.append(course)
 
     # "남산까지", "남산까지 왕복"
     def to_destination(self, out, origin, dest, shape, target):
@@ -271,13 +292,19 @@ class Planner:
             out.notes.append(f"{river['name']}까지 편도 {km(approach)}라 강변 구간이 짧아요.")
             along = 1000
 
-        # Go the way the river continues for longer.
+        # Go the way the river continues for longer - or, preferring shade, the way whose bank
+        # has more trees (as long as it goes most of the way).
         best = None
         for direction in (+1, -1):
             q_xy, q_normal, walked = walk(line, seg, t, along / 2, direction, plane)
-            if best is None or walked > best[2]:
-                best = (q_xy, q_normal, walked, direction)
-        q_xy, q_normal, walked, direction = best
+            trees = 0.0
+            if self.prefer_shade:
+                probes = [walk(line, seg, t, along / 2 * k / 8, direction, plane) for k in range(1, 9)]
+                trees = sum(shade.shaded(*plane.ll(*offset(pq, pn, side * bank))) for pq, pn, _ in probes) / 8
+            key = (walked >= 0.8 * along / 2, trees, walked)
+            if best is None or key > best[0]:
+                best = (key, q_xy, q_normal, walked, direction)
+        _, q_xy, q_normal, walked, direction = best
         turn = plane.ll(*offset(q_xy, q_normal, side * bank))
 
         name = river["name"]
@@ -366,7 +393,10 @@ class Planner:
         if lines:
             graph = parkpaths.PathGraph(lines)
             if graph.length() >= 300:
-                on_paths, path_laps = parkpaths.fit_laps(graph, ring, budget, count, origin)
+                if self.prefer_shade:
+                    on_paths, path_laps = self.shady_laps(graph, ring, budget, count, origin)
+                else:
+                    on_paths, path_laps = parkpaths.fit_laps(graph, ring, budget, count, origin)
         if on_paths:
             lap = routes.remove_spurs(on_paths, max_spur_m=150)
             corners = [lap[0]]
@@ -399,6 +429,21 @@ class Planner:
         title = f"{name} {n}바퀴" if n > 1 else f"{name} 한 바퀴"
         self.add(out, title, pts, [name])
 
+    def shady_laps(self, graph, ring, budget, count, origin):
+        """Like parkpaths.fit_laps, but a lap under more trees may be up to ~15% off the
+        distance: 40 points of shade weigh like 16% of distance."""
+        best = None
+        for pts in parkpaths.candidate_laps(graph, ring, origin):
+            m = path_length(pts)
+            n = count or min(range(1, 11), key=lambda k: abs(k * m - budget))
+            score = abs(n * m - budget) / budget - 0.4 * shade.ratio(pts)
+            if best is None or score < best[0]:
+                best = (score, pts, n)
+        return (best[1], best[2]) if best else (None, None)
+
+    def park_canopy(self, p) -> float:
+        return shade.canopy(self.shape(p["id"]) or [])
+
     def lap_place(self, origin, target, themes):
         """"공원 뺑뺑 5km" with no park named: a nearby park (or lake) worth lapping. A lap of at
         least 600 m; a bigger one (1 km+) is worth a few hundred metres more walking."""
@@ -412,6 +457,8 @@ class Planner:
             # Bigger laps are nicer than tiny ones; but one much longer than the distance has to
             # be shrunk into an inner ring, which suits a compact park better than a long strip.
             score = p["away_m"] - (400 if lap_m >= 1000 else 0) + (400 if lap_m > 1.5 * target else 0)
+            if self.prefer_shade:
+                score -= 800 * shade.canopy(rings)  # a wooded park is worth a longer walk
             if best is None or score < best[0]:
                 best = (score, p)
         return {**best[1], "pt": [best[1]["lat"], best[1]["lon"]]} if best else None
@@ -437,7 +484,8 @@ class Planner:
                     pts = [origin] + [[p["lat"], p["lon"]] for p in stops] + [origin]
                     est = path_length(pts) * DETOUR
                     size = sum(math.log10(max(p["area_m2"] or 1, 10)) for p in stops)
-                    combos.append((abs(est - target) / target - 0.03 * size, est, stops))
+                    trees = sum(self.park_canopy(p) for p in stops) / len(stops) if self.prefer_shade else 0
+                    combos.append((abs(est - target) / target - 0.03 * size - 0.25 * trees, est, stops))
         combos.sort(key=lambda c: c[0])
         if not combos or combos[0][1] < 0.6 * target:
             # Even the farthest parks are close: laps of the biggest instead.
@@ -485,7 +533,9 @@ _cache: dict = {}
 
 
 def cached_plan(start, intent, planner: Planner) -> dict:
-    key = (round(start[0], 3), round(start[1], 3), json.dumps(intent, sort_keys=True, ensure_ascii=False))
+    # Whether the sun is high is part of the request: the same words make a shadier course at noon.
+    key = (round(start[0], 3), round(start[1], 3), json.dumps(intent, sort_keys=True, ensure_ascii=False),
+           shade.strong_sun(start[0], start[1], planner.now))
     hit = _cache.get(key)
     if hit and time.time() - hit[0] < CACHE_S:
         return hit[1]

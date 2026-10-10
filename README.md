@@ -159,6 +159,8 @@ python -m unittest test_accounts test_routes test_trails
 - 지도: **NAVER Maps**
 - 도보 경로: **TMAP** (티맵모빌리티)
 - 걷기길 정보: **한국관광공사 두루누비** (공공데이터포털)
+- 공원 정보: **공공데이터포털 전국도시공원정보표준데이터**, **© OpenStreetMap 기여자** (공원·호수·하천·공원 산책로)
+- 나무 그늘: **ESA WorldCover 2021** (CC BY 4.0)
 
 ## 로드맵
 
@@ -167,6 +169,8 @@ python -m unittest test_accounts test_routes test_trails
 - [x] 계정 (서버 가입·로그인)
 - [x] 코스 만들기, GPX 불러오기, 코스 따라 달리기 (음성 길안내)
 - [x] 내 주변 순환 코스 추천, 공식 걷기길
+- [x] 공원 코스: 가까운 공원의 산책로를 따라 도는 바퀴 코스
+- [x] 그늘길: 코스마다 나무 그늘 비율, 해가 높을 땐 그늘 많은 길 우선 (docs/SHADE.md)
 - [x] 자연어로 코스 만들기 ("한강 따라 5km"): 폰 안의 작은 해석 모델(94KB) + 서버 코스 플래너 (docs/NL_COURSES.md)
 - [ ] 공원·강변 우선, 차도 피하기 같은 조건 반영
 - [ ] 동네 인기 코스 (사용자 기록 기반)

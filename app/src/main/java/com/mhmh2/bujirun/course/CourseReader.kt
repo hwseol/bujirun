@@ -57,6 +57,7 @@ class CourseReader(private val model: ((String) -> NluModel.Reading)?) {
             flat = m.flat || rules.flat,
             laps = rules.laps,
             repeat = rules.repeat,
+            shade = rules.shade,
         )
     }
 

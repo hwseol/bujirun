@@ -6,7 +6,7 @@ import com.mhmh2.bujirun.net.ApiException
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Walking routes between two points, from our server (which asks TMAP). */
+/** Walking routes and courses from our server (which asks TMAP where it must). */
 object RouteApi {
     suspend fun walk(from: GeoPoint, to: GeoPoint): List<GeoPoint> {
         val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
@@ -18,8 +18,11 @@ object RouteApi {
         return points(json.getJSONArray("points"))
     }
 
+    /** A loop from here; [shade]: percent of it under trees, when the server has the shade map. */
+    data class Loop(val points: List<GeoPoint>, val shade: Int?)
+
     /** Suggested loops of about [distanceM] that start and end at [start]. */
-    suspend fun loops(start: GeoPoint, distanceM: Int): List<List<GeoPoint>> {
+    suspend fun loops(start: GeoPoint, distanceM: Int): List<Loop> {
         val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
         val json = Api.post(
             "/routes/loops",
@@ -27,13 +30,25 @@ object RouteApi {
             token,
         )
         val loops = json.getJSONArray("loops")
-        return (0 until loops.length()).map { points(loops.getJSONObject(it).getJSONArray("points")) }
+        return (0 until loops.length()).map {
+            val l = loops.getJSONObject(it)
+            Loop(points(l.getJSONArray("points")), l.optIntOrNull("shade"))
+        }
     }
 
-    data class PlannedCourse(val title: String, val distanceM: Int, val points: List<GeoPoint>, val via: List<String>)
+    /** [shade]: percent of the course under trees (docs/SHADE.md), when known. */
+    data class PlannedCourse(val title: String, val distanceM: Int, val points: List<GeoPoint>, val via: List<String>, val shade: Int?)
 
-    /** Courses for a request, plus anything the user should know and the data sources to credit. */
-    data class Plan(val courses: List<PlannedCourse>, val notes: List<String>, val sources: List<String>)
+    /**
+     * Courses for a request, plus anything the user should know and the data sources to credit.
+     * [preferShade]: whether shade decided the choice (asked for, or the sun is high).
+     */
+    data class Plan(
+        val courses: List<PlannedCourse>,
+        val notes: List<String>,
+        val sources: List<String>,
+        val preferShade: Boolean,
+    )
 
     /**
      * A course built around what the user asked for (backend planner.py): along a river, laps of
@@ -51,6 +66,7 @@ object RouteApi {
             .put("flat", intent.flat)
             .put("repeat", intent.repeat)
         intent.laps?.let { body.put("laps", it) }
+        intent.shade?.let { body.put("shade", it) }
         if (distanceM != null) body.put("distance_m", distanceM)
         val json = Api.post(
             "/routes/plan",
@@ -63,15 +79,16 @@ object RouteApi {
                 val c = courses.getJSONObject(i)
                 val via = c.optJSONArray("via") ?: JSONArray()
                 PlannedCourse(c.getString("title"), c.getInt("distance_m"), points(c.getJSONArray("points")),
-                    (0 until via.length()).map { via.getString(it) })
+                    (0 until via.length()).map { via.getString(it) }, c.optIntOrNull("shade"))
             },
             notes = json.optJSONArray("notes").strings(),
             sources = json.optJSONArray("sources").strings(),
+            preferShade = json.optBoolean("prefer_shade"),
         )
     }
 
-    /** A park or lake nearby that can be lapped. [lapM]: once around its outline. */
-    data class LapPark(val id: String, val name: String, val kind: String, val awayM: Int, val lapM: Int, val paths: Boolean)
+    /** A park or lake nearby that can be lapped. [lapM]: once around its outline; [shade]: % of it wooded. */
+    data class LapPark(val id: String, val name: String, val kind: String, val awayM: Int, val lapM: Int, val paths: Boolean, val shade: Int?)
 
     suspend fun lapParks(near: GeoPoint): Pair<List<LapPark>, List<String>> {
         val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
@@ -79,9 +96,12 @@ object RouteApi {
         val arr = json.getJSONArray("places")
         return (0 until arr.length()).map { i ->
             val p = arr.getJSONObject(i)
-            LapPark(p.getString("id"), p.getString("name"), p.getString("kind"), p.getInt("away_m"), p.getInt("lap_m"), p.optBoolean("paths"))
+            LapPark(p.getString("id"), p.getString("name"), p.getString("kind"), p.getInt("away_m"), p.getInt("lap_m"),
+                p.optBoolean("paths"), p.optIntOrNull("shade"))
         } to json.optJSONArray("sources").strings()
     }
+
+    private fun JSONObject.optIntOrNull(key: String): Int? = if (has(key) && !isNull(key)) getInt(key) else null
 
     private fun JSONArray?.strings() = if (this == null) emptyList() else (0 until length()).map { getString(it) }
 

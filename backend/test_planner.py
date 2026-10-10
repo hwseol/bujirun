@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 
 _tmp = tempfile.TemporaryDirectory()
 os.environ["BJ_DATA_DIR"] = _tmp.name
@@ -13,6 +14,7 @@ import planner  # noqa: E402
 
 D = 0.001
 START = [37.500, 127.000]
+NIGHT = datetime(2026, 7, 1, 15, 0, tzinfo=timezone.utc)
 
 
 def way(id, tags, points):
@@ -40,7 +42,8 @@ class FakeRouter:
 
 
 def make(router, poi=lambda name, near, km: [], loops=None):
-    return planner.Planner(user_id=1, route=router, charge=lambda: None, poi=poi,
+    # Midnight in Korea: no sun, so no shade preference unless a test asks for it.
+    return planner.Planner(user_id=1, route=router, charge=lambda: None, poi=poi, now=NIGHT,
                            loops=loops or (lambda s, d: [{"points": [s, [s[0] + D, s[1]], s]}]))
 
 

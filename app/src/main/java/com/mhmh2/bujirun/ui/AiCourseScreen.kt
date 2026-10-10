@@ -29,6 +29,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -163,7 +164,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                     EXAMPLES.forEach { SuggestionChip(onClick = { edit(it) }, label = { Text(it) }) }
                 }
             } else {
-                IntentChips(intent, pace) { intent = it; chipEdited = true }
+                IntentChips(intent, pace, autoShade = plan?.preferShade ?: false) { intent = it; chipEdited = true }
                 Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (loading) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -191,7 +192,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
         }
         LazyColumn(Modifier.weight(1f)) {
             items(plan?.courses.orEmpty()) { c ->
-                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) })
+                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade)
             }
             plan?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
                 item {
@@ -211,9 +212,13 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
 /** What the request was understood as; every chip can be changed or removed. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IntentChips(intent: CourseIntent, pace: Int?, onChange: (CourseIntent) -> Unit) {
+private fun IntentChips(intent: CourseIntent, pace: Int?, autoShade: Boolean, onChange: (CourseIntent) -> Unit) {
     var pickDistance by remember { mutableStateOf(false) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // On when asked for in words, or when the server chose shade for a high sun; tapping
+        // makes it explicit either way.
+        val shadeOn = intent.shade ?: autoShade
+        FilterChip(selected = shadeOn, onClick = { onChange(intent.copy(shade = !shadeOn)) }, label = { Text("🌳 그늘 우선") })
         Box {
             AssistChip(onClick = { pickDistance = true }, label = { Text(distanceLabel(intent, pace)) })
             DropdownMenu(expanded = pickDistance, onDismissRequest = { pickDistance = false }) {

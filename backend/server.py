@@ -14,6 +14,7 @@ import accounts
 import places
 import planner
 import routes
+import shade
 import trails
 
 app = FastAPI(title="Bujirun API")
@@ -131,6 +132,11 @@ def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
             loops = [{"distance_m": c["distance_m"], "points": c["points"]} for c in plan.courses]
         except routes.RouteError:
             raise HTTPException(status_code=400, detail=str(e))
+    if shade.has_map():
+        for c in loops:
+            c["shade"] = round(shade.ratio(c["points"]) * 100)
+        if shade.strong_sun(*req.start):
+            loops.sort(key=lambda c: -c["shade"])
     _loop_cache[key] = (time.time(), loops)
     if len(_loop_cache) > 2000:
         for k in sorted(_loop_cache, key=lambda k: _loop_cache[k][0])[:500]:
@@ -155,6 +161,7 @@ class PlanIntent(BaseModel):
     flat: bool = False
     laps: int | None = None   # "세 바퀴"
     repeat: bool = False      # 뺑뺑이, 바퀴, 트랙: laps of one place rather than a tour
+    shade: bool | None = None  # prefer tree shade; None = automatic (while the sun is high)
 
 
 class PlanRequest(BaseModel):
@@ -172,7 +179,7 @@ def plan_route(req: PlanRequest, authorization: str | None = Header(None)):
         raise HTTPException(status_code=400, detail="요청을 이해하지 못했어요.")
     intent = {
         "distance_m": i.distance_m, "shape": i.shape, "themes": i.themes[:5], "flat": i.flat,
-        "laps": i.laps if i.laps and 1 <= i.laps <= 30 else None, "repeat": i.repeat,
+        "laps": i.laps if i.laps and 1 <= i.laps <= 30 else None, "repeat": i.repeat, "shade": i.shade,
         "places": [{"name": p.name[:30], "role": p.role, **({"id": p.id[:40]} if p.id else {})} for p in i.places],
     }
     try:
@@ -210,7 +217,10 @@ def places_parks(lat: float, lon: float, authorization: str | None = Header(None
     """Parks and lakes nearby that can be lapped, nearest first (공원 코스)."""
     _user(authorization)
     found = places.lap_parks(lat, lon)
-    return {"places": found, "sources": sorted({p["source"] for p in found})}
+    if shade.has_map():
+        for p in found:
+            p["shade"] = round(shade.canopy(places.shape(p["id"]) or []) * 100)
+    return {"places": found, "sources": sorted({p["source"] for p in found} | ({shade.SOURCE} if shade.has_map() else set()))}
 
 
 @app.get("/places/search")

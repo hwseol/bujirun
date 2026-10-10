@@ -51,6 +51,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -240,7 +243,7 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     var distance by rememberSaveable { mutableStateOf(5000) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var loops by remember { mutableStateOf<List<List<GeoPoint>>>(emptyList()) }
+    var loops by remember { mutableStateOf<List<RouteApi.Loop>>(emptyList()) }
     var located by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
     }
@@ -301,12 +304,37 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             }
         }
         LazyColumn(Modifier.weight(1f)) {
-            itemsIndexed(loops) { i, points ->
-                LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) })
+            itemsIndexed(loops) { i, loop ->
+                val points = loop.points
+                LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade)
+            }
+            if (loops.any { it.shade != null }) {
+                item {
+                    Text(
+                        "그늘 정보: ESA WorldCover 2021 (나무 그늘 기준)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    )
+                }
             }
             item { Spacer(Modifier.height(16.dp)) }
         }
     }
+}
+
+/** "🌳 그늘 62%": the share of a course (or park) under trees. Greener the shadier. */
+@Composable
+internal fun ShadeBadge(percent: Int) {
+    val strong = percent >= 50
+    Text(
+        "🌳 그늘 $percent%",
+        style = MaterialTheme.typography.labelMedium,
+        color = if (strong) Color(0xFF1B5E20) else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50))
+            .background(if (strong) Color(0xFFDCEFD9) else MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
 }
 
 /** The user's own running and walking paces (from their workouts), for time estimates. */
@@ -321,9 +349,12 @@ internal fun estimateText(meters: Double, paces: Paces): String {
     return "$run · $walk"
 }
 
-/** One suggested course: its shape, a title, walking/running time, and run / keep buttons. */
+/**
+ * One suggested course: its shape, a title, walking/running time, how much of it is under trees
+ * ([shade] %, when the server knows), and run / keep buttons.
+ */
 @Composable
-internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, onSave: () -> Unit) {
+internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, onSave: () -> Unit, shade: Int? = null) {
     val meters = CourseGeometry.distanceM(points)
     val paces = rememberPaces()
     Surface(
@@ -334,7 +365,10 @@ internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, 
         Column(Modifier.padding(12.dp)) {
             CourseLineView(points)
             Spacer(Modifier.height(10.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
+                shade?.let { ShadeBadge(it) }
+            }
             Text(
                 estimateText(meters, paces),
                 style = MaterialTheme.typography.bodySmall,

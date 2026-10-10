@@ -46,6 +46,9 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
   Never run generation on a key whose project has billing without asking.
 - places.db is built on the PC (places.py sync, osm.py sync) and copied to the server, so the
   shared server does no heavy work. Keep server usage minimal: the user pays for it.
+- Shade (docs/SHADE.md): tree cover bitmap in places.db (tools/shade/build_shade.py, run with
+  `python -P` so the download folder can't shadow imports), backend/shade.py scores routes and
+  computes the sun; courses prefer shade when asked or when the sun is above 35 degrees.
 ## Pinned versions
 - `connect-client` is on 1.1.0-alpha12 because 1.1.0 stable needs AGP 8.9.1 (we're on 8.7.2).
 - NAVER map client ID lives in app/build.gradle.kts manifestPlaceholders; it's public by design.

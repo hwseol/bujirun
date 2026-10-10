@@ -55,3 +55,10 @@ servers (no key; they're often busy, the script retries). Credits shown by the a
 ```
 cd ~/bujirun/backend && BJ_DATA_DIR=~/bujirun/data .venv/bin/python reset_password.py someone@example.com
 ```
+
+## Shade map
+`places.db` table `shade_blocks`: tree cover from ESA WorldCover 2021 (CC BY 4.0), built on the
+dev PC with `tools/shade/build_shade.py` (needs numpy + tifffile; the six 3-degree tiles
+N33/N36 x E123/E126/E129 from the `esa-worldcover` S3 bucket, ~175 MB) into a copy of
+places.db, which is then uploaded whole. Rebuild only after re-syncing places (it keeps blocks
+that overlap a place). The app credits "ESA WorldCover 2021".

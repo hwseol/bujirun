@@ -38,6 +38,7 @@ object IntentParser {
             flat = FLAT_WORDS.containsMatchIn(rest),
             laps = lapCount(text),
             repeat = REPEAT_WORDS.containsMatchIn(rest) || (lapCount(text) ?: 0) >= 2,
+            shade = if (SHADE_WORDS.containsMatchIn(rest)) true else null,
         )
     }
 
@@ -137,6 +138,8 @@ object IntentParser {
 
     private val RUN_WORDS = Regex("달리|달릴|뛰|뛸|러닝|런닝|조깅")
     private val WALK_WORDS = Regex("걷|걸어|걸을|산책|워킹|산보")
+    private val SHADE_WORDS = Regex("그늘|햇빛|햇볕|땡볕|시원한|선선한|나무\\s?(?:많|아래|밑)|숲길")
+
     // "한 바퀴" alone is just "a loop" (동네 한바퀴); two or more, or 뺑뺑이/트랙, means laps.
     private val REPEAT_WORDS = Regex("뺑뺑|빙빙|트랙|반복")
     private val LAP_COUNT = Regex("(\\d+|$NATIVE)\\s?바퀴")

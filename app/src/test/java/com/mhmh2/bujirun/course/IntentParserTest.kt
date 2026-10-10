@@ -112,6 +112,13 @@ class IntentParserTest {
         assertFalse(p("공원 돌아서 30분").repeat)  // a tour through parks
     }
 
+    @Test fun shadeWords() {
+        assertEquals(true, p("그늘 많은 길로 5km").shade)
+        assertEquals(true, p("햇빛 피해서 30분").shade)
+        assertEquals(true, p("나무 많은 시원한 코스").shade)
+        assertNull(p("한강 따라 5km").shade) // not said: the server decides by the sun
+    }
+
     @Test fun koreanNumbers() {
         assertEquals(30.0, IntentParser.number("삼십")!!, 0.0)
         assertEquals(2500.0, IntentParser.number("이천오백")!!, 0.0)

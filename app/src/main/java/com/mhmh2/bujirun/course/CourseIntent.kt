@@ -31,6 +31,8 @@ data class CourseIntent(
     val laps: Int? = null,
     /** Laps of one place rather than a tour (뺑뺑이, 트랙, or a lap count of two or more). */
     val repeat: Boolean = false,
+    /** Prefer tree shade: true/false as asked, null = let the server decide by the sun. */
+    val shade: Boolean? = null,
 ) {
     val destination: PlaceMention? get() = places.firstOrNull { it.role == PlaceRole.DEST }
 
