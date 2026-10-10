@@ -1,8 +1,5 @@
 package com.mhmh2.bujirun.ui
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,8 +43,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationServices
 import com.mhmh2.bujirun.course.CourseGeometry
 import com.mhmh2.bujirun.course.CourseSource
 import com.mhmh2.bujirun.course.CourseStore
@@ -67,7 +63,6 @@ import kotlinx.coroutines.launch
  * route from the server (TMAP), or a straight line when "follow paths" is off (or for a park
  * lawn/track the router doesn't know). Undo removes the last point; "back to start" closes a loop.
  */
-@SuppressLint("MissingPermission") // lastLocation is only read after checking the permission
 @Composable
 fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     val context = LocalContext.current
@@ -78,6 +73,10 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     var followPaths by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
+    // The course starts where the user is unless they choose otherwise: the first tap is then
+    // already the second point, routed from here.
+    var here by remember { mutableStateOf<GeoPoint?>(null) }
+    var startIsHere by remember { mutableStateOf(false) }
 
     val line = remember(waypoints, segments) {
         if (segments.isEmpty()) waypoints else segments.flatMapIndexed { i, s -> if (i == 0) s else s.drop(1) }
@@ -113,6 +112,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     fun undo() {
         if (busy || waypoints.isEmpty()) return
         waypoints = waypoints.dropLast(1)
+        if (waypoints.isEmpty()) startIsHere = false
         segments = segments.take((waypoints.size - 1).coerceAtLeast(0))
     }
 
@@ -122,23 +122,26 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     val markers = remember { mutableListOf<Marker>() }
     val lineColor = MaterialTheme.colorScheme.primary.toArgb()
 
-    // One-time setup: tap handler, and the camera on the user's last known position (or Banpo).
+    // One-time setup: tap handler, and the camera on Banpo until the user's position comes in.
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
             map.setOnMapClickListener { _, latLng -> onTap(GeoPoint(latLng.latitude, latLng.longitude)) }
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(37.5115, 126.9960), 15.0))
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                LocationServices.getFusedLocationProviderClient(context).lastLocation.addOnSuccessListener { loc ->
-                    if (loc == null) return@addOnSuccessListener
-                    val here = LatLng(loc.latitude, loc.longitude)
-                    map.locationOverlay.apply { isVisible = true; position = here }
-                    if (waypoints.isEmpty()) map.moveCamera(CameraUpdate.scrollTo(here))
-                }
-            }
         }
     }
+    // Then the user's position: shown, the camera there, and the start (if nothing's drawn yet).
+    LaunchedEffect(Unit) {
+        val p = currentLocation(context) ?: return@LaunchedEffect
+        here = p
+        mapView.getMapAsync { map ->
+            val at = LatLng(p.lat, p.lon)
+            map.locationOverlay.apply { isVisible = true; position = at }
+            if (waypoints.isEmpty()) map.moveCamera(CameraUpdate.scrollAndZoomTo(at, 16.0))
+        }
+        if (waypoints.isEmpty()) { waypoints = listOf(p); startIsHere = true }
+    }
     // Redraw the line and point markers whenever they change.
-    LaunchedEffect(line, waypoints) {
+    LaunchedEffect(line, waypoints, startIsHere) {
         mapView.getMapAsync { map ->
             if (line.size >= 2) {
                 path.coords = line.map { LatLng(it.lat, it.lon) }
@@ -159,7 +162,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     iconTintColor = if (i == 0) START_GREEN else lineColor
                     width = (18 * density).toInt()
                     height = (25 * density).toInt()
-                    if (i == 0) captionText = "출발"
+                    if (i == 0) captionText = if (startIsHere) "출발 · 내 위치" else "출발"
                     this.map = map
                 }
             }
@@ -195,13 +198,19 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     Text(
                         when (waypoints.size) {
                             0 -> "지도를 눌러 출발점을 찍으세요"
-                            1 -> "다음 지점을 찍으면 길을 따라 이어져요"
+                            1 -> if (startIsHere) "내 위치에서 출발해요. 지나갈 곳을 찍으세요" else "다음 지점을 찍으면 길을 따라 이어져요"
                             else -> "지점 ${waypoints.size}개"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
+                }
+                // Changing the start: only before the course goes anywhere (undo gets back there).
+                if (waypoints.size == 1 && startIsHere) {
+                    TextButton(onClick = { waypoints = emptyList(); startIsHere = false }) { Text("다른 곳에서 출발하기") }
+                } else if (waypoints.isEmpty() && here != null) {
+                    TextButton(onClick = { here?.let { waypoints = listOf(it); startIsHere = true } }) { Text("내 위치에서 출발하기") }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("길 따라 잇기", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))

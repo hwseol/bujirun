@@ -51,6 +51,10 @@ class CourseRoute(val points: List<GeoPoint>) {
         return Triple(xs[i] + (xs[i + 1] - xs[i]) * t, ys[i] + (ys[i + 1] - ys[i]) * t, alt)
     }
 
+    /** Direction of travel (degrees clockwise from north) at [d] along the course. */
+    fun headingAt(d: Double): Double =
+        if (d + 15 <= lengthM) bearing(d, d + 15) else bearing(maxOf(0.0, d - 15), d)
+
     /** Compass-style bearing (degrees, clockwise from north) of travel between two distances. */
     private fun bearing(from: Double, to: Double): Double {
         val (x1, y1) = xyAt(from); val (x2, y2) = xyAt(to)
@@ -173,19 +177,45 @@ data class CourseProgress(
     val toNextTurnM: Double? get() = nextTurn?.let { it.atM - progressM }
 }
 
+/** Where something is relative to the way the runner is heading, as said out loud. */
+enum class Relative(val spoken: String) {
+    AHEAD("앞쪽"), AHEAD_RIGHT("오른쪽 앞"), RIGHT("오른쪽"), BEHIND_RIGHT("오른쪽 뒤"),
+    BEHIND("뒤쪽"), BEHIND_LEFT("왼쪽 뒤"), LEFT("왼쪽"), AHEAD_LEFT("왼쪽 앞");
+
+    companion object {
+        /** [angle]: bearing to the thing minus the runner's heading, degrees. */
+        fun of(angle: Double): Relative {
+            var a = angle % 360
+            if (a < 0) a += 360
+            return entries[((a + 22.5) / 45).toInt() % 8]
+        }
+    }
+}
+
 /** Something the course guidance wants said (turned into words by CueText). */
 sealed interface CourseCue {
-    data class Begin(val lengthM: Double) : CourseCue
+    /** [approachM]: how much of [lengthM] is the way from where the runner started to the course. */
+    data class Begin(val lengthM: Double, val approachM: Double = 0.0) : CourseCue
     data class ToStart(val meters: Int) : CourseCue
     data object AtStart : CourseCue
     data class TurnAhead(val direction: TurnDirection, val meters: Int) : CourseCue
     data class TurnNow(val direction: TurnDirection, val then: TurnDirection?) : CourseCue
     data class Climb(val lengthM: Int) : CourseCue
-    data object OffCourse : CourseCue
+    /** Off the course; it is [meters] away toward [toward] (null until the runner's heading is known). */
+    data class OffCourse(val toward: Relative?, val meters: Int) : CourseCue
     data object BackOnCourse : CourseCue
+    /** On the course but going the wrong way along it. */
+    data object WrongWay : CourseCue
+    data object RightWayAgain : CourseCue
     data class Remaining(val meters: Double) : CourseCue
     data object Halfway : CourseCue
     data object Finished : CourseCue
+    /** The runner asked for the way back: a new route, [toCourseM] to where it rejoins the course. */
+    data class Rerouted(val toCourseM: Int) : CourseCue
+    /** Asked for the way back before there was a GPS position. */
+    data object RerouteNoFix : CourseCue
+    /** The workout began before the runner's position (and so the course from there) was known. */
+    data object Locating : CourseCue
 }
 
 /**
@@ -198,7 +228,18 @@ class CourseNavigator(
     private val onCourseM: Double = 25.0,
     private val offCourseM: Double = 40.0,
     private val offCourseHoldMs: Long = 8_000,
+    /** Metres at the course's start that are the way from where the runner started (CourseJoin). */
+    private val approachM: Double = 0.0,
+    /** False for a route rebuilt mid-run (CourseJoin.rejoin): its halfway isn't the course's. */
+    announceHalfway: Boolean = true,
 ) {
+    // Recent positions, for the runner's own heading (needed to say "the course is to your
+    // right" and to notice running the wrong way).
+    private val trail = ArrayDeque<GeoPoint>()
+    private var lastOffReminderMs = 0L
+    private var lastOffReminderM = 0.0
+    private var wrongSinceMs: Long? = null
+    private var wrongWay = false
     private var started = false
     private var progress = 0.0
     private var offSinceMs: Long? = null
@@ -210,12 +251,23 @@ class CourseNavigator(
     private val nowAnnounced = mutableSetOf<Int>()
     private val climbsAnnounced = mutableSetOf<Int>()
     private var nextRemainingKm = 1
-    private var halfwayAnnounced = false
+    private var halfwayAnnounced = !announceHalfway
 
-    fun begin(): CourseCue = CourseCue.Begin(route.lengthM)
+    fun begin(): CourseCue = CourseCue.Begin(route.lengthM, approachM)
+
+    /** The runner's heading from the last ~20 m moved, or null if they haven't moved that far. */
+    private fun heading(): Double? {
+        val now = trail.lastOrNull() ?: return null
+        val back = trail.lastOrNull { distanceBetween(it, now) >= 20 } ?: return null
+        return bearingBetween(back, now)
+    }
 
     fun update(p: GeoPoint, nowMs: Long): List<CourseCue> {
         val cues = mutableListOf<CourseCue>()
+        if (trail.isEmpty() || distanceBetween(trail.last(), p) >= 3) {
+            trail.addLast(p)
+            while (trail.size > 40) trail.removeFirst()
+        }
         if (!started) {
             // Not on the course yet: the runner may still be walking to its start.
             val (along, dist) = route.locate(p, 0.0, minOf(300.0, route.lengthM))
@@ -238,7 +290,9 @@ class CourseNavigator(
         val (along, dist) = if (offCourse && offSinceMs?.let { nowMs - it > 30_000 } == true) {
             route.locate(p)
         } else {
-            route.locate(p, progress - 30, progress + 200)
+            // 150 m back, so a runner going the wrong way is still placed on the course (and told)
+            // rather than called off it.
+            route.locate(p, progress - 150, progress + 200)
         }
         lastOffDistance = dist
         if (dist <= onCourseM) {
@@ -247,9 +301,34 @@ class CourseNavigator(
             if (offCourse) { offCourse = false; cues += CourseCue.BackOnCourse }
         } else if (dist > offCourseM) {
             val since = offSinceMs ?: nowMs.also { offSinceMs = it }
-            if (!offCourse && nowMs - since >= offCourseHoldMs) { offCourse = true; cues += CourseCue.OffCourse }
+            // Said once on leaving, then again every 40 s while still drifting further away.
+            val remind = offCourse && nowMs - lastOffReminderMs >= 40_000 && dist > lastOffReminderM + 10
+            if ((!offCourse && nowMs - since >= offCourseHoldMs) || remind) {
+                offCourse = true
+                lastOffReminderMs = nowMs
+                lastOffReminderM = dist
+                val target = route.pointAt(along)
+                val toward = heading()?.let { Relative.of(bearingBetween(p, target) - it) }
+                cues += CourseCue.OffCourse(toward, roundTo10(dist))
+            }
         }
         if (offCourse) return cues
+
+        // Wrong way: on the course but heading against it for 10 s (after moving 20 m, so a
+        // runner turning on the spot doesn't set it off).
+        val h = heading()
+        if (h != null && dist <= onCourseM) {
+            var diff = (h - route.headingAt(along)) % 360
+            if (diff < 0) diff += 360
+            if (diff in 135.0..225.0) {
+                val since = wrongSinceMs ?: nowMs.also { wrongSinceMs = it }
+                if (!wrongWay && nowMs - since >= 10_000) { wrongWay = true; cues += CourseCue.WrongWay }
+            } else {
+                wrongSinceMs = null
+                if (wrongWay) { wrongWay = false; cues += CourseCue.RightWayAgain }
+            }
+        }
+        if (wrongWay) return cues
 
         // Turns: a heads-up 80-120 m before, then "now" at 20 m. A turn that comes up closer
         // than that (right after the previous one) gets no heads-up - "60 m ahead, left" straight
@@ -311,4 +390,17 @@ class CourseNavigator(
     )
 
     private fun roundTo10(m: Double) = ((m / 10).roundToInt() * 10).coerceAtLeast(10)
+
+    private companion object {
+        fun distanceBetween(a: GeoPoint, b: GeoPoint): Double {
+            val kx = 111_195.0 * cos(Math.toRadians((a.lat + b.lat) / 2))
+            val dx = (b.lon - a.lon) * kx; val dy = (b.lat - a.lat) * 111_195.0
+            return sqrt(dx * dx + dy * dy)
+        }
+
+        fun bearingBetween(a: GeoPoint, b: GeoPoint): Double {
+            val kx = 111_195.0 * cos(Math.toRadians((a.lat + b.lat) / 2))
+            return Math.toDegrees(atan2((b.lon - a.lon) * kx, (b.lat - a.lat) * 111_195.0))
+        }
+    }
 }

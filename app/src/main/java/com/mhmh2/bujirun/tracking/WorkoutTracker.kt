@@ -13,6 +13,11 @@ data class WorkoutSnapshot(
     // Following a course: which one, where we are on it and what's next.
     val courseId: Long? = null,
     val course: com.mhmh2.bujirun.course.CourseProgress? = null,
+    // The line being guided along: the course as joined from where the runner started (or the
+    // way back to it after "경로 다시 찾기"), which isn't the saved course's own line.
+    val courseRoute: List<com.mhmh2.bujirun.course.GeoPoint>? = null,
+    // Looking for a new route back to the course right now.
+    val rerouting: Boolean = false,
     // Last precise position (for the live map).
     val position: com.mhmh2.bujirun.course.GeoPoint? = null,
     val goal: Goal = Goal.Free,

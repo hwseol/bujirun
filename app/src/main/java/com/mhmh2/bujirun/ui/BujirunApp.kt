@@ -149,7 +149,8 @@ fun BujirunApp() {
             state,
             onPause = { WorkoutService.send(context, WorkoutService.ACTION_PAUSE) },
             onResume = { WorkoutService.send(context, WorkoutService.ACTION_RESUME) },
-            onStop = { WorkoutService.send(context, WorkoutService.ACTION_STOP) }
+            onStop = { WorkoutService.send(context, WorkoutService.ACTION_STOP) },
+            onReroute = { WorkoutService.send(context, WorkoutService.ACTION_REROUTE) },
         )
         state.status == WorkoutStatus.FINISHED && finishedId != null -> {
             BackHandler { WorkoutSession.reset() }

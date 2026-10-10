@@ -34,17 +34,27 @@ object CueText {
     }
 
     fun course(c: CourseCue): String = when (c) {
-        is CourseCue.Begin -> "코스 안내를 시작합니다. 코스 ${km(c.lengthM)}."
+        is CourseCue.Begin ->
+            if (c.approachM >= 30) "코스 안내를 시작합니다. 지금 위치에서 코스까지 이동 거리 ${(c.approachM / 10).roundToLong() * 10}미터를 포함해 총 ${km(c.lengthM)}."
+            else "코스 안내를 시작합니다. 코스 ${km(c.lengthM)}."
         is CourseCue.ToStart -> "코스 출발점까지 ${c.meters}미터예요. 출발점으로 가 주세요."
         CourseCue.AtStart -> "코스 출발점이에요. 안내를 시작할게요."
         is CourseCue.TurnAhead -> "${c.meters}미터 앞에서 ${c.direction.spoken}."
         is CourseCue.TurnNow -> "${c.direction.spoken}입니다." + (c.then?.let { " 이어서 ${it.spoken}." } ?: "")
         is CourseCue.Climb -> "곧 오르막 ${c.lengthM}미터예요."
-        CourseCue.OffCourse -> "코스를 벗어났어요."
+        is CourseCue.OffCourse ->
+            "코스를 벗어났어요. " + (c.toward?.let { "코스는 ${it.spoken} ${c.meters}미터예요." } ?: "코스까지 ${c.meters}미터예요.")
+        CourseCue.WrongWay -> "반대 방향으로 가고 있어요. 뒤로 돌아서 가세요."
+        CourseCue.RightWayAgain -> "좋아요, 맞는 방향이에요."
         CourseCue.BackOnCourse -> "코스로 돌아왔어요."
         is CourseCue.Remaining -> "코스 남은 거리 ${km(c.meters)}."
         CourseCue.Halfway -> "코스 절반 왔어요."
         CourseCue.Finished -> "코스 완주!"
+        is CourseCue.Rerouted ->
+            if (c.toCourseM >= 30) "새 경로를 찾았어요. 코스까지 ${c.toCourseM}미터, 안내를 따라오세요."
+            else "코스 바로 옆이에요. 이어서 안내할게요."
+        CourseCue.Locating -> "현재 위치를 찾고 있어요. 찾으면 바로 코스 안내를 시작할게요."
+        CourseCue.RerouteNoFix -> "아직 현재 위치를 몰라서 경로를 찾을 수 없어요. 잠시 후 다시 눌러 주세요."
     }
 
     private fun goalPhrase(goal: Goal) = when (goal) {

@@ -37,15 +37,22 @@ import com.mhmh2.bujirun.coach.Cue
 import com.mhmh2.bujirun.coach.CueText
 import com.mhmh2.bujirun.coach.Goal
 import com.mhmh2.bujirun.coach.VoiceAnnouncer
+import com.mhmh2.bujirun.account.Account
+import com.mhmh2.bujirun.course.CourseCue
+import com.mhmh2.bujirun.course.CourseJoin
 import com.mhmh2.bujirun.course.CourseNavigator
 import com.mhmh2.bujirun.course.CourseRoute
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
+import com.mhmh2.bujirun.course.RouteApi
 import com.mhmh2.bujirun.data.WorkoutStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
 
 /**
  * Records a workout. A foreground service (with the ongoing notification Android requires) so
@@ -95,7 +102,9 @@ class WorkoutService : LifecycleService() {
     // Following a course (null for a free run).
     private var courseId: Long? = null
     private var navigator: CourseNavigator? = null
+    private var courseName = ""
     private var position: GeoPoint? = null
+    private var rerouting = false
 
     private fun onSample(sample: LocationSample) {
         val t = tracker ?: return
@@ -138,6 +147,7 @@ class WorkoutService : LifecycleService() {
         super.onCreate()
         Prefs.init(this)
         WorkoutStore.init(this)
+        Account.init(this) // the walking route to the course needs the session token
         fused = LocationServices.getFusedLocationProviderClient(this)
         createChannel()
     }
@@ -163,6 +173,7 @@ class WorkoutService : LifecycleService() {
                 say(Cue.Resumed)
             }
             ACTION_STOP -> stop(now)
+            ACTION_REROUTE -> reroute()
         }
         publish()
         // If the system kills us anyway, don't come back with a half-initialised empty workout -
@@ -181,6 +192,7 @@ class WorkoutService : LifecycleService() {
         this.courseId = courseId
         navigator = null
         position = null
+        rerouting = false
         clockOriginReal = SystemClock.elapsedRealtime()
         epochOrigin = System.currentTimeMillis()
         ServiceCompat.startForeground(
@@ -210,8 +222,19 @@ class WorkoutService : LifecycleService() {
         ticker = lifecycleScope.launch {
             // The course (a quick local read) before anything needs it; a test run then runs along it.
             val course = courseId?.let { CourseStore.load(it) }
-            if (course != null) navigator = CourseNavigator(course.first, CourseRoute(course.second))
             if (simScale > 0) startFakeGps(course?.second)
+            // The course is run from where the runner is: found during the countdown (GPS fix,
+            // then the walking route to the course if they're away from it).
+            val joining = course?.let { (name, points) ->
+                courseName = name
+                launch {
+                    val nav = joinCourse(name, points)
+                    navigator = nav
+                    // Said once the workout has begun (straight away if the join took longer).
+                    while (countdown != null) delay(100)
+                    say(Cue.Course(nav.begin()))
+                }
+            }
             for (n in COUNTDOWN_FROM downTo 1) {
                 countdown = n
                 say(Cue.Countdown(n))
@@ -224,14 +247,18 @@ class WorkoutService : LifecycleService() {
             countdown = null
             t.start(now())
             say(Cue.Started(goal))
-            navigator?.let { say(Cue.Course(it.begin())) }
+            if (joining != null && navigator == null) say(Cue.Course(CourseCue.Locating))
             var ticks = 0
             while (isActive) {
                 updateMotion(now())
                 val nav = navigator
                 val here = position
-                if (nav != null && here != null && t.status == WorkoutStatus.RUNNING) {
-                    nav.update(here, now()).forEach { say(Cue.Course(it)) }
+                // Guidance keeps following the runner through an auto-pause (waiting at a crossing,
+                // then crossing slowly); only a pause the runner chose stops it.
+                if (nav != null && here != null && pausedBy != PausedBy.USER && t.status != WorkoutStatus.FINISHED) {
+                    val cues = nav.update(here, now())
+                    cues.forEach { say(Cue.Course(it)) }
+                    autoReroute(nav, cues, now())
                 }
                 val snapshot = publish() ?: break
                 coach?.onTick(snapshot)?.forEach(::say)
@@ -239,6 +266,65 @@ class WorkoutService : LifecycleService() {
                 if (++ticks % SAVE_EVERY_TICKS == 0) save(snapshot, finished = false)
                 delay(tickMs)
             }
+        }
+    }
+
+    /**
+     * The navigator for [points] run from where the runner is now: waits (up to 12 s) for a
+     * fix, then joins the course there (CourseJoin), with the walking route to it if it's away.
+     * No fix: the course as saved, and the navigator talks the runner to its start.
+     */
+    private suspend fun joinCourse(name: String, points: List<GeoPoint>): CourseNavigator {
+        val here = withTimeoutOrNull(12_000) { while (position == null) delay(250); position }
+            ?: return CourseNavigator(name, CourseRoute(points))
+        val (i, d) = CourseJoin.joinPoint(points, here)
+        val approach = if (d > CourseJoin.JOIN_M) walkingRoute(here, points[i]) else null
+        val run = CourseJoin.join(points, here, approach)
+        val extra = (CourseRoute(run).lengthM - CourseRoute(points).lengthM).coerceAtLeast(0.0)
+        return CourseNavigator(name, CourseRoute(run), approachM = extra)
+    }
+
+    /** The server's walking route, or null (offline, slow): callers fall back to a straight line. */
+    private suspend fun walkingRoute(from: GeoPoint, to: GeoPoint): List<GeoPoint>? =
+        runCatching { withTimeout(8_000) { RouteApi.walk(from, to) } }.getOrNull()?.takeIf { it.size >= 2 }
+
+    // The runner took another road: after a while off the course (or going further from it), a
+    // new route from where they are instead of repeating "off course". At most once a minute -
+    // each is a walking-route request to the server.
+    private var offSinceMs: Long? = null
+    private var lastAutoRerouteMs = 0L
+
+    private fun autoReroute(nav: CourseNavigator, cues: List<CourseCue>, now: Long) {
+        val p = nav.progress()
+        if (p.onCourse || !p.started || p.finished) { offSinceMs = null; return }
+        val since = offSinceMs ?: now.also { offSinceMs = it }
+        if (now - since >= AUTO_REROUTE_AFTER_MS && now - lastAutoRerouteMs >= 60_000) {
+            lastAutoRerouteMs = now
+            offSinceMs = null
+            reroute()
+        }
+    }
+
+    /** "경로 다시 찾기": a new route from here to the nearest part of the course not yet run. */
+    private fun reroute() {
+        val nav = navigator ?: return
+        if (rerouting) return
+        val here = position ?: run { say(Cue.Course(CourseCue.RerouteNoFix)); return }
+        rerouting = true
+        publish()
+        lifecycleScope.launch {
+            val route = nav.route
+            val done = nav.progress().progressM
+            val (at, d) = CourseJoin.rejoinPoint(route, done, here)
+            val approach = if (d > CourseJoin.JOIN_M) walkingRoute(here, route.pointAt(at)) else null
+            val run = CourseJoin.rejoin(route, done, here, approach)
+            val newRoute = CourseRoute(run)
+            rerouting = false
+            if (navigator !== nav || tracker == null) return@launch // stopped or rerouted meanwhile
+            navigator = CourseNavigator(courseName, newRoute, announceHalfway = false)
+            val toCourse = (newRoute.lengthM - (route.lengthM - at)).coerceAtLeast(0.0)
+            say(Cue.Course(CourseCue.Rerouted(((toCourse / 10).roundToInt() * 10))))
+            publish()
         }
     }
 
@@ -328,6 +414,8 @@ class WorkoutService : LifecycleService() {
         simScale = 0
         navigator = null
         courseId = null
+        rerouting = false
+        offSinceMs = null
         fused.removeLocationUpdates(locationCallback)
         unregisterStepSensor()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -344,6 +432,7 @@ class WorkoutService : LifecycleService() {
             workoutId = workoutId, goal = goal, countdown = countdown,
             autoPaused = pausedBy == PausedBy.AUTO, simScale = simScale,
             courseId = courseId.takeIf { navigator != null }, course = navigator?.progress(), position = position,
+            courseRoute = navigator?.route?.points, rerouting = rerouting,
         )
         WorkoutSession.publish(snapshot)
         // At most once a real second: a 10x test run ticks ten times a second, and Android
@@ -404,6 +493,8 @@ class WorkoutService : LifecycleService() {
             WorkoutStatus.PAUSED -> builder.addAction(0, "재개", servicePendingIntent(ACTION_RESUME))
             else -> {}
         }
+        // Lost on a course: the way back from the lock screen, without opening the app.
+        if (s.course != null && s.countdown == null) builder.addAction(0, "경로 다시 찾기", servicePendingIntent(ACTION_REROUTE))
         return builder.build()
     }
 
@@ -429,6 +520,8 @@ class WorkoutService : LifecycleService() {
         const val ACTION_PAUSE = "com.mhmh2.bujirun.PAUSE"
         const val ACTION_RESUME = "com.mhmh2.bujirun.RESUME"
         const val ACTION_STOP = "com.mhmh2.bujirun.STOP"
+        const val ACTION_REROUTE = "com.mhmh2.bujirun.REROUTE"
+        private const val AUTO_REROUTE_AFTER_MS = 30_000L
         private const val EXTRA_GOAL_TYPE = "goal_type"
         private const val EXTRA_GOAL_VALUE = "goal_value"
         private const val EXTRA_SIM_SCALE = "sim_scale"

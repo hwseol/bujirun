@@ -56,6 +56,7 @@ fun LiveWorkoutScreen(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    onReroute: () -> Unit = {},
 ) {
     val voiceOn by Prefs.voiceEnabled.collectAsState()
     val paused = state.status == WorkoutStatus.PAUSED
@@ -88,12 +89,12 @@ fun LiveWorkoutScreen(
         }
 
         val course = state.course
-        val courseId = state.courseId
-        if (course != null && courseId != null) {
+        val route = state.courseRoute
+        if (course != null && route != null) {
             // Following a course: the map is the main thing, numbers compact underneath.
             Spacer(Modifier.height(8.dp))
             CourseLiveMap(
-                courseId, course, state.position,
+                route, course, state.position, state.rerouting, onReroute,
                 Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp))
             )
             Spacer(Modifier.height(16.dp))

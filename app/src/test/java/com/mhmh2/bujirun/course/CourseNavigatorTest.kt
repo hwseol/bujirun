@@ -63,7 +63,7 @@ class CourseNavigatorTest {
             ),
             cues,
         )
-        assertFalse(cues.any { it == CourseCue.OffCourse })
+        assertFalse(cues.any { it is CourseCue.OffCourse || it == CourseCue.WrongWay })
         // The "now" cue for the right turn comes within 20 m before it.
         val now = said.first { it.second == CourseCue.TurnNow(TurnDirection.RIGHT, null) }.first
         assertTrue("at $now", now in 478.0..505.0)
@@ -106,9 +106,46 @@ class CourseNavigatorTest {
         var t = 20_000L
         val off = mutableListOf<CourseCue>()
         repeat(12) { off += nav.update(at(80.0, 60.0), t); t += 1000 }
-        assertEquals(listOf<CourseCue>(CourseCue.OffCourse), off)
+        // Came north, then drifted east: the course (at x = 0) is behind-left of the way they're going.
+        assertEquals(listOf<CourseCue>(CourseCue.OffCourse(Relative.BEHIND, 80)), off)
         assertFalse(nav.progress().onCourse)
         assertEquals(listOf<CourseCue>(CourseCue.BackOnCourse), nav.update(at(2.0, 70.0), t))
+    }
+
+    @Test fun offCourseSaysWhereTheCourseIsAndRemindsWhileDrifting() {
+        val nav = CourseNavigator("L", CourseRoute(lShape))
+        // Running north up the first leg, then veering off to the west.
+        var t = 0L
+        for (n in 0..30 step 3) { nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        val cues = mutableListOf<CourseCue>()
+        for (k in 1..90) { cues += nav.update(at(-3.0 * k, 33.0 + k), t); t += 1000 }
+        val off = cues.filterIsInstance<CourseCue.OffCourse>()
+        // Heading north-west, the course (to the east) is on their right; a reminder follows
+        // once they've drifted further.
+        assertTrue("toward ${off.first().toward}", off.first().toward in setOf(Relative.RIGHT, Relative.BEHIND_RIGHT, Relative.BEHIND))
+        assertTrue("reminded: $off", off.size >= 2)
+        assertTrue(off[1].meters > off[0].meters)
+    }
+
+    @Test fun wrongWayAndBack() {
+        val nav = CourseNavigator("L", CourseRoute(lShape))
+        var t = 0L
+        // Run the course from 120 m to 200 m in, then turn back toward its start.
+        for (n in 120..200 step 4) { nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        val cues = mutableListOf<CourseCue>()
+        for (n in 196 downTo 120 step 4) { cues += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        assertTrue(cues.contains(CourseCue.WrongWay))
+        // Turn round.
+        val back = mutableListOf<CourseCue>()
+        for (n in 124..200 step 4) { back += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        assertTrue(back.contains(CourseCue.RightWayAgain))
+    }
+
+    @Test fun relativeDirections() {
+        assertEquals(Relative.AHEAD, Relative.of(10.0))
+        assertEquals(Relative.RIGHT, Relative.of(95.0))
+        assertEquals(Relative.BEHIND, Relative.of(-175.0))
+        assertEquals(Relative.AHEAD_LEFT, Relative.of(-40.0))
     }
 
     @Test fun announcesWalkToStartWhenStartingAway() {
