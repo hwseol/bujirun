@@ -45,6 +45,7 @@ class FakeRouter:
 def make(router, poi=lambda name, near, km: [], loops=None):
     # Midnight in Korea: no sun, so no shade preference unless a test asks for it.
     return planner.Planner(user_id=1, route=router, charge=lambda: None, poi=poi, now=NIGHT,
+                           waterside_fn=lambda *a, **k: None,
                            loops=loops or (lambda s, d: [{"points": [s, [s[0] + D, s[1]], s]}]))
 
 
@@ -81,9 +82,10 @@ class PlannerTest(unittest.TestCase):
         plan = make(r).plan(START, {"distance_m": 4000, "shape": "LOOP", "places": [{"name": "작은천", "role": "AROUND"}]})
         self.assertEqual(len(r.calls), 1)
         vias = r.calls[0][2]
-        self.assertEqual(len(vias), 4)
+        self.assertEqual(len(vias), 5)
         self.assertGreater(vias[0][0], 37.497)  # near (north) bank first
-        self.assertLess(vias[2][0], 37.497)     # back along the far bank
+        self.assertGreater(vias[2][0], 37.497)  # still the near bank at the turn
+        self.assertLess(vias[3][0], 37.497)     # back along the far bank
         self.assertEqual(plan.courses[0]["title"], "작은천 따라 순환")
 
     def test_lake_laps_on_the_shore_outside_the_water(self):

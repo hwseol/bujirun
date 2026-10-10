@@ -20,6 +20,7 @@ import places
 import elevation
 import routes
 import shade
+import waterside
 
 M = places.M_PER_DEG
 DETOUR = 1.25          # walking route vs straight line, as in routes.py
@@ -123,6 +124,15 @@ def bank_offset(river) -> float:
     return 15.0
 
 
+def water_path_offset(river) -> float:
+    """Where to put route points so they snap to the path right by the water: just off the
+    centreline, so the waterside path is the nearest one (the road along the top of the bank is
+    further out). The big rivers keep their wide offset - their paths are in riverside parks."""
+    if river["subtype"] == "river" and (river["length_m"] or 0) > 50_000:
+        return 350.0
+    return 20.0 if river["subtype"] == "river" else 10.0
+
+
 def join(*parts):
     """Concatenates route point lists, dropping the shared joint."""
     out = []
@@ -141,7 +151,7 @@ def km(m) -> str:
 
 class Planner:
     def __init__(self, user_id: int, route=None, find=None, nearby=None, shape=None, charge=None, loops=None,
-                 poi=None, paths=None, now=None, tracks=None):
+                 poi=None, paths=None, now=None, tracks=None, waterside_fn=None):
         self.route_fn = route or routes.pedestrian
         self.find = find or places.find
         # Names places.db doesn't have (landmarks, stations, buildings): TMAP place search.
@@ -150,6 +160,7 @@ class Planner:
         self.shape = shape or places.shape
         self.paths = paths or places.park_paths
         self.tracks = tracks or places.park_tracks
+        self.waterside = waterside_fn or waterside.along
         # Every TMAP request counts against the user's daily allowance (routes.charge).
         self.charge = charge or (lambda: routes.charge(user_id))
         self.loops = loops or (lambda s, d: routes.loops(s, d, user_id, count=2, route=self.route_fn))
@@ -327,23 +338,57 @@ class Planner:
                 best = (key, q_xy, q_normal, walked, direction)
         _, q_xy, q_normal, walked, direction = best
         turn = plane.ll(*offset(q_xy, q_normal, side * bank))
+        # Points just off the water on the start's side, every quarter of the way: the path by
+        # the water is what people run, and with only the two ends TMAP takes the straighter
+        # road a block away. Close to the water a point snaps to the waterside path; if one lands
+        # in the water and TMAP refuses it, the old points further out are the fallback.
+        near = water_path_offset(river)
+        near_entry = plane.ll(*offset(p_xy, normal, side * min(near, max(d - 10, 0))))
+
+        def by_the_water(half, s):
+            pts_ = [walk(line, seg, t, half * k / 4, direction, plane) for k in (1, 2, 3, 4)]
+            return [plane.ll(*offset(q, n, s * near)) for q, n, _ in pts_]
+
+        def lead_to(pts_):
+            return join(self.route(origin, pts_[0]) if dist(origin, pts_[0]) > 60 else [origin], pts_)
+
+        def out_route(half):
+            *mids, end = by_the_water(half, side)
+            # Best: the mapped path by the water itself (waterside.py), no routing needed for it.
+            w = self.waterside([near_entry] + mids + [end], start=origin)
+            if w and path_length(w) >= 0.5 * half:
+                return lead_to(w)
+            try:
+                return self.route(origin, end, [near_entry] + mids)
+            except routes.RouteError:
+                q, n, _ = walk(line, seg, t, half, direction, plane)
+                return self.route(origin, plane.ll(*offset(q, n, side * bank)), [entry])
 
         name = river["name"]
         if shape == "LOOP" and bank <= 40:
             # A stream has paths on both banks: up one side, back down the other.
-            far_turn = plane.ll(*offset(q_xy, q_normal, -side * bank))
-            far_entry = plane.ll(*offset(p_xy, normal, -side * bank))
-            pts = self.route(origin, origin, [entry, turn, far_turn, far_entry])
+            near_side, far_side = by_the_water(walked, side), by_the_water(walked, -side)
+            far_entry = plane.ll(*offset(p_xy, normal, -side * near))
+            # Up the near bank and back down the far one, on the waterside paths if they're
+            # mapped and joined by a bridge at the far end.
+            w = self.waterside([near_entry] + near_side + far_side[::-1] + [far_entry], start=origin, within_m=60)
+            if w and path_length(w) >= walked:
+                pts = join(lead_to(w), self.route(w[-1], origin) if dist(w[-1], origin) > 60 else [origin])
+                if path_length(pts) < 1.4 * target:
+                    return self.add(out, f"{name} 따라 순환", pts, [name])
+            try:
+                pts = self.route(origin, origin, [near_entry, near_side[1], near_side[3], far_side[1], far_entry])
+            except routes.RouteError:
+                far_turn = plane.ll(*offset(q_xy, q_normal, -side * bank))
+                pts = self.route(origin, origin, [entry, turn, far_turn, plane.ll(*offset(p_xy, normal, -side * bank))])
             if path_length(pts) < 1.4 * target:
                 return self.add(out, f"{name} 따라 순환", pts, [name])
-        out_pts = self.route(origin, turn, [entry])
+        out_pts = out_route(walked)
         pts = join(out_pts, out_pts[::-1])
         # One correction if the bank path was much longer or shorter than the plan.
         ratio = path_length(pts) / target
         if not 0.85 <= ratio <= 1.15 and walked >= along / 2 - 1:
-            q_xy, q_normal, walked = walk(line, seg, t, max(300, along / 2 / ratio), direction, plane)
-            turn = plane.ll(*offset(q_xy, q_normal, side * bank))
-            out_pts = self.route(origin, turn, [entry])
+            out_pts = out_route(max(300, along / 2 / ratio))
             pts = join(out_pts, out_pts[::-1])
         self.add(out, f"{name} 따라 왕복", pts, [name],
                  legs=[(f"{name} 따라 가는 길", out_pts), ("되돌아오는 길", out_pts[::-1])])

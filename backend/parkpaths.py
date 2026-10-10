@@ -21,7 +21,7 @@ def _key(p):
 class PathGraph:
     """Footways as a graph: OSM ways that meet share an exact vertex."""
 
-    def __init__(self, lines):
+    def __init__(self, lines, keep_largest: bool = True):
         self.adj: dict = {}
         for line in lines:
             for a, b in zip(line, line[1:]):
@@ -31,7 +31,10 @@ class PathGraph:
                 d = _dist(ka, kb)
                 self.adj.setdefault(ka, {})[kb] = d
                 self.adj.setdefault(kb, {})[ka] = d
-        self._keep_largest_component()
+        # A park's paths: the main network. (Riverside paths keep every piece: the two banks can
+        # be separate, and the one wanted is the one on the runner's side.)
+        if keep_largest:
+            self._keep_largest_component()
 
     def _keep_largest_component(self):
         seen, best = set(), set()

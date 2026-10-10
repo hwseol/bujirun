@@ -22,6 +22,10 @@ import osm
 import places
 
 M = places.M_PER_DEG
+# For queries someone is waiting on: kumi answers in well under a second (its data can lag a few
+# months, fine for paths and landmarks), the main server is current but often slow, and
+# private.coffee was answering 500s (2026-10).
+QUICK_SERVERS = ["https://overpass.kumi.systems/api/interpreter", "https://overpass-api.de/api/interpreter"]
 CACHE_S = 60 * 86400
 MAX_POINTS = 40
 
@@ -150,7 +154,7 @@ def _overpass(q: str, fetch=None) -> list[dict] | None:
     """Quick and forgiving (the runner is already on the way): two servers, short timeouts, no
     waiting - None (and nothing cached) if both are busy."""
     fetch = fetch or _fetch
-    for url in osm.SERVERS[:2]:
+    for url in QUICK_SERVERS:
         try:
             body = fetch(url, q)
             if body[:1] == b"{":
