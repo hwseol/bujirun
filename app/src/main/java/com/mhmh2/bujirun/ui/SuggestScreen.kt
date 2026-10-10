@@ -98,14 +98,16 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
             Text("AI 주변 코스", style = MaterialTheme.typography.titleLarge)
         }
         TabRow(selectedTabIndex = tab) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("공원 코스") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("순환 코스") })
-            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("걷기길") })
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("공원·트랙") })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("천·강변") })
+            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("순환") })
+            Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("걷기길") })
         }
         Spacer(Modifier.height(12.dp))
         when (tab) {
             0 -> ParksTab(onOpen, onRun)
-            1 -> LoopsTab(onOpen, onRun)
+            1 -> RiversTab(onOpen, onRun)
+            2 -> LoopsTab(onOpen, onRun)
             else -> TrailsTab(onOpen, onRun)
         }
     }

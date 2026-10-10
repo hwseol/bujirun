@@ -101,7 +101,7 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> U
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MakeCard(Icons.Filled.Draw, "DIY 코스 만들기", "지도에 점을 찍어\n나만의 코스", onDraw, Modifier.weight(1f))
-            MakeCard(Icons.Filled.NearMe, "AI 주변 코스", "공원·트랙·순환 코스를\nAI가 바로 짜 드려요", onSuggest, Modifier.weight(1f), ai = true)
+            MakeCard(Icons.Filled.NearMe, "AI 주변 코스", "공원·트랙·천변 코스를\nAI가 바로 짜 드려요", onSuggest, Modifier.weight(1f), ai = true)
         }
         // GPX has no reliable MIME type across apps and file managers; accept anything and let
         // the parser decide.

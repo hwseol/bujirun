@@ -125,6 +125,19 @@ object RouteApi {
         } to json.optJSONArray("sources").strings()
     }
 
+    /** A stream or river near the start, to run along. [lengthM]: how long it is in all. */
+    data class NearbyRiver(val id: String, val name: String, val awayM: Int, val lengthM: Int?)
+
+    /** Streams and rivers within 3 km, nearest first, and the credits for the data. */
+    suspend fun rivers(near: GeoPoint): Pair<List<NearbyRiver>, List<String>> {
+        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val json = Api.get("/places/nearby?lat=${near.lat}&lon=${near.lon}&radius_m=3000", token)
+        val arr = json.getJSONArray("places")
+        return (0 until arr.length()).map { arr.getJSONObject(it) }.filter { it.optString("kind") == "river" }.map {
+            NearbyRiver(it.getString("id"), it.getString("name"), it.getInt("away_m"), it.optIntOrNull("length_m"))
+        } to json.optJSONArray("sources").strings()
+    }
+
     /** A place found by name or address, to start from. */
     data class FoundPlace(val name: String, val address: String, val point: GeoPoint, val awayM: Int)
 

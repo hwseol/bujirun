@@ -18,6 +18,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.Button
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.foundation.layout.size
+import com.naver.maps.map.CameraAnimation
+import com.naver.maps.map.NaverMap
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -122,12 +128,20 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     val markers = remember { mutableListOf<Marker>() }
     val lineColor = MaterialTheme.colorScheme.primary.toArgb()
 
-    // One-time setup: tap handler, and the camera on Banpo until the user's position comes in.
+    // One-time setup: the camera on Banpo until the user's position comes in. Points go where
+    // the + in the middle is ("여기 추가") or where the map is long-pressed - not on a tap, which
+    // made every double-tap zoom drop two points.
+    var naverMap by remember { mutableStateOf<NaverMap?>(null) }
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
-            map.setOnMapClickListener { _, latLng -> onTap(GeoPoint(latLng.latitude, latLng.longitude)) }
+            naverMap = map
+            map.setOnMapLongClickListener { _, latLng -> onTap(GeoPoint(latLng.latitude, latLng.longitude)) }
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(37.5115, 126.9960), 15.0))
         }
+    }
+    fun addAtCentre() {
+        val t = naverMap?.cameraPosition?.target ?: return
+        addPoint(GeoPoint(t.latitude, t.longitude))
     }
     // Then the user's position: shown, the camera there, and the start (if nothing's drawn yet).
     LaunchedEffect(Unit) {
@@ -171,6 +185,19 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+        // Where "여기 추가" puts the next point: the middle of the map.
+        Icon(
+            Icons.Filled.Add, contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.align(Alignment.Center).size(40.dp)
+        )
+        here?.let { me ->
+            SmallFloatingActionButton(
+                onClick = { naverMap?.moveCamera(CameraUpdate.scrollTo(LatLng(me.lat, me.lon)).animate(CameraAnimation.Easing)) },
+                // Top right, clear of the map's own zoom buttons (middle right).
+                modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 12.dp, end = 12.dp)
+            ) { Icon(Icons.Filled.MyLocation, contentDescription = "내 위치로") }
+        }
 
         Surface(
             modifier = Modifier.safeDrawingPadding().padding(12.dp),
@@ -197,8 +224,8 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Text(
                         when (waypoints.size) {
-                            0 -> "지도를 눌러 출발점을 찍으세요"
-                            1 -> if (startIsHere) "내 위치에서 출발해요. 지나갈 곳을 찍으세요" else "다음 지점을 찍으면 길을 따라 이어져요"
+                            0 -> "지도를 움직여 + 를 출발점에 맞추고 '여기 추가'를 누르세요"
+                            1 -> if (startIsHere) "내 위치에서 출발해요. + 를 다음 지점에 맞추고 '여기 추가'" else "+ 를 다음 지점에 맞추고 '여기 추가' (길게 눌러도 돼요)"
                             else -> "지점 ${waypoints.size}개"
                         },
                         style = MaterialTheme.typography.bodyMedium,
@@ -223,6 +250,12 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     Switch(checked = followPaths, onCheckedChange = { followPaths = it })
                 }
                 Spacer(Modifier.height(8.dp))
+                Button(onClick = ::addAtCentre, enabled = !busy && naverMap != null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    Icon(Icons.Filled.Add, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (waypoints.isEmpty()) "여기를 출발점으로" else "여기 추가")
+                }
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = ::undo, enabled = waypoints.isNotEmpty() && !busy) {
                         Icon(Icons.AutoMirrored.Filled.Undo, null)
@@ -232,7 +265,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                         enabled = waypoints.size >= 2 && !busy && !CourseGeometry.isLoop(line),
                         modifier = Modifier.weight(1f)
                     ) { Text("출발점으로") }
-                    Button(onClick = { naming = true }, enabled = line.size >= 2 && !busy, modifier = Modifier.weight(1f)) { Text("저장") }
+                    OutlinedButton(onClick = { naming = true }, enabled = line.size >= 2 && !busy, modifier = Modifier.weight(1f)) { Text("저장") }
                 }
             }
         }
