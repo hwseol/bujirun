@@ -11,7 +11,9 @@ object CueText {
         is Cue.Countdown -> when (cue.n) { 3 -> "셋"; 2 -> "둘"; 1 -> "하나"; else -> cue.n.toString() }
         is Cue.Started -> "운동을 시작합니다." + goalPhrase(cue.goal)
         is Cue.Split ->
-            "${km(cue.distanceM)}. 이번 구간 ${duration(cue.splitMs)}. 총 시간 ${duration(cue.totalMs)}."
+            "${km(cue.distanceM)}. 이번 구간 ${duration(cue.splitMs)}" +
+                (if (cue.splitM != 1000.0 && cue.splitM > 0) ", 페이스 ${pace(cue.splitMs / cue.splitM)}" else "") +
+                ". 총 시간 ${duration(cue.totalMs)}."
         is Cue.TimeMark ->
             "${duration(cue.totalMs)} 경과. ${km(cue.distanceM)}." +
                 (cue.averagePaceSecPerKm?.let { " 평균 페이스 ${pace(it)}." } ?: "")
@@ -34,12 +36,14 @@ object CueText {
     }
 
     fun course(c: CourseCue): String = when (c) {
-        is CourseCue.Begin ->
+        is CourseCue.Begin -> (
             if (c.approachM >= 30) "코스 안내를 시작합니다. 지금 위치에서 코스까지 이동 거리 ${(c.approachM / 10).roundToLong() * 10}미터를 포함해 총 ${km(c.lengthM)}."
             else "코스 안내를 시작합니다. 코스 ${km(c.lengthM)}."
+            ) + (if (c.laps >= 2) " 한 바퀴 ${km(c.lapM)}, ${c.laps}바퀴예요." else "")
         is CourseCue.ToStart -> "코스 출발점까지 ${c.meters}미터예요. 출발점으로 가 주세요."
         CourseCue.AtStart -> "코스 출발점이에요. 안내를 시작할게요."
-        is CourseCue.TurnAhead -> "${c.meters}미터 앞에서 ${c.direction.spoken}."
+        is CourseCue.TurnAhead ->
+            c.landmark?.let { "${c.meters}미터 앞, ${it.at} ${c.direction.spoken}." } ?: "${c.meters}미터 앞에서 ${c.direction.spoken}."
         is CourseCue.TurnNow -> "${c.direction.spoken}입니다." + (c.then?.let { " 이어서 ${it.spoken}." } ?: "")
         is CourseCue.Climb -> "곧 오르막 ${c.lengthM}미터예요."
         is CourseCue.OffCourse ->
@@ -47,7 +51,10 @@ object CueText {
         CourseCue.WrongWay -> "반대 방향으로 가고 있어요. 뒤로 돌아서 가세요."
         CourseCue.RightWayAgain -> "좋아요, 맞는 방향이에요."
         CourseCue.BackOnCourse -> "코스로 돌아왔어요."
-        is CourseCue.Remaining -> "코스 남은 거리 ${km(c.meters)}."
+        is CourseCue.Remaining -> "코스 " + (if (c.doneM > 0) "${km(c.doneM)} 왔어요. " else "") + "남은 거리 ${km(c.meters)}."
+        is CourseCue.LapDone ->
+            (if (c.done >= c.total) "${c.total}바퀴 모두 돌았어요! " else "${c.done}바퀴 완료, ${c.total - c.done}바퀴 남았어요. ") +
+                (if (c.lapMs > 0 && c.lapM > 0) "이번 바퀴 ${duration(c.lapMs)}, 페이스 ${pace(c.lapMs / c.lapM)}." else "")
         CourseCue.Halfway -> "코스 절반 왔어요."
         CourseCue.Finished -> "코스 완주!"
         is CourseCue.Rerouted ->

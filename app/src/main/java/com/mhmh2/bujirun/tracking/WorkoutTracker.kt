@@ -57,7 +57,11 @@ class WorkoutTracker(
     private companion object {
         const val STALE_SPEED_MS = 5_000L   // no speed reading for this long: don't trust the last ones
         const val MIN_MOVING_MPS = 0.5      // slower than this is standing; distance tells it better
+        const val COURSE_ACCURACY_M = 50f   // on a course, fixes this rough still place the runner
     }
+
+    // Course progress at [anchor] (see onLocation).
+    private var anchorAlong: Double? = null
 
     var status = WorkoutStatus.IDLE
         private set
@@ -102,6 +106,7 @@ class WorkoutTracker(
         // Whatever distance is covered while paused (walking back to the start, etc.) must not
         // count: the first fix after resuming becomes a fresh anchor.
         anchor = null
+        anchorAlong = null
         lastAccepted = null
         recent.clear()
         speeds.clear()
@@ -133,20 +138,37 @@ class WorkoutTracker(
     fun elapsedMs(nowMs: Long): Long =
         activeMsBeforeSegment + if (status == WorkoutStatus.RUNNING) nowMs - segmentStartMs else 0
 
-    fun onLocation(sample: LocationSample) {
+    /**
+     * [courseAlongM]: following a course, where the runner is along it (CourseNavigator
+     * .matchedAlongM), null when not on one. Then distance is the progress along the course
+     * line: GPS under trees drops fixes and zigzags, and straight lines between the fixes that
+     * remain cut every bend of a park path short. Fixes are also accepted less precise there,
+     * since the course, not the fix, decides the distance.
+     */
+    fun onLocation(sample: LocationSample, courseAlongM: Double? = null) {
         if (filter.isPrecise(sample)) hasFix = true
         if (status != WorkoutStatus.RUNNING) return
-        if (!filter.accept(lastAccepted, sample)) return
+        val usable = filter.accept(lastAccepted, sample) ||
+            (courseAlongM != null && sample.accuracyM <= COURSE_ACCURACY_M && lastAccepted.let { it == null || sample.timeMs > it.timeMs })
+        if (!usable) return
         lastAccepted = sample
         sample.speedMps?.let { speeds.addLast(sample.timeMs to it) }
 
         val from = anchor
         if (from == null) {
+            anchorAlong = courseAlongM
             countPoint(sample)
             return
         }
-        val step = distanceMeters(from, sample)
+        val gps = distanceMeters(from, sample)
+        val fromAlong = anchorAlong
+        val along = if (courseAlongM != null && fromAlong != null) courseAlongM - fromAlong else null
+        // Along the course when it's believable (not more than a fast runner could cover, and
+        // not wildly more than GPS saw); otherwise GPS, and the course anchor starts afresh.
+        val dtS = (sample.timeMs - from.timeMs) / 1000.0
+        val step = if (along != null && along >= 0 && along <= 8 * dtS + 30 && along <= gps * 2 + 30) along else gps
         if (step < minStepM) return
+        anchorAlong = courseAlongM
         distanceM += step
         elevation.add(sample.altitudeM, step)
         calories += Calories.kcal(activity, step, (sample.timeMs - from.timeMs) / 1000.0, elevation.grade, weightKg)

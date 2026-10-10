@@ -135,6 +135,16 @@ object RouteApi {
         }
     }
 
+    /** Named things at each of [points] (a course's turns), null where there's nothing useful. */
+    suspend fun landmarks(points: List<GeoPoint>): List<Landmark?> {
+        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val pts = JSONArray().apply { points.forEach { put(JSONArray().put(it.lat).put(it.lon)) } }
+        val arr = Api.post("/routes/landmarks", JSONObject().put("points", pts), token).getJSONArray("landmarks")
+        return (0 until arr.length()).map { i ->
+            arr.optJSONObject(i)?.let { Landmark(it.getString("name"), it.optString("kind")) }
+        }
+    }
+
     private fun JSONObject.hills(): Hills? =
         if (has("ascent_m")) Hills(getInt("ascent_m"), optDouble("max_grade", 0.0), optString("terrain")) else null
 

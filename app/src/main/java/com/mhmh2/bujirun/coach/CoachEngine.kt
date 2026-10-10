@@ -8,7 +8,7 @@ import kotlin.math.floor
 sealed interface Cue {
     data class Countdown(val n: Int) : Cue
     data class Started(val goal: Goal) : Cue
-    data class Split(val distanceM: Double, val splitMs: Long, val totalMs: Long) : Cue
+    data class Split(val distanceM: Double, val splitMs: Long, val totalMs: Long, val splitM: Double = 1000.0) : Cue
     data class TimeMark(val totalMs: Long, val distanceM: Double, val averagePaceSecPerKm: Double?) : Cue
     data class HalfwayDistance(val projectedTotalMs: Long) : Cue
     data class HalfwayTime(val distanceM: Double) : Cue
@@ -113,7 +113,7 @@ class CoachEngine(
                 if (s.distanceM < next) return
                 // A GPS gap can jump over several marks at once - announce only the latest.
                 val reachedM = floor(s.distanceM / interval.meters) * interval.meters
-                if (!suppress) cues += Cue.Split(reachedM, s.elapsedMs - lastSplitTotalMs, s.elapsedMs)
+                if (!suppress) cues += Cue.Split(reachedM, s.elapsedMs - lastSplitTotalMs, s.elapsedMs, interval.meters)
                 lastSplitTotalMs = s.elapsedMs
                 nextSplitM = reachedM + interval.meters
             }

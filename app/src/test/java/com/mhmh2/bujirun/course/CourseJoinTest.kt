@@ -46,6 +46,15 @@ class CourseJoinTest {
         assertTrue(at >= 450.0)
     }
 
+    @Test fun lineStartsAtTheRunnerEvenWhenTheWalkingRouteStartsOnAPathAway() {
+        val line = listOf(at(0.0, 0.0), at(0.0, 500.0))
+        val here = at(-300.0, 0.0)
+        val way = listOf(at(-200.0, 0.0), at(0.0, 0.0)) // routed from the nearest path, 100 m off
+        val run = CourseJoin.join(line, here, way)
+        assertEquals(here, run.first())
+        assertEquals(800.0, CourseRoute(run).lengthM, 1.0)
+    }
+
     @Test fun oneWayCourseStartsAtItsStart() {
         val line = listOf(at(0.0, 0.0), at(0.0, 500.0))
         val here = at(0.0, 400.0) // near the end: still goes to the start

@@ -109,8 +109,10 @@ class WorkoutService : LifecycleService() {
     private fun onSample(sample: LocationSample) {
         val t = tracker ?: return
         speedMeter.add(sample)
-        t.onLocation(sample)
-        if (sample.accuracyM <= 25f) position = GeoPoint(sample.lat, sample.lon)
+        t.onLocation(sample, navigator?.matchedAlongM())
+        // Under trees fixes are often 25-35 m: still good enough to follow a course (the off-course
+        // margin is wider than that), and better than guidance freezing in every park.
+        if (sample.accuracyM <= 35f) position = GeoPoint(sample.lat, sample.lon)
     }
 
     private val locationCallback = object : LocationCallback() {
@@ -230,6 +232,7 @@ class WorkoutService : LifecycleService() {
                 launch {
                     val nav = joinCourse(name, points)
                     navigator = nav
+                    fetchLandmarks(nav)
                     // Said once the workout has begun (straight away if the join took longer).
                     while (countdown != null) delay(100)
                     say(Cue.Course(nav.begin()))
@@ -284,6 +287,15 @@ class WorkoutService : LifecycleService() {
         return CourseNavigator(name, CourseRoute(run), approachM = extra)
     }
 
+    /** Names at the turns, for the voice ("역삼역 근처에서 오른쪽"); guidance goes on without them. */
+    private fun fetchLandmarks(nav: CourseNavigator) {
+        val turns = nav.route.turns.take(40)
+        if (turns.isEmpty()) return
+        lifecycleScope.launch {
+            runCatching { RouteApi.landmarks(turns.map { nav.route.pointAt(it.atM) }) }.getOrNull()?.let(nav::setLandmarks)
+        }
+    }
+
     /** The server's walking route, or null (offline, slow): callers fall back to a straight line. */
     private suspend fun walkingRoute(from: GeoPoint, to: GeoPoint): List<GeoPoint>? =
         runCatching { withTimeout(8_000) { RouteApi.walk(from, to) } }.getOrNull()?.takeIf { it.size >= 2 }
@@ -321,7 +333,9 @@ class WorkoutService : LifecycleService() {
             val newRoute = CourseRoute(run)
             rerouting = false
             if (navigator !== nav || tracker == null) return@launch // stopped or rerouted meanwhile
-            navigator = CourseNavigator(courseName, newRoute, announceHalfway = false)
+            val rerouted = CourseNavigator(courseName, newRoute, announceHalfway = false)
+            navigator = rerouted
+            fetchLandmarks(rerouted)
             val toCourse = (newRoute.lengthM - (route.lengthM - at)).coerceAtLeast(0.0)
             say(Cue.Course(CourseCue.Rerouted(((toCourse / 10).roundToInt() * 10))))
             publish()

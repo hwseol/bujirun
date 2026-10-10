@@ -30,6 +30,59 @@ class CourseNavigatorTest {
         assertTrue(CourseRoute(curve).turns.isEmpty())
     }
 
+    @Test fun headsUpNamesTheLandmarkAtTheTurn() {
+        val nav = CourseNavigator("L", CourseRoute(lShape))
+        nav.setLandmarks(listOf(Landmark("역삼역", "station"), null))
+        val r = nav.route
+        val ahead = mutableListOf<CourseCue.TurnAhead>()
+        var d = 0.0; var t = 0L
+        while (d <= r.lengthM) { ahead += nav.update(r.pointAt(d), t).filterIsInstance<CourseCue.TurnAhead>(); d += 3; t += 1000 }
+        assertEquals(listOf("역삼역 근처에서", null), ahead.map { it.landmark?.at })
+    }
+
+    @Test fun gradualCurveOfAParkPathIsNoTurn() {
+        // 300 m north, then curving 70 degrees right over ~50 m, then on: no instruction.
+        val pts = mutableListOf(at(0.0, 0.0), at(0.0, 300.0))
+        var x = 0.0; var y = 300.0
+        for (k in 1..10) { val b = Math.toRadians(7.0 * k); x += 5 * kotlin.math.sin(b); y += 5 * kotlin.math.cos(b); pts += at(x, y) }
+        pts += at(x + 300 * kotlin.math.sin(Math.toRadians(70.0)), y + 300 * kotlin.math.cos(Math.toRadians(70.0)))
+        assertTrue(CourseRoute(pts).turns.toString(), CourseRoute(pts).turns.isEmpty())
+    }
+
+    @Test fun lapCourseAnnouncesEachLap() {
+        // 50 m approach, then three laps of a 400 m square, then back.
+        val ring = listOf(at(0.0, 0.0), at(100.0, 0.0), at(100.0, 100.0), at(0.0, 100.0))
+        val pts = listOf(at(-50.0, 0.0)) + List(3) { ring }.flatten() + listOf(at(0.0, 0.0), at(-50.0, 0.0))
+        val nav = CourseNavigator("laps", CourseRoute(pts))
+        val laps = nav.laps!!
+        assertEquals(3, laps.count)
+        assertEquals(400.0, laps.lapM, 15.0)
+        val r = nav.route
+        val said = mutableListOf<CourseCue.LapDone>()
+        var d = 0.0; var t = 0L
+        while (d <= r.lengthM) { said += nav.update(r.pointAt(d), t).filterIsInstance<CourseCue.LapDone>(); d += 3; t += 1000 }
+        assertEquals(listOf(1, 2, 3), said.map { it.done })
+        // ~400 m at 3 m/s: about 133 s a lap.
+        assertEquals(133.0, said[1].lapMs / 1000.0, 8.0)
+    }
+
+    @Test fun ordinaryLoopAndOutAndBackHaveNoLaps() {
+        assertEquals(null, CourseLaps.detect(CourseRoute(lShape)))
+        val outBack = listOf(at(0.0, 0.0), at(0.0, 600.0), at(3.0, 600.0), at(3.0, 0.0))
+        assertEquals(null, CourseLaps.detect(CourseRoute(outBack)))
+        val square = listOf(at(0.0, 0.0), at(300.0, 0.0), at(300.0, 300.0), at(0.0, 300.0), at(0.0, 0.0))
+        assertEquals(null, CourseLaps.detect(CourseRoute(square)))
+    }
+
+    @Test fun jogAcrossTheRoadIsNoTurn() {
+        // North, 12 m east across a crossing, north again: straight on, not "right".
+        val r = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 300.0), at(12.0, 300.0), at(12.0, 600.0)))
+        assertTrue(r.turns.toString(), r.turns.isEmpty())
+        // ...but a right turn whose corner is cut in two steps is still one right turn.
+        val corner = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 300.0), at(8.0, 308.0), at(300.0, 308.0)))
+        assertEquals(listOf(TurnDirection.RIGHT), corner.turns.map { it.direction })
+    }
+
     @Test fun uTurnOnOutAndBack() {
         val r = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 400.0), at(5.0, 400.0), at(5.0, 0.0)))
         assertEquals(listOf(TurnDirection.U_TURN), r.turns.map { it.direction })

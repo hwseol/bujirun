@@ -14,6 +14,16 @@ enum class TurnDirection(val spoken: String, val arrow: String) {
 
 data class Turn(val atM: Double, val direction: TurnDirection)
 
+/** A named thing at a turn (backend landmarks.py); [kind]: junction, station, bridge, park, building, store. */
+data class Landmark(val name: String, val kind: String) {
+    /** "역삼역사거리에서", "강남역 근처에서", "양재천공원 앞에서". */
+    val at: String get() = when (kind) {
+        "junction", "bridge" -> "${name}에서"
+        "station" -> "$name 근처에서"
+        else -> "$name 앞에서"
+    }
+}
+
 /** A stretch of the course that climbs: starts at [startM], [lengthM] long, [gainM] up. */
 data class Climb(val startM: Double, val lengthM: Double, val gainM: Double)
 
@@ -63,9 +73,12 @@ class CourseRoute(val points: List<GeoPoint>) {
 
     /**
      * Turns along the course: sampled every 5 m, comparing the heading over the 15 m before and
-     * after; a local peak of change above 35 degrees is a turn. Peaks closer than 25 m merge
-     * (a zig-zag through a crossing is one instruction, not three). The first and last 20 m
-     * never turn - that's just where the line begins and ends.
+     * after; each run of changes above 35 degrees is a bend, placed at its strongest sample.
+     * Bends whose peaks are within 20 m are one manoeuvre, and its direction is the net change
+     * across it: a jog onto a crossing and back (right, then left on the other side) nets to
+     * straight on and is no turn at all, where either half alone would say "right" or "left".
+     * Turns closer than 25 m merge. The first and last 20 m never turn - that's just where the
+     * line begins and ends.
      */
     val turns: List<Turn> by lazy {
         val step = 5.0; val window = 15.0
@@ -75,19 +88,38 @@ class CourseRoute(val points: List<GeoPoint>) {
             samples += d to normalize(bearing(d, d + window) - bearing(d - window, d))
             d += step
         }
-        val result = mutableListOf<Turn>()
+        // Bends: (first sample, last sample, strongest sample) distances.
+        val bends = mutableListOf<Triple<Double, Double, Double>>()
         var i = 0
         while (i < samples.size) {
             if (abs(samples[i].second) < 35) { i++; continue }
-            // Take the strongest sample of this run of large changes.
             var j = i; var best = i
             while (j < samples.size && abs(samples[j].second) >= 35 && samples[j].first - samples[i].first <= 25) {
                 if (abs(samples[j].second) > abs(samples[best].second)) best = j
                 j++
             }
-            val (at, change) = samples[best]
-            if (result.isEmpty() || at - result.last().atM > 25) result += Turn(at, classify(change))
+            bends += Triple(samples[i].first, samples[j - 1].first, samples[best].first)
             i = j
+        }
+        val result = mutableListOf<Turn>()
+        var k = 0
+        while (k < bends.size) {
+            var m = k
+            while (m + 1 < bends.size && bends[m + 1].third - bends[m].third <= 20) m++
+            val startD = bends[k].first; val endD = bends[m].second
+            val net = normalize(bearing(endD, endD + window) - bearing(startD - window, startD))
+            val at = bends[k].third
+            // A turn at a junction happens within a few metres; a park path that curves round
+            // the same amount over 40 m is just the path - announcing it as "오른쪽" is noise.
+            var sharpest = 0.0
+            var e = startD - window
+            while (e <= endD + window) {
+                sharpest = maxOf(sharpest, abs(normalize(bearing(e, e + 6) - bearing(e - 6, e))))
+                e += 2.5
+            }
+            val sharp = sharpest >= 30 && sharpest >= abs(net) * 0.5
+            if (abs(net) >= 35 && sharp && (result.isEmpty() || at - result.last().atM > 25)) result += Turn(at, classify(net))
+            k = m + 1
         }
         result
     }
@@ -172,6 +204,9 @@ data class CourseProgress(
     val started: Boolean,
     val finished: Boolean,
     val nextTurn: Turn?,
+    /** On a lap course: the lap being run (1-based) of [laps]. */
+    val lap: Int? = null,
+    val laps: Int? = null,
 ) {
     val remainingM: Double get() = (lengthM - progressM).coerceAtLeast(0.0)
     val toNextTurnM: Double? get() = nextTurn?.let { it.atM - progressM }
@@ -195,10 +230,11 @@ enum class Relative(val spoken: String) {
 /** Something the course guidance wants said (turned into words by CueText). */
 sealed interface CourseCue {
     /** [approachM]: how much of [lengthM] is the way from where the runner started to the course. */
-    data class Begin(val lengthM: Double, val approachM: Double = 0.0) : CourseCue
+    data class Begin(val lengthM: Double, val approachM: Double = 0.0, val laps: Int = 0, val lapM: Double = 0.0) : CourseCue
     data class ToStart(val meters: Int) : CourseCue
     data object AtStart : CourseCue
-    data class TurnAhead(val direction: TurnDirection, val meters: Int) : CourseCue
+    /** [landmark]: what's at the turn, to say which street it is ("역삼역 근처에서"). */
+    data class TurnAhead(val direction: TurnDirection, val meters: Int, val landmark: Landmark? = null) : CourseCue
     data class TurnNow(val direction: TurnDirection, val then: TurnDirection?) : CourseCue
     data class Climb(val lengthM: Int) : CourseCue
     /** Off the course; it is [meters] away toward [toward] (null until the runner's heading is known). */
@@ -207,7 +243,10 @@ sealed interface CourseCue {
     /** On the course but going the wrong way along it. */
     data object WrongWay : CourseCue
     data object RightWayAgain : CourseCue
-    data class Remaining(val meters: Double) : CourseCue
+    /** At each km of the course: [doneM] run so far, [meters] still to go. */
+    data class Remaining(val meters: Double, val doneM: Double = 0.0) : CourseCue
+    /** A lap of a lap course done: [done] of [total], that lap took [lapMs] over [lapM] metres. */
+    data class LapDone(val done: Int, val total: Int, val lapMs: Long, val lapM: Double) : CourseCue
     data object Halfway : CourseCue
     data object Finished : CourseCue
     /** The runner asked for the way back: a new route, [toCourseM] to where it rejoins the course. */
@@ -226,8 +265,9 @@ class CourseNavigator(
     private val name: String,
     val route: CourseRoute,
     private val onCourseM: Double = 25.0,
-    private val offCourseM: Double = 40.0,
-    private val offCourseHoldMs: Long = 8_000,
+    // Generous: under trees GPS wanders 20-30 m, and a false "off course" is worse than a late one.
+    private val offCourseM: Double = 50.0,
+    private val offCourseHoldMs: Long = 10_000,
     /** Metres at the course's start that are the way from where the runner started (CourseJoin). */
     private val approachM: Double = 0.0,
     /** False for a route rebuilt mid-run (CourseJoin.rejoin): its halfway isn't the course's. */
@@ -251,9 +291,21 @@ class CourseNavigator(
     private val nowAnnounced = mutableSetOf<Int>()
     private val climbsAnnounced = mutableSetOf<Int>()
     private var nextRemainingKm = 1
+    /** Laps, if the course goes round the same ring several times (CourseLaps). */
+    val laps: Laps? = CourseLaps.detect(route)
+    private var lapsDone = 0
+    private var lapStartedMs: Long? = null
     private var halfwayAnnounced = !announceHalfway
 
-    fun begin(): CourseCue = CourseCue.Begin(route.lengthM, approachM)
+    // What's at each turn (by index into route.turns), filled in when the server answers.
+    private var landmarks: Map<Int, Landmark> = emptyMap()
+
+    /** [found]: one per turn of [route], in order (RouteApi.landmarks). */
+    fun setLandmarks(found: List<Landmark?>) {
+        landmarks = found.withIndex().mapNotNull { (i, l) -> l?.let { i to it } }.toMap()
+    }
+
+    fun begin(): CourseCue = CourseCue.Begin(route.lengthM, approachM, laps?.count ?: 0, laps?.lapM ?: 0.0)
 
     /** The runner's heading from the last ~20 m moved, or null if they haven't moved that far. */
     private fun heading(): Double? {
@@ -341,7 +393,7 @@ class CourseNavigator(
             val toTurn = t.atM - progress
             if (i == upcoming && toTurn in 80.0..120.0 && i !in aheadAnnounced) {
                 aheadAnnounced += i
-                cues += CourseCue.TurnAhead(t.direction, roundTo10(toTurn))
+                cues += CourseCue.TurnAhead(t.direction, roundTo10(toTurn), landmarks[i])
             }
             if (toTurn in -5.0..20.0 && i !in nowAnnounced) {
                 nowAnnounced += i
@@ -367,9 +419,22 @@ class CourseNavigator(
             halfwayAnnounced = true
             cues += CourseCue.Halfway
         }
-        if (progress >= nextRemainingKm * 1000.0 && route.lengthM - progress > 300) {
+        val laps = laps
+        if (laps != null) {
+            // Lap courses: where you are is "lap 2 of 5", said at the end of every lap with
+            // that lap's time and pace (km marks would just talk over it).
+            if (lapStartedMs == null && progress >= laps.startsM.first() - 5) lapStartedMs = nowMs
+            val done = laps.done(progress)
+            if (done > lapsDone) {
+                lapsDone = done
+                val k = done.coerceAtMost(laps.count)
+                val lapM = laps.startsM[k] - laps.startsM[k - 1]
+                cues += CourseCue.LapDone(k, laps.count, nowMs - (lapStartedMs ?: nowMs), lapM)
+                lapStartedMs = nowMs
+            }
+        } else if (progress >= nextRemainingKm * 1000.0 && route.lengthM - progress > 300) {
             nextRemainingKm = (progress / 1000).toInt() + 1
-            cues += CourseCue.Remaining(route.lengthM - progress)
+            cues += CourseCue.Remaining(route.lengthM - progress, progress)
         }
         if (!finished && route.lengthM - progress <= 25) {
             finished = true
@@ -387,7 +452,16 @@ class CourseNavigator(
         started = started,
         finished = finished,
         nextTurn = if (started && !finished) route.turns.firstOrNull { it.atM > progress - 5 } else null,
+        lap = laps?.let { (lapsDone + 1).coerceAtMost(it.count) },
+        laps = laps?.count,
     )
+
+    /**
+     * Where the runner is along the course while they're following it (for distance: the course
+     * line is truer than GPS under trees). Null while off it or going the wrong way.
+     */
+    fun matchedAlongM(): Double? =
+        progress.takeIf { started && !offCourse && !wrongWay && lastOffDistance <= onCourseM }
 
     private fun roundTo10(m: Double) = ((m / 10).roundToInt() * 10).coerceAtLeast(10)
 

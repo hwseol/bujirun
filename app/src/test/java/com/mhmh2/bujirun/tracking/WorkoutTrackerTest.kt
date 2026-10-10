@@ -25,6 +25,22 @@ class WorkoutTrackerTest {
         assertEquals(333.3, t.currentPaceSecPerKm(600_000)!!, 5.0)
     }
 
+    @Test fun onACourseDistanceFollowsTheCourseUnderPoorGps() {
+        // Under trees: 40 m fixes (dropped off a course) and only every 10 s. Along the course
+        // the runner covered 3 m/s, 300 m in 100 s, while the fixes saw a shorter chord.
+        val t = WorkoutTracker()
+        t.start(0)
+        for (s in 0..100 step 10) {
+            t.onLocation(at(s * 1000L, s * 2.0, accuracy = 40f), courseAlongM = s * 3.0)
+        }
+        assertEquals(300.0, t.distanceM, 1.0)
+        // Without a course the same fixes count nothing (too imprecise).
+        val free = WorkoutTracker()
+        free.start(0)
+        for (s in 0..100 step 10) free.onLocation(at(s * 1000L, s * 2.0, accuracy = 40f))
+        assertEquals(0.0, free.distanceM, 0.1)
+    }
+
     @Test fun gpsWanderWhileStandingStillAddsNoDistance() {
         val t = WorkoutTracker()
         t.start(0)

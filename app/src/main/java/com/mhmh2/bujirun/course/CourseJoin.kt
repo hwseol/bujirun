@@ -34,7 +34,7 @@ object CourseJoin {
         // of the end) round to i again.
         val course = if (loop && i > 0) points.subList(i, points.size) + points.subList(1, i + 1) else points
         if (d <= JOIN_M) return course
-        val way = approach?.takeIf { it.size >= 2 } ?: listOf(here, course.first())
+        val way = fromHere(here, approach) ?: listOf(here, course.first())
         return if (loop) way + course.drop(1) + way.reversed().drop(1) else way + course.drop(1)
     }
 
@@ -55,10 +55,17 @@ object CourseJoin {
     fun rejoin(route: CourseRoute, progressM: Double, here: GeoPoint, approach: List<GeoPoint>?): List<GeoPoint> {
         val (at, _) = rejoinPoint(route, progressM, here)
         val rest = listOf(route.pointAt(at)) + route.points.filterIndexed { i, _ -> route.cum[i] > at + 1 }
-        val way = approach?.takeIf { it.size >= 2 } ?: listOf(here, rest.first())
+        val way = fromHere(here, approach) ?: listOf(here, rest.first())
         val run = way + rest.drop(1)
         // Already at the very end: still a valid (tiny) line.
         return if (run.size >= 2) run else listOf(here, route.points.last())
+    }
+
+    // A walking route starts on the nearest path, which can be well away from a runner on a lawn
+    // or in a plaza: the line starts where they are, so guidance begins at once.
+    private fun fromHere(here: GeoPoint, approach: List<GeoPoint>?): List<GeoPoint>? {
+        val way = approach?.takeIf { it.size >= 2 } ?: return null
+        return if (distance(here, way.first()) > 5) listOf(here) + way else way
     }
 
     private fun distance(a: GeoPoint, b: GeoPoint): Double {

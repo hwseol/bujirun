@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 import accounts
 import elevation
+import landmarks
 import places
 import planner
 import routes
@@ -189,6 +190,19 @@ def plan_route(req: PlanRequest, authorization: str | None = Header(None)):
         return planner.cached_plan(req.start, intent, planner.Planner(user["id"]))
     except routes.RouteError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+class LandmarksRequest(BaseModel):
+    points: list[list[float]]  # [[lat, lon], ...]: a course's turns
+
+
+@app.post("/routes/landmarks")
+def route_landmarks(req: LandmarksRequest, authorization: str | None = Header(None)):
+    """Named things at each turn (intersection, station, bridge, park...) for the voice
+    guidance. OSM only - no TMAP quota; cached per spot."""
+    _user(authorization)
+    pts = [p for p in req.points if len(p) == 2][:landmarks.MAX_POINTS]
+    return {"landmarks": landmarks.lookup(pts) if pts else []}
 
 
 @app.get("/trails/nearby")
