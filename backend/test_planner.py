@@ -1,5 +1,6 @@
 """python -m unittest test_planner"""
 
+import math
 import os
 import tempfile
 import unittest
@@ -101,6 +102,20 @@ class PlannerTest(unittest.TestCase):
         ring = places.shape(places.find("네모공원", *START)[0]["id"])[0]
         for corner in [lap_call[0]] + lap_call[2]:
             self.assertEqual(places.distance_to_shape(corner[0], corner[1], [ring], closed=True), 0)
+
+    def test_park_with_a_running_track_laps_the_track(self):
+        # A ~314 m round track (50 m radius) in the middle of 네모공원.
+        oval = [[37.495 + 50 / 111_195 * math.cos(a / 20 * 2 * math.pi),
+                 126.995 + 50 / 88_200 * math.sin(a / 20 * 2 * math.pi)] for a in range(21)]
+        r = FakeRouter()
+        p = make(r)
+        p.tracks = lambda pid: [oval]
+        plan = p.plan(START, {"distance_m": 3000, "places": [{"name": "네모공원", "role": "AROUND"}], "repeat": True})
+        c = plan.courses[0]
+        self.assertRegex(c["title"], r"네모공원 트랙 \d+바퀴")
+        self.assertFalse(any(call[0] == call[1] for call in r.calls))  # no routing for the lap itself
+        laps = c["legs"][1]
+        self.assertIn("한 바퀴 0.3km", laps["label"])
 
     def test_far_park_laps_start_from_the_start_and_count_the_way_there(self):
         r = FakeRouter()

@@ -141,7 +141,7 @@ def km(m) -> str:
 
 class Planner:
     def __init__(self, user_id: int, route=None, find=None, nearby=None, shape=None, charge=None, loops=None,
-                 poi=None, paths=None, now=None):
+                 poi=None, paths=None, now=None, tracks=None):
         self.route_fn = route or routes.pedestrian
         self.find = find or places.find
         # Names places.db doesn't have (landmarks, stations, buildings): TMAP place search.
@@ -149,6 +149,7 @@ class Planner:
         self.nearby = nearby or places.nearby
         self.shape = shape or places.shape
         self.paths = paths or places.park_paths
+        self.tracks = tracks or places.park_tracks
         # Every TMAP request counts against the user's daily allowance (routes.charge).
         self.charge = charge or (lambda: routes.charge(user_id))
         self.loops = loops or (lambda s, d: routes.loops(s, d, user_id, count=2, route=self.route_fn))
@@ -405,7 +406,12 @@ class Planner:
         # Best: the park's own paths (OSM footways), joined into a lap here - it follows the
         # path runners use, and needs no routing request at all.
         on_paths, path_laps = None, None
-        lines = self.paths(place["id"]) if place["kind"] == "park" else None
+        # Better still, a running track in the park: that's where people run laps there (a
+        # 300 m tartan oval, not a lap of the whole park).
+        track = self.track_lap(place, origin) if place["kind"] == "park" else None
+        if track:
+            on_paths = track
+        lines = self.paths(place["id"]) if place["kind"] == "park" and not on_paths else None
         if lines:
             graph = parkpaths.PathGraph(lines)
             if graph.length() >= 300:
@@ -441,10 +447,22 @@ class Planner:
         if 2 * lead_m > 0.5 * target:
             out.notes.append(f"{name}까지 가고 오는 {km(2 * lead_m)}가 거리에 포함돼 있어요.")
         pts = join(lead, *([lap] * n), lead[::-1])
-        title = f"{name} {n}바퀴" if n > 1 else f"{name} 한 바퀴"
-        laps_label = f"{name} {n}바퀴 (한 바퀴 {km(lap_m)})" if n > 1 else f"{name} 한 바퀴"
+        where = f"{name} 트랙" if track else name
+        title = f"{where} {n}바퀴" if n > 1 else f"{where} 한 바퀴"
+        laps_label = f"{where} {n}바퀴 (한 바퀴 {km(lap_m)})" if n > 1 else f"{where} 한 바퀴"
         self.add(out, title, pts, [name],
                  legs=[(f"{name}까지 가는 길", lead), (laps_label, join(*([lap] * n))), ("돌아오는 길", lead[::-1])])
+
+    def track_lap(self, place, origin):
+        """The park's running track as one lap, starting at its point nearest [origin], or None."""
+        rings = self.tracks(place["id"]) or []
+        if not rings:
+            return None
+        # Several (a main oval and a warm-up loop): the longest is the track people mean.
+        ring = max(rings, key=path_length)
+        ring = ring[:-1] if dist(ring[0], ring[-1]) < 10 else ring
+        i = min(range(len(ring)), key=lambda k: dist(ring[k], origin))
+        return ring[i:] + ring[:i] + [ring[i]]
 
     def preferred_laps(self, graph, ring, budget, count, origin):
         """Like parkpaths.fit_laps, but trading some distance accuracy for shade and/or

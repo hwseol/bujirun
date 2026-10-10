@@ -292,6 +292,35 @@ def park_path_rows(elements: list[dict], park_rows: list[dict]) -> dict:
     return out
 
 
+NOT_RUNNING = {"cycling", "horse_racing", "equestrian", "motor", "karting", "bmx", "dog_racing",
+               "ice_skating", "skateboard", "roller_skating"}
+
+
+def _closed(line) -> bool:
+    return places.distance_m(*line[0], *line[-1]) < 10
+
+
+def park_track_rows(elements: list[dict], park_rows: list[dict]) -> dict:
+    """Running tracks -> {park id: [rings]}: closed leisure=track ways, 200 m to 1.5 km round
+    (a school or park track, not a cycling or horse track)."""
+    tracks = [el for el in elements if el.get("tags", {}).get("leisure") == "track"
+              and not set(el["tags"].get("sport", "").split(";")) & NOT_RUNNING]
+    out = {}
+    for pid, lines in park_path_rows(tracks, park_rows).items():
+        rings = [l for l in lines if len(l) >= 4 and _closed(l) and 200 <= length_m(l) <= 1500]
+        if rings:
+            out[pid] = rings
+    return out
+
+
+def _park_rows_from_db() -> list[dict]:
+    conn = places._connect()
+    try:
+        return [dict(r) for r in conn.execute("SELECT * FROM places WHERE source = 'osm' AND kind = 'park'")]
+    finally:
+        conn.close()
+
+
 def sync(fetch=None, log=print) -> int:
     places.init_db()
     conn = places._connect()
@@ -304,9 +333,11 @@ def sync(fetch=None, log=print) -> int:
     rivers = river_rows(overpass(RIVERS_QUERY, fetch))
     log(f"{len(rivers)} rivers and streams")
     n = places.replace_source("osm", areas + rivers)
-    paths = park_path_rows(overpass(PATHS_QUERY, fetch), areas)
+    path_elements = overpass(PATHS_QUERY, fetch)
+    paths = park_path_rows(path_elements, areas)
     log(f"paths for {len(paths)} parks")
     places.replace_park_paths(paths)
+    log(f"running tracks in {places.replace_park_tracks(park_track_rows(path_elements, areas))} parks")
     return n
 
 
@@ -325,5 +356,13 @@ if __name__ == "__main__":
         if len(sys.argv) > 4:
             paths = park_path_rows(json.load(open(sys.argv[4], encoding="utf-8"))["elements"], rows)
             print(f"stored paths for {places.replace_park_paths(paths)} parks")
+    elif sys.argv[1:2] == ["tracks"]:
+        # Running tracks from an already-downloaded park paths file, written to tracks.json
+        # (small: copy it to the server and `store-tracks` it there, instead of all of places.db).
+        found = park_track_rows(json.load(open(sys.argv[2], encoding="utf-8"))["elements"], _park_rows_from_db())
+        json.dump(found, open(sys.argv[3], "w", encoding="utf-8"), separators=(",", ":"))
+        print(f"running tracks in {places.replace_park_tracks(found)} parks -> {sys.argv[3]}")
+    elif sys.argv[1:2] == ["store-tracks"]:
+        print(f"running tracks in {places.replace_park_tracks(json.load(open(sys.argv[2], encoding='utf-8')))} parks")
     else:
         sys.exit("usage: osm.py sync   (BJ_DATA_DIR set)")

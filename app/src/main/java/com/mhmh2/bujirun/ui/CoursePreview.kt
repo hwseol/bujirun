@@ -28,7 +28,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.mhmh2.bujirun.course.CourseRoute
+import com.naver.maps.map.CameraAnimation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
@@ -77,7 +88,10 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                     IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "닫기") }
                     Text(info.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
-                Box(Modifier.weight(1f).fillMaxWidth()) { CourseMap(info.points) }
+                // Tapping a part of the course shows just that part on the map (tap again: all of it).
+                var selected by remember(info) { mutableStateOf<Int?>(null) }
+                val parts = remember(info) { legLines(info.points, info.legs) }
+                Box(Modifier.weight(1f).fillMaxWidth()) { CourseMap(info.points, selected?.let { parts.getOrNull(it) }) }
                 Column(Modifier.fillMaxWidth().heightInScreen().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${formatKm(meters)}km", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -87,9 +101,21 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                     info.hills?.let { HillsLine(it) }
                     if (info.legs.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
-                        Text("코스 구성", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("코스 구성", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(8.dp))
+                            Text("누르면 지도에서 보여줘요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         info.legs.forEachIndexed { i, leg ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val on = selected == i
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (on) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                    .clickable { selected = if (on) null else i }
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text("${i + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(leg.label, style = MaterialTheme.typography.bodyLarge)
@@ -127,9 +153,32 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
 private fun Modifier.heightInScreen(): Modifier =
     heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.4f).dp)
 
-/** An interactive map of the course: pan, zoom, start pin, the line. */
+/**
+ * Each leg's stretch of [points]: legs come in order along the course, so leg i runs from the
+ * sum of the ones before it (scaled, as the server measured legs on its own copy of the line).
+ */
+private fun legLines(points: List<GeoPoint>, legs: List<RouteApi.Leg>): List<List<GeoPoint>> {
+    if (points.size < 2 || legs.isEmpty()) return emptyList()
+    val route = CourseRoute(points)
+    val total = legs.sumOf { it.distanceM }.toDouble()
+    if (total <= 0) return emptyList()
+    val k = route.lengthM / total
+    var from = 0.0
+    return legs.map { leg ->
+        val to = from + leg.distanceM * k
+        val inner = points.filterIndexed { i, _ -> route.cum[i] > from && route.cum[i] < to }
+        (listOf(route.pointAt(from)) + inner + route.pointAt(to)).also { from = to }
+    }
+}
+
+/**
+ * An interactive map of the course: pan, zoom, start pin, the line. [highlight]: a part of it to
+ * show on its own - drawn over the (faded) course and zoomed to.
+ */
 @Composable
-private fun CourseMap(points: List<GeoPoint>) {
+private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null) {
+    val part = remember { PathOverlay() }
+    val whole = remember { PathOverlay() }
     val density = LocalDensity.current.density
     val color = MaterialTheme.colorScheme.primary.toArgb()
     val fit = remember(points) { points.map { LatLng(it.lat, it.lon) } }
@@ -137,9 +186,11 @@ private fun CourseMap(points: List<GeoPoint>) {
         NaverMapOptions().camera(com.naver.maps.map.CameraPosition(fit.first(), 15.0))
             .zoomControlEnabled(true).scaleBarEnabled(true).compassEnabled(false)
     )
+    val partColor = MaterialTheme.colorScheme.tertiary.toArgb()
     LaunchedEffect(mapView, points) {
         mapView.getMapAsync { map ->
-            PathOverlay(fit).apply {
+            whole.apply {
+                coords = fit
                 this.color = color
                 outlineColor = AndroidColor.WHITE
                 width = (6 * density).toInt()
@@ -149,6 +200,29 @@ private fun CourseMap(points: List<GeoPoint>) {
             endpointMarker(map, fit.first(), "출발", START_GREEN, density)
             if (!CourseGeometry.isLoop(points)) endpointMarker(map, fit.last(), "도착", END_DARK, density)
             map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(fit), (48 * density).toInt()))
+        }
+    }
+    LaunchedEffect(mapView, highlight) {
+        mapView.getMapAsync { map ->
+            val h = highlight?.takeIf { it.size >= 2 }?.map { LatLng(it.lat, it.lon) }
+            // Faded by mixing toward white (the overlay ignores alpha in its colour).
+            whole.color = if (h == null) color else androidx.core.graphics.ColorUtils.blendARGB(color, AndroidColor.WHITE, 0.65f)
+            if (h == null) {
+                part.map = null
+                map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(fit), (48 * density).toInt()).animate(CameraAnimation.Easing))
+            } else {
+                part.coords = h
+                part.color = partColor
+                part.outlineColor = AndroidColor.WHITE
+                part.width = (8 * density).toInt()
+                part.outlineWidth = (2 * density).toInt()
+                part.map = map
+                // A short part (the 30 m to a park gate) is shown at street level, not 5 m across.
+                val b = LatLngBounds.from(h)
+                val update = if (b.southWest.distanceTo(b.northEast) < 150) CameraUpdate.scrollAndZoomTo(b.center, 17.0)
+                else CameraUpdate.fitBounds(b, (64 * density).toInt())
+                map.moveCamera(update.animate(CameraAnimation.Easing))
+            }
         }
     }
     AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())

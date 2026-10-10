@@ -74,6 +74,10 @@ def init_db() -> None:
                 lines TEXT NOT NULL           -- JSON [[[lat, lon], ...], ...]: footways inside it
             );
             CREATE INDEX IF NOT EXISTS places_name ON places (name);
+            CREATE TABLE IF NOT EXISTS park_tracks (
+                id TEXT PRIMARY KEY,          -- the park's places.id
+                lines TEXT NOT NULL           -- JSON [[[lat, lon], ...], ...]: closed running tracks
+            );
             """
         )
         conn.commit()
@@ -329,6 +333,34 @@ def replace_park_paths(rows: dict) -> int:
     try:
         conn.execute("DELETE FROM park_paths")
         conn.executemany("INSERT INTO park_paths (id, lines) VALUES (?, ?)",
+                         [(pid, json.dumps(lines, separators=(",", ":"))) for pid, lines in rows.items()])
+        conn.commit()
+    finally:
+        conn.close()
+    return len(rows)
+
+
+def park_tracks(place_id: str) -> list | None:
+    """The running tracks in a park (OSM leisure=track, closed rings): laps go round these."""
+    if not place_id:
+        return None
+    conn = _connect()
+    try:
+        r = conn.execute("SELECT lines FROM park_tracks WHERE id = ?", (place_id,)).fetchone()
+    except sqlite3.OperationalError:  # a places.db from before tracks were stored
+        return None
+    finally:
+        conn.close()
+    return json.loads(r["lines"]) if r else None
+
+
+def replace_park_tracks(rows: dict) -> int:
+    """{park id: rings} replaces all stored park tracks."""
+    init_db()
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM park_tracks")
+        conn.executemany("INSERT INTO park_tracks (id, lines) VALUES (?, ?)",
                          [(pid, json.dumps(lines, separators=(",", ":"))) for pid, lines in rows.items()])
         conn.commit()
     finally:
