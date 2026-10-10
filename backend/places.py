@@ -20,7 +20,8 @@ import urllib.request
 from pathlib import Path
 
 API = "https://api.data.go.kr/openapi/tn_pubr_public_cty_park_info_api"
-SOURCES = {"data.go.kr": "공공데이터포털 전국도시공원정보표준데이터", "osm": "© OpenStreetMap 기여자"}
+SOURCES = {"data.go.kr": "공공데이터포털 전국도시공원정보표준데이터", "osm": "© OpenStreetMap 기여자",
+           "osm-track": "© OpenStreetMap 기여자"}
 SOURCE = SOURCES["data.go.kr"]
 M_PER_DEG = 111_195.0
 
@@ -162,7 +163,7 @@ def parse_park(item: dict) -> dict | None:
 
 def runnable(p) -> bool:
     """Worth offering as somewhere to run: no playground-sized parks or ponds."""
-    if p["kind"] in ("river", "beach"):
+    if p["kind"] in ("river", "beach", "track"):
         return True
     if p["source"] == "data.go.kr" and p["subtype"] not in RUNNABLE_TYPES:
         return False
@@ -300,13 +301,15 @@ def lap_parks(lat: float, lon: float, radius_m: float = 2000, limit: int = 15) -
     """Parks and lakes near (lat, lon) that can be lapped: with an outline of 400 m or more.
     Each gets lap_m (the outline's length) and paths (whether its own footways are known)."""
     out = []
-    for p in nearby(lat, lon, radius_m, limit=60, kinds=("park", "lake")):
+    # Running tracks too (a university's, a riverside one): 400 m of tartan is the lap people
+    # come for, however short.
+    for p in nearby(lat, lon, radius_m, limit=60, kinds=("park", "lake", "track")):
         rings = shape(p["id"])
         if not rings:
             continue
         ring = max(rings, key=len)
         lap_m = sum(distance_m(a[0], a[1], b[0], b[1]) for a, b in zip(ring, ring[1:]))
-        if lap_m < 400:
+        if lap_m < (200 if p["kind"] == "track" else 400):
             continue
         out.append({**p, "lap_m": round(lap_m), "paths": park_paths(p["id"]) is not None})
         if len(out) >= limit:

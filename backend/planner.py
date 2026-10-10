@@ -473,7 +473,7 @@ class Planner:
         on_paths, path_laps = None, None
         # Better still, a running track in the park: that's where people run laps there (a
         # 300 m tartan oval, not a lap of the whole park).
-        track = self.track_lap(place, origin) if place["kind"] == "park" else None
+        track = self.track_lap(place, origin) if place["kind"] in ("park", "track") else None
         if track:
             on_paths = track
         lines = self.paths(place["id"]) if place["kind"] == "park" and not on_paths else None
@@ -512,15 +512,16 @@ class Planner:
         if 2 * lead_m > 0.5 * target:
             out.notes.append(f"{name}까지 가고 오는 {km(2 * lead_m)}가 거리에 포함돼 있어요.")
         pts = join(lead, *([lap] * n), lead[::-1])
-        where = f"{name} 트랙" if track else name
+        where = f"{name} 트랙" if track and not name.endswith("트랙") else name
         title = f"{where} {n}바퀴" if n > 1 else f"{where} 한 바퀴"
         laps_label = f"{where} {n}바퀴 (한 바퀴 {km(lap_m)})" if n > 1 else f"{where} 한 바퀴"
         self.add(out, title, pts, [name],
                  legs=[(f"{name}까지 가는 길", lead), (laps_label, join(*([lap] * n))), ("돌아오는 길", lead[::-1])])
 
     def track_lap(self, place, origin):
-        """The park's running track as one lap, starting at its point nearest [origin], or None."""
-        rings = self.tracks(place["id"]) or []
+        """The park's running track (or the track itself, for a track place) as one lap, starting
+        at its point nearest [origin], or None."""
+        rings = (self.shape(place["id"]) if place["kind"] == "track" else self.tracks(place["id"])) or []
         if not rings:
             return None
         # Several (a main oval and a warm-up loop): the longest is the track people mean.
@@ -552,16 +553,21 @@ class Planner:
     def lap_place(self, origin, target, themes):
         """"공원 뺑뺑 5km" with no park named: a nearby park (or lake) worth lapping. A lap of at
         least 600 m; a bigger one (1 km+) is worth a few hundred metres more walking."""
-        kinds = ("lake",) if "LAKE" in themes and "PARK" not in themes else ("park", "lake")
+        kinds = ("lake",) if "LAKE" in themes and "PARK" not in themes else ("park", "lake", "track")
         best = None
-        for p in self.nearby(origin[0], origin[1], 2500, kinds=kinds)[:15]:
+        for p in self.nearby(origin[0], origin[1], 2500, kinds=kinds)[:20]:
             rings = self.shape(p["id"]) or []
             lap_m = path_length(max(rings, key=len)) if rings else 0
-            if lap_m < 600:
+            track = p["kind"] == "track"
+            # A school's track (초중고) is often locked outside school hours: only when asked by name.
+            if (track and (p["subtype"] == "school" or lap_m < 200)) or (not track and lap_m < 600):
                 continue
             # Bigger laps are nicer than tiny ones; but one much longer than the distance has to
             # be shrunk into an inner ring, which suits a compact park better than a long strip.
+            # A running track is what laps are for ("뺑뺑이"): worth a longer walk than a park.
             score = p["away_m"] - (400 if lap_m >= 1000 else 0) + (400 if lap_m > 1.5 * target else 0)
+            if track:
+                score -= 500
             if self.prefer_shade:
                 score -= 800 * shade.canopy(rings)  # a wooded park is worth a longer walk
             if self.prefer_flat and (h := elevation.summary(max(rings, key=len))):

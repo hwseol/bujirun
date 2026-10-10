@@ -1,5 +1,6 @@
 """python -m unittest test_planner"""
 
+import json
 import math
 import os
 import tempfile
@@ -144,6 +145,21 @@ class PlannerTest(unittest.TestCase):
         plan = make(FakeRouter()).plan(START, {"distance_m": 3000, "repeat": True, "themes": ["PARK"]})
         self.assertRegex(plan.courses[0]["title"], "바퀴")
         self.assertEqual(len(plan.courses[0]["via"]), 1)
+
+    def test_laps_without_a_name_prefer_a_running_track_but_not_a_schools(self):
+        def track(id, name, subtype, lat, lon):
+            oval = [[lat + 50 / 111_195 * math.cos(a / 20 * 2 * math.pi),
+                     lon + 50 / 88_200 * math.sin(a / 20 * 2 * math.pi)] for a in range(21)]
+            return {"id": f"osm:track:{id}", "kind": "track", "name": name, "subtype": subtype, "lat": lat, "lon": lon,
+                    **osm.box([oval]), "length_m": 314, "shape": json.dumps([oval])}
+        try:
+            # A school's track right by the start, a riverside one a little further.
+            places.replace_source("osm-track", [track(1, "가까운초등학교 트랙", "school", 37.5003, 127.0003),
+                                                track(2, "작은천 트랙", "river", 37.4975, 126.9990)])
+            plan = make(FakeRouter()).plan(START, {"distance_m": 3000, "repeat": True, "themes": ["PARK"]})
+            self.assertRegex(plan.courses[0]["title"], r"^작은천 트랙 \d+바퀴")
+        finally:
+            places.replace_source("osm-track", [])
 
     def test_destination_one_way_and_out_and_back(self):
         r = FakeRouter()

@@ -108,7 +108,11 @@ object RouteApi {
     }
 
     /** A park or lake nearby that can be lapped. [lapM]: once around its outline; [shade]: % of it wooded. */
-    data class LapPark(val id: String, val name: String, val kind: String, val awayM: Int, val lapM: Int, val paths: Boolean, val shade: Int?)
+    /** [kind]: park, lake or track; [subtype] for a track: university, school, park, river, stadium. */
+    data class LapPark(
+        val id: String, val name: String, val kind: String, val awayM: Int, val lapM: Int, val paths: Boolean, val shade: Int?,
+        val subtype: String? = null,
+    )
 
     suspend fun lapParks(near: GeoPoint): Pair<List<LapPark>, List<String>> {
         val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
@@ -117,7 +121,7 @@ object RouteApi {
         return (0 until arr.length()).map { i ->
             val p = arr.getJSONObject(i)
             LapPark(p.getString("id"), p.getString("name"), p.getString("kind"), p.getInt("away_m"), p.getInt("lap_m"),
-                p.optBoolean("paths"), p.optIntOrNull("shade"))
+                p.optBoolean("paths"), p.optIntOrNull("shade"), p.optString("subtype").takeIf { it.isNotEmpty() && it != "null" })
         } to json.optJSONArray("sources").strings()
     }
 

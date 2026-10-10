@@ -128,7 +128,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         item {
             Column(Modifier.padding(horizontal = 24.dp)) {
                 Text(
-                    "가까운 공원 안의 산책로를 따라 도는 코스예요. 공원까지 가고 오는 길도 거리에 포함돼요.",
+                    "가까운 공원 산책로나 러닝트랙(대학교·천변·공원)을 도는 코스예요. 가고 오는 길도 거리에 포함돼요.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -198,12 +198,19 @@ private fun ParkCard(p: RouteApi.LapPark, selected: Boolean, onClick: () -> Unit
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(p.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                (if (p.awayM < 50) "바로 여기" else "${formatKm(p.awayM.toDouble())}km") + " · 둘레 ${formatKm(p.lapM.toDouble())}km",
+                (if (p.awayM < 50) "바로 여기" else "${formatKm(p.awayM.toDouble())}km") +
+                    (if (p.kind == "track") " · 한 바퀴 " else " · 둘레 ") + "${formatKm(p.lapM.toDouble())}km",
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 2
             )
             Text(
-                (if (p.kind == "lake") "호숫가 산책로" else if (p.paths) "공원 산책로 따라" else "공원 둘레") +
-                    (p.shade?.let { " · 숲 $it%" } ?: ""),
+                when {
+                    // A school's track is often locked outside school hours.
+                    p.kind == "track" && p.subtype == "school" -> "학교 운동장 트랙 · 개방 시간 확인"
+                    p.kind == "track" -> "러닝트랙"
+                    p.kind == "lake" -> "호숫가 산책로"
+                    p.paths -> "공원 산책로 따라"
+                    else -> "공원 둘레"
+                } + (p.shade?.let { " · 숲 $it%" } ?: ""),
                 style = MaterialTheme.typography.labelSmall, color = colors.primary, maxLines = 2
             )
         }

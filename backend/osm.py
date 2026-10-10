@@ -8,6 +8,7 @@ the outlines of the ones it has; places.py prefers the OSM row of a park found i
 
 import json
 import math
+import re
 import sys
 import time
 import urllib.parse
@@ -313,6 +314,89 @@ def park_track_rows(elements: list[dict], park_rows: list[dict]) -> dict:
     return out
 
 
+TRACKS_QUERY = f"""[out:json][timeout:900];{KR}
+way["leisure"="track"](area.kr);
+out geom qt;
+(
+  way["amenity"~"^(school|university|college)$"]["name"](area.kr);
+  relation["amenity"~"^(school|university|college)$"]["name"](area.kr);
+  way["leisure"~"^(stadium|sports_centre)$"]["name"](area.kr);
+);
+out geom qt;"""
+
+
+def track_rows(elements: list[dict], park_rows: list[dict], river_rows: list[dict]) -> list[dict]:
+    """Running tracks anywhere (a university's, a riverside one, a park's) as places to lap,
+    kind "track". OSM rarely names a track, so it's named for where it is: the school or
+    stadium it's in, else the park, else a river within 300 m ("안양천 트랙"). subtype says
+    which: school tracks (초중고) are often locked outside school hours, so the planner doesn't
+    pick them by itself."""
+    holders = []
+    for el in elements:
+        t = el.get("tags", {})
+        if t.get("leisure") == "track" or not t.get("name"):
+            continue
+        rings = [l for l in lines_of(el) if len(l) >= 4]
+        if rings:
+            kind = "university" if t.get("amenity") in ("university", "college") else \
+                "school" if t.get("amenity") == "school" else "stadium"
+            holders.append((" ".join(t["name"].split()), kind, rings, box(rings)))
+    parks = [(r["name"], json.loads(r["shape"]), r) for r in park_rows if r.get("shape")]
+    rivers = [(r["name"], json.loads(r["shape"]), r) for r in river_rows if r.get("shape")]
+    rows = []
+    for el in elements:
+        t = el.get("tags", {})
+        if t.get("leisure") != "track" or set(t.get("sport", "").split(";")) & NOT_RUNNING:
+            continue
+        line = [[round(p["lat"], 6), round(p["lon"], 6)] for p in el.get("geometry") or [] if p]
+        if len(line) < 4 or not _closed(line) or not 200 <= length_m(line) <= 1500:
+            continue
+        b = box([line])
+        c = [(b["min_lat"] + b["max_lat"]) / 2, (b["min_lon"] + b["max_lon"]) / 2]
+
+        def inside(rings, bb):
+            return bb["min_lat"] <= c[0] <= bb["max_lat"] and bb["min_lon"] <= c[1] <= bb["max_lon"] and \
+                any(places._inside(c[0], c[1], r) for r in rings)
+
+        own = " ".join(t.get("name", "").split())
+        # "트랙", "육상 트랙": no name at all as far as finding it goes.
+        generic = own.replace(" ", "") in GENERIC_TRACK_NAMES or re.fullmatch(r"\d+\s*m?\s*트랙", own)
+        name, subtype = (own if own and not generic else None), None
+        holder = next((h for h in holders if inside(h[2], h[3])), None)
+        if holder and MILITARY.search(holder[0]):
+            continue  # a base's or academy's track: not open to anyone
+        if holder:
+            name, subtype = name or f"{holder[0]} 트랙", holder[1]
+        else:
+            park = next((p for p in parks if inside(p[1], p[2])), None)
+            if park:
+                name, subtype = name or f"{park[0]} 트랙", "park"
+            else:
+                near = [(places.distance_to_shape(c[0], c[1], lines, closed=False), n) for n, lines, r in rivers
+                        if r["min_lat"] - 0.004 <= c[0] <= r["max_lat"] + 0.004 and r["min_lon"] - 0.005 <= c[1] <= r["max_lon"] + 0.005]
+                river = min(near, default=None)
+                if river and river[0] <= 300:
+                    name, subtype = name or f"{river[1]} 트랙", "river"
+        if not name:
+            continue  # nowhere to call it by - a track nobody could find from its name
+        rows.append({
+            "id": f"osm:track:{el['id']}", "kind": "track", "name": " ".join(name.split()), "subtype": subtype,
+            "lat": round(c[0], 6), "lon": round(c[1], 6), **b, "length_m": round(length_m(line)),
+            "shape": json.dumps([line], separators=(",", ":")),
+        })
+    # Lanes or a warm-up loop mapped as their own tracks: one place per track, the longest ring.
+    rows.sort(key=lambda r: -r["length_m"])
+    kept = []
+    for r in rows:
+        if not any(k["name"] == r["name"] and places.distance_m(k["lat"], k["lon"], r["lat"], r["lon"]) < 300 for k in kept):
+            kept.append(r)
+    return kept
+
+
+GENERIC_TRACK_NAMES = {"트랙", "육상트랙", "러닝트랙", "운동장", "트랙운동장", "육상경기장", "track", "runningtrack"}
+MILITARY = re.compile(r"부대|사령부|사관학교|군수|비행단|여단|사단|연대|교도소|공군|육군|해군|해병")
+
+
 def _park_rows_from_db() -> list[dict]:
     conn = places._connect()
     try:
@@ -362,6 +446,18 @@ if __name__ == "__main__":
         found = park_track_rows(json.load(open(sys.argv[2], encoding="utf-8"))["elements"], _park_rows_from_db())
         json.dump(found, open(sys.argv[3], "w", encoding="utf-8"), separators=(",", ":"))
         print(f"running tracks in {places.replace_park_tracks(found)} parks -> {sys.argv[3]}")
+    elif sys.argv[1:2] == ["track-places"]:
+        # Running tracks anywhere as places to lap (one Overpass query, a few MB), written to
+        # a small JSON too for `store-track-places` on the server.
+        conn = places._connect()
+        rivers = [dict(r) for r in conn.execute("SELECT * FROM places WHERE kind = 'river'")]
+        conn.close()
+        els = overpass(TRACKS_QUERY)
+        found = track_rows(els, _park_rows_from_db(), rivers)
+        json.dump(found, open(sys.argv[2], "w", encoding="utf-8"), separators=(",", ":"), ensure_ascii=False)
+        print(f"{places.replace_source('osm-track', found)} running tracks -> {sys.argv[2]}")
+    elif sys.argv[1:2] == ["store-track-places"]:
+        print(f"{places.replace_source('osm-track', json.load(open(sys.argv[2], encoding='utf-8')))} running tracks")
     elif sys.argv[1:2] == ["store-tracks"]:
         print(f"running tracks in {places.replace_park_tracks(json.load(open(sys.argv[2], encoding='utf-8')))} parks")
     else:
