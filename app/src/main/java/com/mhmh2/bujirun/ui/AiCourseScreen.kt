@@ -108,14 +108,14 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
     }
 
     // The course follows the request. A new reading cancels the one in flight.
-    LaunchedEffect(intent, pace, located) {
+    LaunchedEffect(intent, pace, located, CourseStart.picked) {
         if (text.isBlank()) { plan = null; error = null; return@LaunchedEffect }
-        if (!located) return@LaunchedEffect
+        if (!located && CourseStart.picked == null) return@LaunchedEffect
         delay(if (chipEdited) 300 else 1000)
         loading = true
         error = null
         try {
-            val here = currentLocation(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            val here = CourseStart.resolve(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
             // "세 바퀴" alone: whole laps of the place, however long they are - no default distance.
             val lapsOnly = intent.laps != null && intent.distanceM == null && intent.durationMin == null
             plan = RouteApi.plan(here, intent, if (lapsOnly) null else intent.targetDistanceM(pace))
@@ -144,53 +144,56 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
             Spacer(Modifier.width(6.dp))
             Text("AI 코스 추천", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = ::edit,
-                placeholder = { Text("예: 보라매공원 뺑뺑이 5km") },
-                maxLines = 3,
-                shape = RoundedCornerShape(16.dp),
-                trailingIcon = if (text.isNotEmpty()) {
-                    { IconButton(onClick = { edit("") }) { Icon(Icons.Filled.Close, "지우기") } }
-                } else null,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(10.dp))
-            if (text.isBlank()) {
-                Text("이렇게 말해 보세요", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EXAMPLES.forEach { SuggestionChip(onClick = { edit(it) }, label = { Text(it) }) }
-                }
-            } else {
-                IntentChips(intent, pace, autoShade = plan?.preferShade ?: false) { intent = it; chipEdited = true }
-                Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (loading) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("코스를 짜는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Everything below the title in one list, so it all scrolls together.
+        LazyColumn(Modifier.weight(1f)) {
+            item {
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = ::edit,
+                        placeholder = { Text("예: 보라매공원 뺑뺑이 5km") },
+                        maxLines = 3,
+                        shape = RoundedCornerShape(16.dp),
+                        trailingIcon = if (text.isNotEmpty()) {
+                            { IconButton(onClick = { edit("") }) { Icon(Icons.Filled.Close, "지우기") } }
+                        } else null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    StartChip()
+                    Spacer(Modifier.height(4.dp))
+                    if (text.isBlank()) {
+                        Text("이렇게 말해 보세요", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            EXAMPLES.forEach { SuggestionChip(onClick = { edit(it) }, label = { Text(it) }) }
+                        }
+                        Text(
+                            "거리나 시간, 가고 싶은 곳을 말하듯 적으면 출발점 주변 공원·강변·호수로 코스를 짜 드려요. " +
+                                "출발점에서 오가는 길도 거리에 포함돼요. 알아들은 내용은 칩으로 보여드리고, 탭해서 고칠 수 있어요.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 24.dp)
+                        )
+                    } else {
+                        IntentChips(intent, pace, autoShade = plan?.preferShade ?: false) { intent = it; chipEdited = true }
+                        if (loading) {
+                            Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("코스를 짜는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    plan?.notes?.forEach {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+                        if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
                     }
                 }
             }
-            plan?.notes?.forEach {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-            }
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-                if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
-            }
-        }
-        if (text.isBlank()) {
-            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    "거리나 시간, 가고 싶은 곳을 말하듯 적으면\n내 주변 공원·강변·호수로 코스를 짜 드려요.\n알아들은 내용은 칩으로 보여드리고, 탭해서 고칠 수 있어요.",
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        LazyColumn(Modifier.weight(1f)) {
             items(plan?.courses.orEmpty()) { c ->
                 LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade)
             }

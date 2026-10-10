@@ -24,7 +24,6 @@ M = places.M_PER_DEG
 DETOUR = 1.25          # walking route vs straight line, as in routes.py
 NEAR_KM = {"START": 30, "DEST": 50, "AROUND": 30}  # how far a named place may be
 CACHE_S = 7 * 24 * 3600
-WALK_TO_M = 800        # a park farther than this is reached on one's own; laps start at its edge
 
 
 class PlanError(routes.RouteError):
@@ -330,17 +329,13 @@ class Planner:
 
     def laps(self, out, origin, place, target, count=None):
         """Laps of a park or lake: [count] of them if the user said ("세 바퀴"), else as many as
-        fit [target]. A park farther than WALK_TO_M is reached on one's own and the course
-        starts at its edge, so the whole distance is laps there ("보라매공원 뺑뺑 5km")."""
+        fit [target]. The course always starts at [origin] (the user's position or chosen
+        start): the way to the park and back is part of it and counts toward the distance."""
         rings = self.shape(place["id"]) or []
         name = place["name"]
-        far = dist(origin, place["pt"]) > WALK_TO_M + 300 if not rings else None
         if not rings:
             target = target or 3000
             # Only a point (standard data parks): a loop that starts there.
-            if far:
-                out.notes.append(f"{name}에서 시작하는 코스예요. 공원까지는 따로 이동해 주세요.")
-                return self.plain_loop(out, place["pt"], target, title=f"{name} 주변 순환", via=[name])
             pts = self.route(origin, place["pt"])
             loop_m = max(1000, target - 2 * path_length(pts))
             return self.plain_loop(out, place["pt"], loop_m, lead=pts, title=f"{name} 주변 순환", via=[name])
@@ -352,11 +347,10 @@ class Planner:
             # Start the closed outline at the nearest segment so walking it never runs off the end.
             ring = ring[seg:] + ring[1:seg + 1]
             seg = 0
-        far = d > WALK_TO_M
         if target is None:
             # Only a lap count ("석촌호수 세 바퀴"): whole laps of the outline, however long.
-            target = (count or 1) * perimeter + (0 if far else 2 * d * DETOUR)
-        budget = target if far else max(target - 2 * d * DETOUR, 0.4 * target)
+            target = (count or 1) * perimeter + 2 * d * DETOUR
+        budget = max(target - 2 * d * DETOUR, 0.3 * target)
         # Laps wanted: as said, else the fewest whole laps of at most the outline that make the
         # distance (5 km on a 3.5 km outline: two laps of a 2.5 km ring, not one short lap).
         laps_wanted = count or max(1, math.ceil(budget / (perimeter * 1.1)))
@@ -418,13 +412,12 @@ class Planner:
                 n_new = count or max(1, round(budget / lap_m)) if lap_m > 0 else 1
                 if abs(n_new * lap_m - budget) > abs(n_est * old[2] - budget):
                     scale, (corners, lap, lap_m) = old_scale, old
-        if far:
-            lead = []
-            out.notes.append(f"{name}까지 {km(d)} 떨어져 있어서, 공원에서 시작하는 코스예요. 공원까지는 따로 이동해 주세요.")
-        else:
-            lead = self.route(origin, corners[0]) if d > 60 else [origin, corners[0]]
+        lead = self.route(origin, corners[0]) if d > 60 else [origin, corners[0]]
         lead_m = path_length(lead)
-        n = count or path_laps or (max(1, round((target - 2 * lead_m) / lap_m)) if lap_m > 0 else 1)
+        # Laps from the real way there and back, not the estimate the lap was sized with.
+        n = count or (max(1, round((target - 2 * lead_m) / lap_m)) if lap_m > 0 else 1)
+        if 2 * lead_m > 0.5 * target:
+            out.notes.append(f"{name}까지 가고 오는 {km(2 * lead_m)}가 거리에 포함돼 있어요.")
         pts = join(lead, *([lap] * n), lead[::-1])
         title = f"{name} {n}바퀴" if n > 1 else f"{name} 한 바퀴"
         self.add(out, title, pts, [name])

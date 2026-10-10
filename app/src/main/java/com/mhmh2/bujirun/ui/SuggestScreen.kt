@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Tab
@@ -255,13 +257,13 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
 
     // No button: courses for the chosen distance load on opening and whenever it changes. A new
     // choice cancels the one in flight; the server caches answers, so going back is free.
-    LaunchedEffect(distance, located) {
-        if (!located) return@LaunchedEffect
+    LaunchedEffect(distance, located, CourseStart.picked) {
+        if (!located && CourseStart.picked == null) return@LaunchedEffect
         delay(250)
         loading = true
         error = null
         try {
-            val here = currentLocation(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            val here = CourseStart.resolve(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
             loops = RouteApi.loops(here, distance)
         } catch (e: ApiException) {
             error = e.message
@@ -278,48 +280,56 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(horizontal = 24.dp)) {
-            Text(
-                "지금 있는 곳에서 출발해 다시 돌아오는 코스를 찾아드려요.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DISTANCES.forEach { d ->
+    // One list for the whole tab, so everything scrolls together.
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Column(Modifier.padding(horizontal = 24.dp)) {
+                Text(
+                    "출발점에서 시작해 다시 돌아오는 코스를 찾아드려요.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+                StartChip()
+            }
+        }
+        item {
+            LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(DISTANCES) { d ->
                     FilterChip(selected = distance == d, onClick = { distance = d }, label = { Text("${d / 1000}km") })
                 }
             }
-            Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+        }
+        item {
+            Column(Modifier.padding(horizontal = 24.dp)) {
                 if (loading) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("${distance / 1000}km 코스를 찾는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${distance / 1000}km 코스를 찾는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
                 }
             }
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
+        }
+        itemsIndexed(loops) { i, loop ->
+            val points = loop.points
+            LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade)
+        }
+        if (loops.any { it.shade != null }) {
+            item {
+                Text(
+                    "그늘 정보: ESA WorldCover 2021 (나무 그늘 기준)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
             }
         }
-        LazyColumn(Modifier.weight(1f)) {
-            itemsIndexed(loops) { i, loop ->
-                val points = loop.points
-                LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade)
-            }
-            if (loops.any { it.shade != null }) {
-                item {
-                    Text(
-                        "그늘 정보: ESA WorldCover 2021 (나무 그늘 기준)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                    )
-                }
-            }
-            item { Spacer(Modifier.height(16.dp)) }
-        }
+        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
