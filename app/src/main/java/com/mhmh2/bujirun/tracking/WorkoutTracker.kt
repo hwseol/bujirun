@@ -47,7 +47,13 @@ class WorkoutTracker(
     private val minStepM: Double = 3.0,
     private val paceWindowMs: Long = 30_000,
     private val minPaceDistanceM: Double = 20.0,
+    private val speedWindowMs: Long = 12_000,
 ) {
+    private companion object {
+        const val STALE_SPEED_MS = 5_000L   // no speed reading for this long: don't trust the last ones
+        const val MIN_MOVING_MPS = 0.5      // slower than this is standing; distance tells it better
+    }
+
     var status = WorkoutStatus.IDLE
         private set
     var distanceM = 0.0
@@ -69,6 +75,8 @@ class WorkoutTracker(
     private val points = mutableListOf<TrackPoint>()
     // (time, cumulative distance) of recent counted points, for the rolling current pace.
     private val recent = ArrayDeque<Pair<Long, Double>>()
+    // (time, m/s) of the GPS chip's own speed readings (Doppler), the steadier source of pace.
+    private val speeds = ArrayDeque<Pair<Long, Double>>()
     private val activityMs = mutableMapOf<Activity, Long>()
     private var lastTickMs: Long? = null
 
@@ -91,6 +99,7 @@ class WorkoutTracker(
         anchor = null
         lastAccepted = null
         recent.clear()
+        speeds.clear()
         elevation.breakSegment()
     }
 
@@ -124,6 +133,7 @@ class WorkoutTracker(
         if (status != WorkoutStatus.RUNNING) return
         if (!filter.accept(lastAccepted, sample)) return
         lastAccepted = sample
+        sample.speedMps?.let { speeds.addLast(sample.timeMs to it) }
 
         val from = anchor
         if (from == null) {
@@ -148,11 +158,31 @@ class WorkoutTracker(
     }
 
     /**
-     * Pace over roughly the last [paceWindowMs], measured up to [nowMs] rather than to the last
-     * fix - so if the runner stops, the pace visibly slows instead of freezing at its last value.
+     * What the runner is doing now. Primarily the GPS chip's own speed (Doppler) averaged over
+     * [speedWindowMs]: it measures motion directly, while distance between fixes zigzags with
+     * position noise (too fast in the open, jumpy under trees and between buildings). Falls back
+     * to distance over [paceWindowMs] when there are no fresh speed readings, or when they read
+     * far below the distance actually covered (some devices, the emulator among them, report a
+     * confident 0 while moving).
      */
     fun currentPaceSecPerKm(nowMs: Long): Double? {
         if (status != WorkoutStatus.RUNNING) return null
+        val byDistance = distancePaceSecPerKm(nowMs)
+        while (speeds.isNotEmpty() && speeds.first().first < nowMs - speedWindowMs) speeds.removeFirst()
+        val fresh = speeds.isNotEmpty() && speeds.last().first >= nowMs - STALE_SPEED_MS
+        if (!fresh || speeds.size < 3) return byDistance
+        val mps = speeds.sumOf { it.second } / speeds.size
+        val distanceMps = byDistance?.let { 1000.0 / it }
+        if (distanceMps != null && mps < 0.5 * distanceMps) return byDistance
+        if (mps < MIN_MOVING_MPS) return byDistance
+        return 1000.0 / mps
+    }
+
+    /**
+     * Pace over roughly the last [paceWindowMs], measured up to [nowMs] rather than to the last
+     * fix - so if the runner stops, the pace visibly slows instead of freezing at its last value.
+     */
+    private fun distancePaceSecPerKm(nowMs: Long): Double? {
         while (recent.size > 1 && recent[1].first <= nowMs - paceWindowMs) recent.removeFirst()
         val (startMs, startDist) = recent.firstOrNull() ?: return null
         val meters = distanceM - startDist

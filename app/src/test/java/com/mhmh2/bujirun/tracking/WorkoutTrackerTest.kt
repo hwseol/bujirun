@@ -66,6 +66,34 @@ class WorkoutTrackerTest {
         assertTrue(waiting > running * 1.5)
     }
 
+    @Test fun currentPaceFollowsTheChipSpeedNotTheZigzag() {
+        // Running north at 3 m/s (5'33"/km); positions zigzag 4 m east-west, which makes the
+        // distance between fixes come out ~25% long. The chip's own speed reads true.
+        val t = WorkoutTracker()
+        t.start(0)
+        for (i in 0..120) {
+            val east = if (i % 2 == 0) 0.0 else 4.0
+            t.onLocation(LocationSample(i * 1000L, 37.5 + i * 3.0 / 111_195.0, 127.0 + east / 88_200.0, 5f, speedMps = 3.0))
+        }
+        assertEquals(333.3, t.currentPaceSecPerKm(120_000)!!, 8.0)
+    }
+
+    @Test fun currentPaceIgnoresAChipStuckAtZero() {
+        // Some devices (the emulator) report speed 0 with confidence while moving.
+        val t = WorkoutTracker()
+        t.start(0)
+        for (i in 0..60) t.onLocation(at(i * 1000L, i * 3.0).copy(speedMps = 0.0))
+        assertEquals(333.3, t.currentPaceSecPerKm(60_000)!!, 8.0)
+    }
+
+    @Test fun currentPaceFallsBackWhenSpeedReadingsStop() {
+        val t = WorkoutTracker()
+        t.start(0)
+        for (i in 0..60) t.onLocation(at(i * 1000L, i * 3.0).copy(speedMps = 3.0))
+        // Standing at a crossing: no fixes for 20 s; the old readings must not keep 5'33" showing.
+        assertTrue(t.currentPaceSecPerKm(80_000)!! > 333.3 * 1.5)
+    }
+
     @Test fun noPaceBeforeEnoughDistance() {
         val t = WorkoutTracker()
         t.start(0)
