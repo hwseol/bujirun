@@ -11,6 +11,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 import accounts
+import elevation
 import places
 import planner
 import routes
@@ -132,9 +133,11 @@ def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
             loops = [{"distance_m": c["distance_m"], "points": c["points"]} for c in plan.courses]
         except routes.RouteError:
             raise HTTPException(status_code=400, detail=str(e))
-    if shade.has_map():
-        for c in loops:
+    for c in loops:
+        if shade.has_map():
             c["shade"] = round(shade.ratio(c["points"]) * 100)
+        c.update(elevation.summary(c["points"]) or {})
+    if shade.has_map():
         if shade.strong_sun(*req.start):
             loops.sort(key=lambda c: -c["shade"])
     _loop_cache[key] = (time.time(), loops)

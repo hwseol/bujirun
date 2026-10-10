@@ -18,8 +18,11 @@ object RouteApi {
         return points(json.getJSONArray("points"))
     }
 
+    /** How hilly a course is (backend elevation.py): total climb, steepest grade, in words. */
+    data class Hills(val ascentM: Int, val maxGrade: Double, val terrain: String)
+
     /** A loop from here; [shade]: percent of it under trees, when the server has the shade map. */
-    data class Loop(val points: List<GeoPoint>, val shade: Int?)
+    data class Loop(val points: List<GeoPoint>, val shade: Int?, val hills: Hills? = null)
 
     /** Suggested loops of about [distanceM] that start and end at [start]. */
     suspend fun loops(start: GeoPoint, distanceM: Int): List<Loop> {
@@ -32,12 +35,12 @@ object RouteApi {
         val loops = json.getJSONArray("loops")
         return (0 until loops.length()).map {
             val l = loops.getJSONObject(it)
-            Loop(points(l.getJSONArray("points")), l.optIntOrNull("shade"))
+            Loop(points(l.getJSONArray("points")), l.optIntOrNull("shade"), l.hills())
         }
     }
 
     /** One part of a course ("가는 길", "효창공원 3바퀴", "돌아오는 길"). */
-    data class Leg(val label: String, val distanceM: Int, val shade: Int?)
+    data class Leg(val label: String, val distanceM: Int, val shade: Int?, val ascentM: Int? = null)
 
     /** [shade]: percent of the course under trees (docs/SHADE.md), when known. */
     data class PlannedCourse(
@@ -47,6 +50,7 @@ object RouteApi {
         val via: List<String>,
         val shade: Int?,
         val legs: List<Leg> = emptyList(),
+        val hills: Hills? = null,
     )
 
     /**
@@ -93,8 +97,9 @@ object RouteApi {
                     (0 until via.length()).map { via.getString(it) }, c.optIntOrNull("shade"),
                     (0 until legs.length()).map { j ->
                         val l = legs.getJSONObject(j)
-                        Leg(l.getString("label"), l.getInt("distance_m"), l.optIntOrNull("shade"))
-                    })
+                        Leg(l.getString("label"), l.getInt("distance_m"), l.optIntOrNull("shade"), l.optIntOrNull("ascent_m"))
+                    },
+                    c.hills())
             },
             notes = json.optJSONArray("notes").strings(),
             sources = json.optJSONArray("sources").strings(),
@@ -129,6 +134,9 @@ object RouteApi {
             FoundPlace(p.getString("name"), p.optString("address"), GeoPoint(p.getDouble("lat"), p.getDouble("lon")), p.getInt("away_m"))
         }
     }
+
+    private fun JSONObject.hills(): Hills? =
+        if (has("ascent_m")) Hills(getInt("ascent_m"), optDouble("max_grade", 0.0), optString("terrain")) else null
 
     private fun JSONObject.optIntOrNull(key: String): Int? = if (has(key) && !isNull(key)) getInt(key) else null
 

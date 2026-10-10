@@ -62,3 +62,10 @@ dev PC with `tools/shade/build_shade.py` (needs numpy + tifffile; the six 3-degr
 N33/N36 x E123/E126/E129 from the `esa-worldcover` S3 bucket, ~175 MB) into a copy of
 places.db, which is then uploaded whole. Rebuild only after re-syncing places (it keeps blocks
 that overlap a place). The app credits "ESA WorldCover 2021".
+
+## Height map
+`places.db` table `elevation_blocks`: Copernicus DEM GLO-30, built on the dev PC with
+`tools/elevation/build_elevation.py` (numpy + tifffile; ~22 one-degree tiles from the public
+`copernicus-dem-30m` S3 bucket, ~570 MB) into the same copy of places.db as the shade map (it
+keeps the blocks that have shade blocks). It's a surface model (trees and buildings included),
+so backend/elevation.py median-filters the profile. Credit: Copernicus DEM (ESA).

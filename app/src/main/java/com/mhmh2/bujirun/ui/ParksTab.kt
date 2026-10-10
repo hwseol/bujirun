@@ -168,12 +168,13 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             }
         }
         items(plan?.courses.orEmpty()) { c ->
-            LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs)
+            LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
         }
-        if (sources.isNotEmpty()) {
+        val credits = (sources + plan?.sources.orEmpty()).distinct()
+        if (credits.isNotEmpty()) {
             item {
                 Text(
-                    "장소 정보: " + sources.joinToString(", "),
+                    "장소 정보: " + credits.joinToString(", "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)

@@ -58,6 +58,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
@@ -317,12 +319,15 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         }
         itemsIndexed(loops) { i, loop ->
             val points = loop.points
-            LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade)
+            LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade, hills = loop.hills)
         }
-        if (loops.any { it.shade != null }) {
+        if (loops.any { it.shade != null || it.hills != null }) {
             item {
                 Text(
-                    "그늘 정보: ESA WorldCover 2021 (나무 그늘 기준)",
+                    listOfNotNull(
+                        "그늘: ESA WorldCover 2021 (나무 그늘 기준)".takeIf { loops.any { it.shade != null } },
+                        "높이: Copernicus DEM (ESA)".takeIf { loops.any { it.hills != null } },
+                    ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -344,6 +349,19 @@ internal fun ShadeBadge(percent: Int) {
         modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50))
             .background(if (strong) Color(0xFFDCEFD9) else MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
+}
+
+/** "⛰ 오르막 85m · 최대 12% · 오르막이 많은 언덕 코스예요": amber when hilly, so it's noticed. */
+@Composable
+internal fun HillsLine(h: RouteApi.Hills) {
+    val hilly = h.terrain.contains("언덕")
+    Text(
+        if (h.terrain == "평지") "⛰ 평지 코스 (오르막 ${h.ascentM}m)"
+        else "⛰ 오르막 ${h.ascentM}m · 최대 경사 ${h.maxGrade.roundToInt()}% · ${h.terrain}",
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = if (hilly) FontWeight.Bold else null,
+        color = if (hilly) Color(0xFFB45309) else MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
@@ -371,13 +389,14 @@ internal fun LoopCard(
     onSave: () -> Unit,
     shade: Int? = null,
     legs: List<RouteApi.Leg> = emptyList(),
+    hills: RouteApi.Hills? = null,
 ) {
     val meters = CourseGeometry.distanceM(points)
     val paces = rememberPaces()
     var details by remember { mutableStateOf(false) }
     if (details) {
         CoursePreviewDialog(
-            CourseInfo(title, points, shade, legs),
+            CourseInfo(title, points, shade, legs, hills = hills),
             onDismiss = { details = false },
             onRun = { details = false; onRun() },
             onSave = { details = false; onSave() },
@@ -402,6 +421,7 @@ internal fun LoopCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            hills?.let { HillsLine(it) }
             if (legs.isNotEmpty()) {
                 Text(
                     legs.joinToString(" → ") { it.label.substringBefore(" (") },

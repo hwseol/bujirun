@@ -49,6 +49,9 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - Shade (docs/SHADE.md): tree cover bitmap in places.db (tools/shade/build_shade.py, run with
   `python -P` so the download folder can't shadow imports), backend/shade.py scores routes and
   computes the sun; courses prefer shade when asked or when the sun is above 35 degrees.
+- Hills: Copernicus DEM in places.db (tools/elevation/build_elevation.py, same `python -P`);
+  backend/elevation.py gives climb, steepest grade and a terrain label per course; 평지 requests
+  prefer flat options. The DEM includes trees/buildings, hence the median filter.
 ## Pinned versions
 - `connect-client` is on 1.1.0-alpha12 because 1.1.0 stable needs AGP 8.9.1 (we're on 8.7.2).
 - NAVER map client ID lives in app/build.gradle.kts manifestPlaceholders; it's public by design.

@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 import parkpaths
 import places
+import elevation
 import routes
 import shade
 
@@ -154,6 +155,7 @@ class Planner:
         self.calls = 0
         self.now = now  # planning time, for the sun (tests pass a fixed one)
         self.prefer_shade = False
+        self.prefer_flat = False
 
     def route(self, a, b, via=None, spurs=False):
         """Walking route a -> via -> b. Dead-end detours are cut (a via point at the end of a
@@ -195,16 +197,18 @@ class Planner:
             out.sources.add(h["source"])
 
         origin = resolved["START"]["pt"] if "START" in resolved else start
-        if intent.get("flat"):
+        # Flat courses when asked ("평지로", "오르막 없이"); without the height map, say so.
+        self.prefer_flat = bool(intent.get("flat")) and elevation.has_map()
+        if intent.get("flat") and not self.prefer_flat:
             out.notes.append("오르막 정보는 아직 반영하지 못했어요.")
         # Shade first when asked for, or by default while the sun is high (docs/SHADE.md).
-        elevation, azimuth = shade.sun(origin[0], origin[1], self.now)
-        out.sun = {"elevation": round(elevation), "azimuth": round(azimuth)}
+        sun_up, azimuth = shade.sun(origin[0], origin[1], self.now)
+        out.sun = {"elevation": round(sun_up), "azimuth": round(azimuth)}
         asked = intent.get("shade")
-        self.prefer_shade = shade.has_map() and (asked if asked is not None else elevation >= 35)
+        self.prefer_shade = shade.has_map() and (asked if asked is not None else sun_up >= 35)
         out.prefer_shade = self.prefer_shade
         if self.prefer_shade and asked is None:
-            out.notes.append(f"지금 해가 높아요 (고도 {round(elevation)}°). 나무 그늘이 많은 길 위주로 골랐어요.")
+            out.notes.append(f"지금 해가 높아요 (고도 {round(sun_up)}°). 나무 그늘이 많은 길 위주로 골랐어요.")
 
         count = intent.get("laps")
         repeat = bool(intent.get("repeat") or count)
@@ -228,6 +232,10 @@ class Planner:
             if self.prefer_shade:
                 # Shadiest first (every course here was already fitted to the distance).
                 out.courses.sort(key=lambda c: -c.get("shade", 0))
+        if any("ascent_m" in c for c in out.courses):
+            out.sources.add(elevation.SOURCE)
+            if self.prefer_flat:
+                out.courses.sort(key=lambda c: c.get("ascent_m", 0))
         return out
 
     def add(self, out, title, points, via=(), legs=()):
@@ -236,10 +244,14 @@ class Planner:
         course = {"title": title, "distance_m": round(path_length(points)), "points": points, "via": list(via)}
         if shade.has_map():
             course["shade"] = round(shade.ratio(points) * 100)
+        hills = elevation.summary(points)
+        if hills:
+            course.update(hills)
         if legs:
             course["legs"] = [
                 {"label": label, "distance_m": round(path_length(pts)),
-                 **({"shade": round(shade.ratio(pts) * 100)} if shade.has_map() else {})}
+                 **({"shade": round(shade.ratio(pts) * 100)} if shade.has_map() else {}),
+                 **({"ascent_m": h["ascent_m"]} if (h := elevation.summary(pts)) else {})}
                 for label, pts in legs if len(pts) >= 2 and path_length(pts) >= 30
             ]
         out.courses.append(course)
@@ -397,8 +409,8 @@ class Planner:
         if lines:
             graph = parkpaths.PathGraph(lines)
             if graph.length() >= 300:
-                if self.prefer_shade:
-                    on_paths, path_laps = self.shady_laps(graph, ring, budget, count, origin)
+                if self.prefer_shade or self.prefer_flat:
+                    on_paths, path_laps = self.preferred_laps(graph, ring, budget, count, origin)
                 else:
                     on_paths, path_laps = parkpaths.fit_laps(graph, ring, budget, count, origin)
         if on_paths:
@@ -434,14 +446,19 @@ class Planner:
         self.add(out, title, pts, [name],
                  legs=[(f"{name}까지 가는 길", lead), (laps_label, join(*([lap] * n))), ("돌아오는 길", lead[::-1])])
 
-    def shady_laps(self, graph, ring, budget, count, origin):
-        """Like parkpaths.fit_laps, but a lap under more trees may be up to ~15% off the
-        distance: 40 points of shade weigh like 16% of distance."""
+    def preferred_laps(self, graph, ring, budget, count, origin):
+        """Like parkpaths.fit_laps, but trading some distance accuracy for shade and/or
+        flatness, as preferred: 40 points of shade weigh like 16% of distance; each 10 m of
+        climb per km of lap like 10% of distance."""
         best = None
         for pts in parkpaths.candidate_laps(graph, ring, origin):
             m = path_length(pts)
             n = count or min(range(1, 11), key=lambda k: abs(k * m - budget))
-            score = abs(n * m - budget) / budget - 0.4 * shade.ratio(pts)
+            score = abs(n * m - budget) / budget
+            if self.prefer_shade:
+                score -= 0.4 * shade.ratio(pts)
+            if self.prefer_flat and (h := elevation.summary(pts)):
+                score += 0.01 * h["ascent_m"] / max(m / 1000, 0.3)
             if best is None or score < best[0]:
                 best = (score, pts, n)
         return (best[1], best[2]) if best else (None, None)
@@ -464,6 +481,8 @@ class Planner:
             score = p["away_m"] - (400 if lap_m >= 1000 else 0) + (400 if lap_m > 1.5 * target else 0)
             if self.prefer_shade:
                 score -= 800 * shade.canopy(rings)  # a wooded park is worth a longer walk
+            if self.prefer_flat and (h := elevation.summary(max(rings, key=len))):
+                score += 30 * h["ascent_m"]  # a hill park (동산) is the wrong place for flat laps
             if best is None or score < best[0]:
                 best = (score, p)
         return {**best[1], "pt": [best[1]["lat"], best[1]["lon"]]} if best else None

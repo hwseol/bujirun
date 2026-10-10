@@ -161,6 +161,7 @@ python -m unittest test_accounts test_routes test_trails
 - 걷기길 정보: **한국관광공사 두루누비** (공공데이터포털)
 - 공원 정보: **공공데이터포털 전국도시공원정보표준데이터**, **© OpenStreetMap 기여자** (공원·호수·하천·공원 산책로)
 - 나무 그늘: **ESA WorldCover 2021** (CC BY 4.0)
+- 높이(오르막): **Copernicus DEM GLO-30** © DLR e.V. 2010-2014, © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA
 
 ## 로드맵
 
@@ -171,6 +172,7 @@ python -m unittest test_accounts test_routes test_trails
 - [x] 내 주변 순환 코스 추천, 공식 걷기길
 - [x] 공원 코스: 가까운 공원의 산책로를 따라 도는 바퀴 코스
 - [x] 그늘길: 코스마다 나무 그늘 비율, 해가 높을 땐 그늘 많은 길 우선 (docs/SHADE.md)
+- [x] 오르막 정보: 코스마다 오르막 합계·최대 경사·언덕 여부, '평지로' 요청 반영
 - [x] 자연어로 코스 만들기 ("한강 따라 5km"): 폰 안의 작은 해석 모델(94KB) + 서버 코스 플래너 (docs/NL_COURSES.md)
 - [ ] 공원·강변 우선, 차도 피하기 같은 조건 반영
 - [ ] 동네 인기 코스 (사용자 기록 기반)

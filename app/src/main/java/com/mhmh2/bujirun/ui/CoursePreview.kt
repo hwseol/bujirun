@@ -57,6 +57,7 @@ data class CourseInfo(
     val shade: Int? = null,
     val legs: List<RouteApi.Leg> = emptyList(),
     val via: List<String> = emptyList(),
+    val hills: RouteApi.Hills? = null,
 )
 
 /**
@@ -83,6 +84,7 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                         info.shade?.let { ShadeBadge(it) }
                     }
                     Text(estimateText(meters, paces), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    info.hills?.let { HillsLine(it) }
                     if (info.legs.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
                         Text("코스 구성", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -92,7 +94,8 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                                 Column(Modifier.weight(1f)) {
                                     Text(leg.label, style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        "${formatKm(leg.distanceM.toDouble())}km" + (leg.shade?.let { " · 나무 그늘 $it%" } ?: ""),
+                                        "${formatKm(leg.distanceM.toDouble())}km" + (leg.shade?.let { " · 나무 그늘 $it%" } ?: "") +
+                                            (leg.ascentM?.let { " · 오르막 ${it}m" } ?: ""),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
