@@ -164,9 +164,9 @@ def _overpass(q: str, fetch=None) -> list[dict] | None:
     return None
 
 
-def _fetch(url: str, q: str) -> bytes:
+def _fetch(url: str, q: str, timeout: float = 9) -> bytes:
     req = urllib.request.Request(url, data=urllib.parse.urlencode({"data": q}).encode(),
                                  headers={"User-Agent": osm.USER_AGENT})
-    # 9 s: both servers within the app's 20 s read timeout.
-    with urllib.request.urlopen(req, timeout=9) as r:
+    # 9 s by default: both servers within the app's 20 s read timeout.
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()

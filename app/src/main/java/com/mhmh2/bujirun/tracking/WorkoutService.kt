@@ -128,6 +128,12 @@ class WorkoutService : LifecycleService() {
         val fake = FakeRun(System.nanoTime(), lat, lon, path)
         simJob = lifecycleScope.launch {
             while (isActive) {
+                // Paused by the runner: the pretend runner stands still too (the last fix again),
+                // instead of carrying on along the course without them.
+                if (pausedBy == PausedBy.USER) {
+                    delay(1000L / simScale)
+                    continue
+                }
                 val f = fake.next()
                 val t = now()
                 onSample(
@@ -552,6 +558,16 @@ class WorkoutService : LifecycleService() {
         Intent(this, WorkoutService::class.java).setAction(action),
         PendingIntent.FLAG_IMMUTABLE
     )
+
+    /**
+     * The app swiped away from recents: that's "I'm done" - finish and save the workout here
+     * (a cancelled countdown just ends), rather than leaving the voice and the notification
+     * running with no app to stop them from.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (tracker != null) stop(now())
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
         fused.removeLocationUpdates(locationCallback)

@@ -365,17 +365,37 @@ class Planner:
                 return self.route(origin, plane.ll(*offset(q, n, side * bank)), [entry])
 
         name = river["name"]
-        if shape == "LOOP" and bank <= 40:
-            # A stream has paths on both banks: up one side, back down the other.
+
+        def bank_of(p):
+            """+1 / -1: which side of the river line a point is on (as `side` is for the start)."""
+            dd, sg, tt = nearest_on(line, p, plane)
+            q, n, _ = walk(line, sg, tt, 0, +1, plane)
+            x, y = plane.xy(p)
+            return 1 if (x - q[0]) * n[0] + (y - q[1]) * n[1] > 0 else -1
+
+        if bank <= 40:
+            # A stream or river with a path on each bank: up this side and back down the other -
+            # nobody wants to come back past the same water, let alone by the road. Asked for
+            # an out-and-back or not, this is tried first; only when the far bank's path isn't
+            # mapped (or no bridge joins them) does the course come back the way it went.
             near_side, far_side = by_the_water(walked, side), by_the_water(walked, -side)
             far_entry = plane.ll(*offset(p_xy, normal, -side * near))
-            # Up the near bank and back down the far one, on the waterside paths if they're
-            # mapped and joined by a bridge at the far end.
-            w = self.waterside([near_entry] + near_side + far_side[::-1] + [far_entry], start=origin, within_m=60)
+            w = self.waterside([near_entry] + near_side + far_side[::-1] + [far_entry], start=origin,
+                               within_m=100, sides=[1] * 5 + [-1] * 5, river=name)
             if w and path_length(w) >= walked:
-                pts = join(lead_to(w), self.route(w[-1], origin) if dist(w[-1], origin) > 60 else [origin])
+                lead = lead_to(w)
+                back = self.route(w[-1], origin) if dist(w[-1], origin) > 60 else [w[-1], origin]
+                pts = join(lead, back)
                 if path_length(pts) < 1.4 * target:
-                    return self.add(out, f"{name} 따라 순환", pts, [name])
+                    # Split where the far bank begins: the point of the loop furthest along.
+                    turn_i = max(range(len(lead)), key=lambda k: dist(lead[k], plane.ll(*p_xy)))
+                    return self.add(out, f"{name} 따라 순환", pts, [name],
+                                    legs=[(f"{name} 따라 가는 길", lead[:turn_i + 1]),
+                                          ("건너편 천변으로 돌아오는 길", join(lead[turn_i:], back))])
+        if shape == "LOOP" and bank <= 40:
+            # Without mapped waterside paths: TMAP, up one side, back down the other.
+            near_side, far_side = by_the_water(walked, side), by_the_water(walked, -side)
+            far_entry = plane.ll(*offset(p_xy, normal, -side * near))
             try:
                 pts = self.route(origin, origin, [near_entry, near_side[1], near_side[3], far_side[1], far_entry])
             except routes.RouteError:
@@ -627,6 +647,10 @@ def cached_plan(start, intent, planner: Planner) -> dict:
     if hit and time.time() - hit[0] < CACHE_S:
         return hit[1]
     result = planner.plan(start, intent).to_json()
+    # Made without the waterside paths because they're still being fetched: good enough for
+    # now, but not to keep for a week - the next request will have them.
+    if waterside.fetching():
+        return result
     _cache[key] = (time.time(), result)
     if len(_cache) > 2000:
         for k in sorted(_cache, key=lambda k: _cache[k][0])[:500]:
