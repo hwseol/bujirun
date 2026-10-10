@@ -99,6 +99,17 @@ class IntentParserTest {
         assertFalse(p("남산 오르막 훈련").flat)
     }
 
+    @Test fun lapsAndRepeat() {
+        assertEquals(3, p("석촌호수 세 바퀴").laps)
+        assertEquals(5, p("트랙 5바퀴").laps)
+        assertTrue(p("석촌호수 세 바퀴").repeat)
+        assertTrue(p("보라매공원 뺑뺑 5키로").repeat)
+        assertTrue(p("공원 5km 뺑뺑이").repeat)
+        assertNull(p("동네 한바퀴").laps)       // "a loop", not a lap count
+        assertFalse(p("동네 한바퀴").repeat)
+        assertFalse(p("공원 돌아서 30분").repeat)  // a tour through parks
+    }
+
     @Test fun koreanNumbers() {
         assertEquals(30.0, IntentParser.number("삼십")!!, 0.0)
         assertEquals(2500.0, IntentParser.number("이천오백")!!, 0.0)

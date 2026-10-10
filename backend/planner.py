@@ -22,6 +22,7 @@ M = places.M_PER_DEG
 DETOUR = 1.25          # walking route vs straight line, as in routes.py
 NEAR_KM = {"START": 30, "DEST": 50, "AROUND": 30}  # how far a named place may be
 CACHE_S = 7 * 24 * 3600
+WALK_TO_M = 800        # a park farther than this is reached on one's own; laps start at its edge
 
 
 class PlanError(routes.RouteError):
@@ -185,10 +186,15 @@ class Planner:
         if intent.get("flat"):
             out.notes.append("오르막 정보는 아직 반영하지 못했어요.")
 
+        count = intent.get("laps")
+        repeat = bool(intent.get("repeat") or count)
         if "DEST" in resolved:
             self.to_destination(out, origin, resolved["DEST"], shape, target)
         elif "AROUND" in resolved:
-            self.around(out, origin, resolved["AROUND"], shape, target or 5000)
+            self.around(out, origin, resolved["AROUND"], shape, target, count)
+        elif repeat and not themes & {"RIVER", "COAST"} and (spot := self.lap_place(origin, target or 5000, themes)):
+            out.sources.add(spot["source"])
+            self.laps(out, origin, spot, target, count)
         elif themes & {"RIVER", "LAKE", "COAST", "PARK"}:
             self.by_theme(out, origin, themes, shape, target or 5000)
         else:
@@ -216,11 +222,11 @@ class Planner:
             out.notes.append(f"말씀하신 {km(target)}가 아니라 {km(path_length(pts))}예요. 목적지까지의 거리라서요.")
 
     # "서울숲 한바퀴", "한강 따라 5km", "석촌호수 세 바퀴"
-    def around(self, out, origin, place, shape, target):
+    def around(self, out, origin, place, shape, target, count=None):
         if place["kind"] == "river":
-            self.along_river(out, origin, place, shape, target)
+            self.along_river(out, origin, place, shape, target or 5000)
         else:
-            self.laps(out, origin, place, target)
+            self.laps(out, origin, place, target, count)
 
     def by_theme(self, out, origin, themes, shape, target):
         radius = max(2000, target / 2.2)
@@ -288,11 +294,19 @@ class Planner:
 
     # --- parks and lakes ---------------------------------------------------------------------
 
-    def laps(self, out, origin, place, target):
+    def laps(self, out, origin, place, target, count=None):
+        """Laps of a park or lake: [count] of them if the user said ("세 바퀴"), else as many as
+        fit [target]. A park farther than WALK_TO_M is reached on one's own and the course
+        starts at its edge, so the whole distance is laps there ("보라매공원 뺑뺑 5km")."""
         rings = self.shape(place["id"]) or []
         name = place["name"]
+        far = dist(origin, place["pt"]) > WALK_TO_M + 300 if not rings else None
         if not rings:
+            target = target or 3000
             # Only a point (standard data parks): a loop that starts there.
+            if far:
+                out.notes.append(f"{name}에서 시작하는 코스예요. 공원까지는 따로 이동해 주세요.")
+                return self.plain_loop(out, place["pt"], target, title=f"{name} 주변 순환", via=[name])
             pts = self.route(origin, place["pt"])
             loop_m = max(1000, target - 2 * path_length(pts))
             return self.plain_loop(out, place["pt"], loop_m, lead=pts, title=f"{name} 주변 순환", via=[name])
@@ -304,29 +318,83 @@ class Planner:
             # Start the closed outline at the nearest segment so walking it never runs off the end.
             ring = ring[seg:] + ring[1:seg + 1]
             seg = 0
-        # Four points around the outline, starting at the one nearest the start, nudged onto
-        # where the path is: a park's path runs inside its edge (the road is outside), a lake's
-        # or beach's path runs outside the water or sand.
+        far = d > WALK_TO_M
+        if target is None:
+            # Only a lap count ("석촌호수 세 바퀴"): whole laps of the outline, however long.
+            target = (count or 1) * perimeter + (0 if far else 2 * d * DETOUR)
+        budget = target if far else max(target - 2 * d * DETOUR, 0.4 * target)
+        # Laps wanted: as said, else the fewest whole laps of at most the outline that make the
+        # distance (5 km on a 3.5 km outline: two laps of a 2.5 km ring, not one short lap).
+        laps_wanted = count or max(1, math.ceil(budget / (perimeter * 1.1)))
+        per_lap = budget / laps_wanted
         cx = sum(plane.xy(p)[0] for p in ring) / len(ring)
         cy = sum(plane.xy(p)[1] for p in ring) / len(ring)
+        # A park bigger than one lap should be: run a smaller ring inside it instead, the outline
+        # shrunk toward its middle so one lap is about the distance wanted. TMAP then follows
+        # the park's own paths near that ring.
+        scale = 1.0
+        if place["kind"] == "park" and perimeter > 1.15 * per_lap:
+            scale = max(0.3, per_lap / perimeter)
+        # Four points around the (scaled) outline, starting at the one nearest the start, nudged
+        # onto where the path is: a park's path runs inside its edge (the road is outside), a
+        # lake's or beach's path runs outside the water or sand.
         nudge = 15 if place["kind"] == "park" else -20
 
         def onto_path(p_xy):
-            vx, vy = cx - p_xy[0], cy - p_xy[1]
+            x, y = cx + (p_xy[0] - cx) * scale, cy + (p_xy[1] - cy) * scale
+            vx, vy = cx - x, cy - y
             n = math.hypot(vx, vy) or 1
-            return plane.ll(p_xy[0] + vx / n * nudge, p_xy[1] + vy / n * nudge)
+            return plane.ll(x + vx / n * nudge, y + vy / n * nudge)
 
-        corners = [onto_path(walk(ring, seg, t, perimeter * k / 4, +1, plane)[0]) for k in range(4)]
-        lap = self.route(corners[0], corners[0], corners[1:])
+        def lap_route():
+            corners = [onto_path(walk(ring, seg, t, perimeter * k / 4, +1, plane)[0]) for k in range(4)]
+            # spurs=True: a closed lap returns to where it began, which the dead-end cutter would
+            # take for one long dead end and remove whole.
+            return corners, self.route(corners[0], corners[0], corners[1:], spurs=True)
+
+        corners, lap = lap_route()
         lap_m = path_length(lap)
-        lead = self.route(origin, corners[0]) if d > 60 else [origin, corners[0]]
+        # One correction when the laps miss the distance by more than 15%: resize the ring by
+        # the miss (only an inner ring can be resized; a full outline is what it is).
+        n_est = count or max(1, round(budget / lap_m)) if lap_m > 0 else 1
+        if lap_m > 0 and place["kind"] == "park" and abs(n_est * lap_m - budget) > 0.15 * budget:
+            new_scale = min(1.0, max(0.3, scale * budget / (n_est * lap_m)))
+            if abs(new_scale - scale) > 0.05:
+                # Paths inside a park don't scale evenly with the ring: keep whichever lap fits.
+                old_scale, old = scale, (corners, lap, lap_m)
+                scale = new_scale
+                corners, lap = lap_route()
+                lap_m = path_length(lap)
+                n_new = count or max(1, round(budget / lap_m)) if lap_m > 0 else 1
+                if abs(n_new * lap_m - budget) > abs(n_est * old[2] - budget):
+                    scale, (corners, lap, lap_m) = old_scale, old
+        if far:
+            lead = []
+            out.notes.append(f"{name}까지 {km(d)} 떨어져 있어서, 공원에서 시작하는 코스예요. 공원까지는 따로 이동해 주세요.")
+        else:
+            lead = self.route(origin, corners[0]) if d > 60 else [origin, corners[0]]
         lead_m = path_length(lead)
-        n = max(1, round((target - 2 * lead_m) / lap_m)) if lap_m > 0 else 1
+        n = count or (max(1, round((target - 2 * lead_m) / lap_m)) if lap_m > 0 else 1)
         pts = join(lead, *([lap] * n), lead[::-1])
         title = f"{name} {n}바퀴" if n > 1 else f"{name} 한 바퀴"
         self.add(out, title, pts, [name])
-        if 2 * lead_m > target:
-            out.notes.append(f"{name}까지 편도 {km(lead_m)}예요.")
+
+    def lap_place(self, origin, target, themes):
+        """"공원 뺑뺑 5km" with no park named: a nearby park (or lake) worth lapping. A lap of at
+        least 600 m; a bigger one (1 km+) is worth a few hundred metres more walking."""
+        kinds = ("lake",) if "LAKE" in themes and "PARK" not in themes else ("park", "lake")
+        best = None
+        for p in self.nearby(origin[0], origin[1], 2500, kinds=kinds)[:15]:
+            rings = self.shape(p["id"]) or []
+            lap_m = path_length(max(rings, key=len)) if rings else 0
+            if lap_m < 600:
+                continue
+            # Bigger laps are nicer than tiny ones; but one much longer than the distance has to
+            # be shrunk into an inner ring, which suits a compact park better than a long strip.
+            score = p["away_m"] - (400 if lap_m >= 1000 else 0) + (400 if lap_m > 1.5 * target else 0)
+            if best is None or score < best[0]:
+                best = (score, p)
+        return {**best[1], "pt": [best[1]["lat"], best[1]["lon"]]} if best else None
 
     def park_tour(self, out, origin, target):
         """"공원 돌아서 5km": a loop through one to three parks that fits the distance."""

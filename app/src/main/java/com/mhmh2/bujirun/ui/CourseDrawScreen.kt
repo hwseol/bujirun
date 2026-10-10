@@ -177,7 +177,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 16.dp)) {
                 IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
-                Text("코스 만들기", style = MaterialTheme.typography.titleMedium)
+                Text("DIY 코스 만들기", style = MaterialTheme.typography.titleMedium)
             }
         }
 

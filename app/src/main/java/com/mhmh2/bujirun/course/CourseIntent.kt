@@ -26,6 +26,10 @@ data class CourseIntent(
     val places: List<PlaceMention> = emptyList(),
     val activity: Activity? = null,
     val flat: Boolean = false,
+    /** Laps asked for by number ("세 바퀴"); null when not said. */
+    val laps: Int? = null,
+    /** Laps of one place rather than a tour (뺑뺑이, 트랙, or a lap count of two or more). */
+    val repeat: Boolean = false,
 ) {
     val destination: PlaceMention? get() = places.firstOrNull { it.role == PlaceRole.DEST }
 

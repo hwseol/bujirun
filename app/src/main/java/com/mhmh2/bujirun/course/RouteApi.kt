@@ -47,6 +47,8 @@ object RouteApi {
             .put("themes", JSONArray(intent.themes.map { it.name }))
             .put("places", JSONArray(intent.places.map { JSONObject().put("name", it.name).put("role", it.role.name) }))
             .put("flat", intent.flat)
+            .put("repeat", intent.repeat)
+        intent.laps?.let { body.put("laps", it) }
         if (distanceM != null) body.put("distance_m", distanceM)
         val json = Api.post(
             "/routes/plan",

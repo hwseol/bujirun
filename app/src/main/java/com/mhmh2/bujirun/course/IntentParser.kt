@@ -36,6 +36,8 @@ object IntentParser {
                 else -> null
             },
             flat = FLAT_WORDS.containsMatchIn(rest),
+            laps = lapCount(text),
+            repeat = REPEAT_WORDS.containsMatchIn(rest) || (lapCount(text) ?: 0) >= 2,
         )
     }
 
@@ -135,6 +137,14 @@ object IntentParser {
 
     private val RUN_WORDS = Regex("달리|달릴|뛰|뛸|러닝|런닝|조깅")
     private val WALK_WORDS = Regex("걷|걸어|걸을|산책|워킹|산보")
+    // "한 바퀴" alone is just "a loop" (동네 한바퀴); two or more, or 뺑뺑이/트랙, means laps.
+    private val REPEAT_WORDS = Regex("뺑뺑|빙빙|트랙|반복")
+    private val LAP_COUNT = Regex("(\\d+|$NATIVE)\\s?바퀴")
+
+    /** "세 바퀴", "3바퀴" -> 3; "한 바퀴" -> null (not a count, see REPEAT_WORDS). */
+    internal fun lapCount(text: String): Int? =
+        LAP_COUNT.find(text.lowercase())?.groupValues?.get(1)?.let { number(it) }?.toInt()?.takeIf { it in 2..30 }
+
     private val FLAT_WORDS = Regex("평지|평평|오르막\\s?(?:없|말고|피해|빼)|언덕\\s?(?:없|말고|피해|빼)|경사\\s?(?:없|말고|피해|빼)")
 
     // ---- places ------------------------------------------------------------------------

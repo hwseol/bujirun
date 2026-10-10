@@ -7,6 +7,18 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,15 +31,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,7 +71,7 @@ object PendingImport {
 }
 
 @Composable
-fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> Unit) {
+fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> Unit, onAi: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val courses by remember { CourseStore.observeAll() }.collectAsState(initial = null)
@@ -86,28 +95,25 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> U
         pending?.let { PendingImport.uri.value = null; import(it) }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("코스", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
-        Button(onClick = onSuggest, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-            Icon(Icons.Filled.NearMe, null); Spacer(Modifier.padding(start = 6.dp)); Text("내 주변 추천 코스")
-        }
-        Spacer(Modifier.height(8.dp))
+        AiHeroCard(onAi)
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onDraw, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Add, null); Spacer(Modifier.padding(start = 6.dp)); Text("지도에서 만들기")
-            }
-            // GPX has no reliable MIME type across apps and file managers; accept anything and
-            // let the parser decide.
-            OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.FileOpen, null); Spacer(Modifier.padding(start = 6.dp)); Text("GPX 불러오기")
-            }
+            MakeCard(Icons.Filled.Draw, "DIY 코스 만들기", "지도에 점을 찍어\n나만의 코스", onDraw, Modifier.weight(1f))
+            MakeCard(Icons.Filled.NearMe, "내 주변 코스", "순환 코스와\n공식 걷기길", onSuggest, Modifier.weight(1f))
         }
-        Spacer(Modifier.height(8.dp))
+        // GPX has no reliable MIME type across apps and file managers; accept anything and let
+        // the parser decide.
+        TextButton(onClick = { picker.launch(arrayOf("*/*")) }, modifier = Modifier.align(Alignment.End)) {
+            Icon(Icons.Filled.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("GPX 불러오기")
+        }
+        Text("내 코스", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))
         val list = courses ?: return@Column
         if (list.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "아직 코스가 없어요.\n지도에 점을 찍어 만들거나, Strava 등에서 받은 GPX를 불러오세요.\n" +
+                    "아직 저장한 코스가 없어요.\nAI 추천이나 DIY로 만들거나, Strava 등에서 받은 GPX를 불러오세요.\n" +
                         "운동 기록 요약 화면에서 '코스로 저장'도 할 수 있어요.",
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -131,6 +137,48 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> U
                 scope.launch { onOpen(CourseStore.save(name, CourseSource.GPX, gpx.points)) }
             }
         )
+    }
+}
+
+/** The way in to AI course suggestions: the feature to notice first. */
+@Composable
+private fun AiHeroCard(onClick: () -> Unit) {
+    val brush = Brush.linearGradient(listOf(Color(0xFFFF6A2B), Color(0xFFFF3D6E)))
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(brush).clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text("AI 코스 추천", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("말하듯 적으면 내 주변 공원·강변으로 코스를 짜 드려요", color = Color.White.copy(alpha = 0.92f),
+                style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("한강 따라 5km", "공원 뺑뺑이 3km", "남산 왕복").forEach {
+                    Text(it, color = Color.White, style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.2f))
+                            .padding(horizontal = 10.dp, vertical = 5.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MakeCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp, modifier = modifier) {
+        Column(Modifier.padding(16.dp)) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(10.dp))
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

@@ -99,6 +99,31 @@ class PlannerTest(unittest.TestCase):
         for corner in [lap_call[0]] + lap_call[2]:
             self.assertEqual(places.distance_to_shape(corner[0], corner[1], [ring], closed=True), 0)
 
+    def test_far_park_laps_start_at_the_park(self):
+        r = FakeRouter()
+        far_start = [37.480, 127.000]  # ~1.7 km south of 네모공원
+        plan = make(r).plan(far_start, {"distance_m": 3000, "places": [{"name": "네모공원", "role": "AROUND"}]})
+        c = plan.courses[0]
+        self.assertGreater(planner.dist(c["points"][0], far_start), 1000)  # not from home
+        self.assertIn("공원에서 시작하는 코스", plan.notes[0])
+        self.assertAlmostEqual(c["distance_m"], 3000, delta=900)
+
+    def test_park_bigger_than_the_distance_gets_a_smaller_ring_inside(self):
+        r = FakeRouter()
+        make(r).plan(START, {"distance_m": 800, "laps": 1, "places": [{"name": "네모공원", "role": "AROUND"}]})
+        lap = next(c for c in r.calls if c[0] == c[1])
+        ring_pts = [lap[0]] + lap[2]
+        self.assertLess(planner.path_length(ring_pts + [lap[0]]), 1000)  # outline is ~1.2 km
+
+    def test_lap_count_is_respected(self):
+        plan = make(FakeRouter()).plan(START, {"distance_m": 1000, "laps": 3, "places": [{"name": "동그란호수", "role": "AROUND"}]})
+        self.assertEqual(plan.courses[0]["title"], "동그란호수 3바퀴")
+
+    def test_repeat_without_a_name_laps_the_nearest_park(self):
+        plan = make(FakeRouter()).plan(START, {"distance_m": 3000, "repeat": True, "themes": ["PARK"]})
+        self.assertRegex(plan.courses[0]["title"], "바퀴")
+        self.assertEqual(len(plan.courses[0]["via"]), 1)
+
     def test_destination_one_way_and_out_and_back(self):
         r = FakeRouter()
         one = make(r).plan(START, {"shape": "ONE_WAY", "places": [{"name": "먼공원", "role": "DEST"}]})

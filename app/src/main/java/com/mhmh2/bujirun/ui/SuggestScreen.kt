@@ -20,6 +20,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import kotlinx.coroutines.delay
 import androidx.compose.material3.TabRow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,8 +71,9 @@ import kotlin.coroutines.resume
 private val DISTANCES = listOf(3000, 5000, 7000, 10000)
 
 /**
- * Courses around where the user is now: loops generated from here (pick a distance), official
- * walking trails nearby (Durunubi), or a course described in words. Any can be run or kept.
+ * Courses around where the user is now: loops generated from here (pick a distance) and official
+ * walking trails nearby (Durunubi). Either can be run right away or kept. (Courses described in
+ * words are AiCourseScreen.)
  */
 @Composable
 fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
@@ -76,19 +81,14 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
-            Text("내 주변 추천 코스", style = MaterialTheme.typography.titleLarge)
+            Text("내 주변 코스", style = MaterialTheme.typography.titleLarge)
         }
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("순환 코스") })
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("걷기길") })
-            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("말로 만들기") })
         }
         Spacer(Modifier.height(12.dp))
-        when (tab) {
-            0 -> LoopsTab(onOpen, onRun)
-            1 -> TrailsTab(onOpen, onRun)
-            else -> NaturalTab(onOpen, onRun)
-        }
+        if (tab == 0) LoopsTab(onOpen, onRun) else TrailsTab(onOpen, onRun)
     }
 }
 
@@ -214,34 +214,35 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
 private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var distance by remember { mutableStateOf(5000) }
+    var distance by rememberSaveable { mutableStateOf(5000) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loops by remember { mutableStateOf<List<List<GeoPoint>>>(emptyList()) }
+    var located by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        located = granted
+        if (!granted) error = "주변 코스를 찾으려면 위치 권한이 필요해요."
+    }
+    LaunchedEffect(Unit) { if (!located) permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
 
-    fun fetch() {
+    // No button: courses for the chosen distance load on opening and whenever it changes. A new
+    // choice cancels the one in flight; the server caches answers, so going back is free.
+    LaunchedEffect(distance, located) {
+        if (!located) return@LaunchedEffect
+        delay(250)
         loading = true
         error = null
-        scope.launch {
-            try {
-                val here = currentLocation(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
-                loops = RouteApi.loops(here, distance)
-            } catch (e: ApiException) {
-                error = e.message
-                loops = emptyList()
-            } finally {
-                loading = false
-            }
+        try {
+            val here = currentLocation(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            loops = RouteApi.loops(here, distance)
+        } catch (e: ApiException) {
+            error = e.message
+            loops = emptyList()
+        } finally {
+            loading = false
         }
-    }
-
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) fetch() else error = "주변 코스를 찾으려면 위치 권한이 필요해요."
-    }
-
-    fun request() {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) fetch()
-        else permission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
     fun save(points: List<GeoPoint>, then: (Long) -> Unit) {
@@ -264,22 +265,16 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     FilterChip(selected = distance == d, onClick = { distance = d }, label = { Text("${d / 1000}km") })
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = ::request, enabled = !loading, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                if (loading) CircularProgressIndicator(Modifier.height(22.dp), strokeWidth = 2.dp) else Text("추천 받기")
+            Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (loading) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("${distance / 1000}km 코스를 찾는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        if (loops.isEmpty() && !loading && error == null) {
-            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    "거리를 고르고 '추천 받기'를 눌러 보세요.\n실제 걷는 길을 따라 출발점으로 돌아오는 코스예요.",
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
             }
         }
         LazyColumn(Modifier.weight(1f)) {
@@ -320,7 +315,7 @@ internal fun LoopCard(points: List<GeoPoint>, title: String, onRun: () -> Unit, 
 
 /** A fresh fix (falls back to the last known one), or null without permission or a signal. */
 @SuppressLint("MissingPermission")
-private suspend fun currentLocation(context: Context): GeoPoint? {
+internal suspend fun currentLocation(context: Context): GeoPoint? {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return null
     val client = LocationServices.getFusedLocationProviderClient(context)
     val fresh = suspendCancellableCoroutine<android.location.Location?> { cont ->

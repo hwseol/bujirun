@@ -5,6 +5,8 @@ Compatibility rule (as for EnglishBite): once released, only add endpoints/optio
 older app builds stay installed on phones.
 """
 
+import time
+
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
@@ -109,14 +111,34 @@ def pedestrian_route(req: RouteRequest, authorization: str | None = Header(None)
 
 @app.post("/routes/loops")
 def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
-    """Suggested loop courses of about [distance_m] starting and ending at [start]."""
+    """Suggested loop courses of about [distance_m] starting and ending at [start]. The app asks
+    again whenever the distance chip changes, so answers are kept a week per ~100 m spot and
+    distance: flipping between chips costs no further TMAP requests."""
     user = _user(authorization)
     if len(req.start) != 2 or not 1_000 <= req.distance_m <= 21_100:
         raise HTTPException(status_code=400, detail="1~21km 사이로 골라 주세요.")
+    key = (round(req.start[0], 3), round(req.start[1], 3), round(req.distance_m))
+    hit = _loop_cache.get(key)
+    if hit and time.time() - hit[0] < planner.CACHE_S:
+        return {"loops": hit[1]}
     try:
-        return {"loops": routes.loops(req.start, req.distance_m, user["id"])}
+        loops = routes.loops(req.start, req.distance_m, user["id"])
     except routes.RouteError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Circles drawn around the start can all fail where half of them lands in a river or
+        # on a highway; a loop through the parks nearby usually still exists.
+        try:
+            plan = planner.Planner(user["id"]).plan(req.start, {"distance_m": req.distance_m, "themes": ["PARK"]})
+            loops = [{"distance_m": c["distance_m"], "points": c["points"]} for c in plan.courses]
+        except routes.RouteError:
+            raise HTTPException(status_code=400, detail=str(e))
+    _loop_cache[key] = (time.time(), loops)
+    if len(_loop_cache) > 2000:
+        for k in sorted(_loop_cache, key=lambda k: _loop_cache[k][0])[:500]:
+            del _loop_cache[k]
+    return {"loops": loops}
+
+
+_loop_cache: dict = {}
 
 
 class PlanPlace(BaseModel):
@@ -130,6 +152,8 @@ class PlanIntent(BaseModel):
     themes: list[str] = []
     places: list[PlanPlace] = []
     flat: bool = False
+    laps: int | None = None   # "세 바퀴"
+    repeat: bool = False      # 뺑뺑이, 바퀴, 트랙: laps of one place rather than a tour
 
 
 class PlanRequest(BaseModel):
@@ -147,6 +171,7 @@ def plan_route(req: PlanRequest, authorization: str | None = Header(None)):
         raise HTTPException(status_code=400, detail="요청을 이해하지 못했어요.")
     intent = {
         "distance_m": i.distance_m, "shape": i.shape, "themes": i.themes[:5], "flat": i.flat,
+        "laps": i.laps if i.laps and 1 <= i.laps <= 30 else None, "repeat": i.repeat,
         "places": [{"name": p.name[:30], "role": p.role} for p in i.places],
     }
     try:
