@@ -62,6 +62,21 @@ import com.naver.maps.map.NaverMapOptions
 import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.overlay.PathOverlay
 import com.naver.maps.map.util.MarkerIcons
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 
 /**
@@ -128,16 +143,43 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     val markers = remember { mutableListOf<Marker>() }
     val lineColor = MaterialTheme.colorScheme.primary.toArgb()
 
-    // One-time setup: the camera on Banpo until the user's position comes in. Points go where
-    // the + in the middle is ("여기 추가") or where the map is long-pressed - not on a tap, which
-    // made every double-tap zoom drop two points.
+    // One-time setup: the camera on Banpo until the user's position comes in. A point goes where
+    // the map is tapped (once - a tap waits a moment so a double-tap zoom doesn't drop two), where
+    // it's long-pressed, or where the + in the middle is ("여기 추가").
     var naverMap by remember { mutableStateOf<NaverMap?>(null) }
+    var pendingTap by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
             naverMap = map
+            map.setOnMapClickListener { _, latLng ->
+                val second = pendingTap?.isActive == true
+                pendingTap?.cancel()
+                pendingTap = if (second) null else scope.launch {
+                    delay(300)
+                    onTap(GeoPoint(latLng.latitude, latLng.longitude))
+                }
+            }
             map.setOnMapLongClickListener { _, latLng -> onTap(GeoPoint(latLng.latitude, latLng.longitude)) }
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(37.5115, 126.9960), 15.0))
         }
+    }
+    // Place search (as in the start picker).
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<RouteApi.FoundPlace>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    var nothingFound by remember { mutableStateOf(false) }
+    var justPicked by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(query) {
+        nothingFound = false
+        if (justPicked) { justPicked = false; return@LaunchedEffect }
+        if (query.trim().length < 2) { results = emptyList(); return@LaunchedEffect }
+        delay(500)
+        val near = naverMap?.cameraPosition?.target?.let { GeoPoint(it.latitude, it.longitude) } ?: here ?: return@LaunchedEffect
+        searching = true
+        results = try { RouteApi.lookup(query.trim(), near) } catch (e: ApiException) { emptyList() }
+        nothingFound = results.isEmpty()
+        searching = false
     }
     fun addAtCentre() {
         val t = naverMap?.cameraPosition?.target ?: return
@@ -195,20 +237,65 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
         here?.let { me ->
             SmallFloatingActionButton(
                 onClick = { naverMap?.moveCamera(CameraUpdate.scrollTo(LatLng(me.lat, me.lon)).animate(CameraAnimation.Easing)) },
-                // Top right, clear of the map's own zoom buttons (middle right).
-                modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 12.dp, end = 12.dp)
+                // Right, under the search bar and clear of the map's own zoom buttons (middle right).
+                modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 84.dp, end = 12.dp)
             ) { Icon(Icons.Filled.MyLocation, contentDescription = "내 위치로") }
         }
 
-        Surface(
-            modifier = Modifier.safeDrawingPadding().padding(12.dp),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 2.dp,
-            shadowElevation = 2.dp,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 16.dp)) {
-                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
-                Text("DIY 코스 만들기", style = MaterialTheme.typography.titleMedium)
+        // Back, and a search for a place to go through: picking one moves the map there and adds
+        // it as the next point (or the start).
+        // Above the bottom panel: with the keyboard up the results would otherwise be under it.
+        Column(Modifier.zIndex(1f).safeDrawingPadding().padding(12.dp).fillMaxWidth()) {
+            Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 2.dp, shadowElevation = 2.dp) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+                    TextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = { Text("장소 검색해서 추가 (예: 금정역)") },
+                        trailingIcon = {
+                            if (searching) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "지우기") }
+                            else Icon(Icons.Filled.Search, null)
+                        },
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (results.isNotEmpty() || nothingFound) {
+                Surface(shape = RoundedCornerShape(16.dp), shadowElevation = 6.dp, modifier = Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(max = 300.dp)) {
+                    if (nothingFound) {
+                        Text("검색 결과가 없어요", modifier = Modifier.padding(16.dp))
+                    } else {
+                        LazyColumn {
+                            items(results) { r ->
+                                Column(
+                                    Modifier.fillMaxWidth().clickable {
+                                        naverMap?.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(r.point.lat, r.point.lon), 16.0))
+                                        results = emptyList()
+                                        justPicked = true
+                                        query = r.name
+                                        keyboard?.hide()
+                                        addPoint(r.point)
+                                    }.padding(horizontal = 16.dp, vertical = 10.dp)
+                                ) {
+                                    Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        listOf(r.address, "${formatKm(r.awayM.toDouble())}km").filter { it.isNotBlank() }.joinToString(" · "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -225,8 +312,8 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Text(
                         when (waypoints.size) {
-                            0 -> "지도를 움직여 + 를 출발점에 맞추고 '여기 추가'를 누르세요"
-                            1 -> if (startIsHere) "내 위치에서 출발해요. + 를 다음 지점에 맞추고 '여기 추가'" else "+ 를 다음 지점에 맞추고 '여기 추가' (길게 눌러도 돼요)"
+                            0 -> "지도를 눌러 출발점을 찍거나, 위에서 장소를 검색하세요"
+                            1 -> if (startIsHere) "내 위치에서 출발해요. 지도를 눌러 다음 지점을 찍으세요" else "지도를 눌러 다음 지점을 찍으세요"
                             else -> "지점 ${waypoints.size}개"
                         },
                         style = MaterialTheme.typography.bodyMedium,
