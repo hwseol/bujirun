@@ -193,10 +193,12 @@ private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null)
                 coords = fit
                 this.color = color
                 outlineColor = AndroidColor.WHITE
-                width = (6 * density).toInt()
+                width = (7 * density).toInt()
                 outlineWidth = (1.5 * density).toInt()
+                showDirection(density)
                 this.map = map
             }
+            directionMarkers(map, points, density, color)
             endpointMarker(map, fit.first(), "출발", START_GREEN, density)
             if (!CourseGeometry.isLoop(points)) endpointMarker(map, fit.last(), "도착", END_DARK, density)
             map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(fit), (48 * density).toInt()))
@@ -216,6 +218,7 @@ private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null)
                 part.outlineColor = AndroidColor.WHITE
                 part.width = (8 * density).toInt()
                 part.outlineWidth = (2 * density).toInt()
+                part.showDirection(density)
                 part.map = map
                 // A short part (the 30 m to a park gate) is shown at street level, not 5 m across.
                 val b = LatLngBounds.from(h)

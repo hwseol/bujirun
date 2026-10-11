@@ -161,14 +161,16 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 path.coords = line.map { LatLng(it.lat, it.lon) }
                 path.color = lineColor
                 path.outlineColor = AndroidColor.WHITE
-                path.width = (5 * density).toInt()
+                path.width = (7 * density).toInt()
                 path.outlineWidth = (1.25 * density).toInt()
+                path.showDirection(density)
                 path.map = map
             } else {
                 path.map = null
             }
             markers.forEach { it.map = null }
             markers.clear()
+            markers += directionMarkers(map, line, density, lineColor)
             waypoints.forEachIndexed { i, p ->
                 markers += Marker().apply {
                     position = LatLng(p.lat, p.lon)

@@ -68,6 +68,7 @@ fun CourseLiveMap(
         NaverMapOptions().zoomControlEnabled(false).scaleBarEnabled(false).compassEnabled(false).locationButtonEnabled(false)
     )
     val path = remember { PathOverlay() }
+    val arrows = remember { mutableListOf<com.naver.maps.map.overlay.Marker>() }
     var following by remember { mutableStateOf(true) }
 
     // A drag or pinch on the map stops following.
@@ -87,9 +88,13 @@ fun CourseLiveMap(
             path.color = color
             path.passedColor = Color(color).copy(alpha = 0.35f).toArgb()
             path.outlineColor = AndroidColor.WHITE
-            path.width = (6 * density).toInt()
+            path.width = (8 * density).toInt()
             path.outlineWidth = (1.5 * density).toInt()
+            path.showDirection(density)
             path.map = map
+            arrows.forEach { it.map = null }
+            arrows.clear()
+            arrows += directionMarkers(map, route, density, color)
             if (position == null) map.moveCamera(CameraUpdate.scrollAndZoomTo(path.coords.first(), 16.0))
         }
     }

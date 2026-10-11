@@ -41,10 +41,12 @@ fun CourseLineView(points: List<GeoPoint>, modifier: Modifier = Modifier) {
         result += PathOverlay(fit).apply {
             this.color = color
             outlineColor = AndroidColor.WHITE
-            width = (5 * density).toInt()
+            width = (7 * density).toInt()
             outlineWidth = (1.25 * density).toInt()
+            showDirection(density)
             this.map = map
         }
+        result += directionMarkers(map, points, density, color)
         result += endpointMarker(map, fit.first(), "출발", START_GREEN, density)
         val loop = com.mhmh2.bujirun.course.CourseGeometry.isLoop(points)
         if (!loop) result += endpointMarker(map, fit.last(), "도착", END_DARK, density)
