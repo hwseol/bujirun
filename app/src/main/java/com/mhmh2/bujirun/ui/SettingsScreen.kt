@@ -37,6 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import android.Manifest
+import android.os.Build
+import com.mhmh2.bujirun.tracking.PassiveRecorder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -143,8 +146,18 @@ fun SettingsScreen() {
         ToggleRow("자동 일시정지", "멈춰 서면 기록을 잠시 멈추고, 움직이면 다시 시작해요.", autoPause, Prefs::setAutoPause)
         Divider()
 
+        val autoRecord by Prefs.autoRecord.collectAsState()
+        val setAutoRecord = rememberAutoRecordSwitch()
+        ToggleRow(
+            "자동 기록 · 만보기",
+            "앱을 켜지 않아도 하루 걸음 수를 세고, 15분 넘게 걷거나 5분 넘게 달리면 기록에 남겨요. GPS는 쓰지 않아요.",
+            autoRecord,
+            setAutoRecord,
+        )
+        Divider()
+
         // After each workout, without a tap. Turning one on asks for its permission there and then.
-        Section("운동이 끝나면 자동으로", "결과 화면이 뜰 때 바로 기록해요. 테스트 운동은 기록하지 않아요.")
+        Section("운동이 끝나면 자동으로", "운동을 마치면 바로 기록해요 (앱을 닫아서 끝낸 운동도). 테스트 운동은 기록하지 않아요.")
         ToggleRow(
             "구글 캘린더에 기록",
             "폰의 구글 계정 캘린더에 운동 시간, 거리, 페이스, 구간 기록이 일정으로 남아요.",
@@ -260,4 +273,26 @@ private fun ToggleRow(title: String, description: String, checked: Boolean, onCh
 @Composable
 private fun Divider() {
     HorizontalDivider(Modifier.padding(vertical = 20.dp))
+}
+
+/** Turns 자동 기록 on (asking for activity recognition first, if needed) or off. */
+@Composable
+fun rememberAutoRecordSwitch(): (Boolean) -> Unit {
+    val context = LocalContext.current
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            Prefs.setAutoRecord(true)
+            PassiveRecorder.apply(context)
+        } else {
+            Toast.makeText(context, "신체 활동 권한을 허용해야 걸음과 걷기를 기록할 수 있어요", Toast.LENGTH_LONG).show()
+        }
+    }
+    return { on ->
+        if (on && !PassiveRecorder.hasPermission(context) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+        } else {
+            Prefs.setAutoRecord(on)
+            PassiveRecorder.apply(context)
+        }
+    }
 }

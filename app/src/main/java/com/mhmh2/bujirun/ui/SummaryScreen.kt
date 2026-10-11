@@ -15,6 +15,7 @@ import com.mhmh2.bujirun.course.GeoPoint
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import com.mhmh2.bujirun.Prefs
+import com.mhmh2.bujirun.data.AutoExport
 import com.mhmh2.bujirun.data.CalendarExport
 import com.mhmh2.bujirun.data.WorkoutReport
 import com.mhmh2.bujirun.data.GpxShare
@@ -84,7 +85,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         val w = workout ?: return
         scope.launch {
             runCatching { HealthExport.write(context, w, pointRows) }
-                .onSuccess { toast("Health Connect에 저장했어요") }
+                .onSuccess { Prefs.markExported("health", w.id); toast("Health Connect에 저장했어요") }
                 .onFailure { toast("저장하지 못했어요: ${it.message}") }
         }
     }
@@ -142,24 +143,17 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         context.startActivity(Intent.createChooser(send, "운동 결과 보내기"))
     }
 
-    // Just finished: what the settings say to do without a tap - a calendar event, the workout
-    // in Health Connect (Samsung Health). Each once per workout; never for a test run.
-    LaunchedEffect(workout?.id, workout?.status, pointRows.size, courseName) {
+    // Just finished: what the settings say to do without a tap (AutoExport, which the service
+    // also runs as it saves - whichever comes first does it, once). Here only to say so.
+    LaunchedEffect(workout?.id, workout?.status, pointRows.size) {
         val w = workout ?: return@LaunchedEffect
         if (!justFinished || w.simulated || w.status != WorkoutEntity.DONE || pointRows.isEmpty()) return@LaunchedEffect
-        if (w.courseId != null && courseName == null) return@LaunchedEffect // its name arrives a moment later
-        if (Prefs.autoCalendar.value && !Prefs.exported("calendar", w.id) && CalendarExport.hasPermission(context)) {
-            writeToCalendar(quiet = true)
-        }
-        if (Prefs.autoHealth.value && !Prefs.exported("health", w.id) &&
-            HealthExport.availability(context) == HealthExport.Availability.AVAILABLE &&
-            HealthExport.missingPermissions(context).isEmpty()
-        ) {
-            runCatching { HealthExport.write(context, w, pointRows) }.onSuccess {
-                Prefs.markExported("health", w.id)
-                toast("삼성헬스(Health Connect)에 저장했어요")
-            }
-        }
+        AutoExport.runPending(context)
+        val places = listOfNotNull(
+            "캘린더".takeIf { Prefs.autoCalendar.value && Prefs.exported("calendar", w.id) },
+            "삼성헬스(Health Connect)".takeIf { Prefs.autoHealth.value && Prefs.exported("health", w.id) },
+        )
+        if (places.isNotEmpty()) toast(places.joinToString("와 ") + "에 기록했어요")
     }
 
     val w = workout

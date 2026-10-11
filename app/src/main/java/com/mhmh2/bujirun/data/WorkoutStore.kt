@@ -32,7 +32,7 @@ object WorkoutStore {
     fun init(context: Context) {
         if (::db.isInitialized) return
         db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "bujirun.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6)
             .build()
     }
 
@@ -88,7 +88,7 @@ object WorkoutStore {
      * Workouts left IN_PROGRESS by a process that died mid-run (system kill, crash, battery):
      * keep what was saved up to the last flush. Only call when no workout is being recorded.
      */
-    fun recoverInterrupted() {
+    fun recoverInterrupted(onDone: () -> Unit = {}) {
         scope.launch {
             writes.withLock {
                 dao.inProgress().forEach { w ->
@@ -96,14 +96,27 @@ object WorkoutStore {
                     else dao.update(w.copy(status = WorkoutEntity.DONE))
                 }
             }
+            onDone()
         }
     }
+
+    suspend fun points(id: Long): List<TrackPointEntity> = dao.points(id)
+
+    /** Finished real workouts (no test runs) started at or after [since]. */
+    suspend fun doneSince(since: Long): List<WorkoutEntity> = dao.doneSince(since)
 
     fun delete(id: Long) {
         scope.launch { writes.withLock { dao.delete(id) } }
     }
 
     fun observeDone(): Flow<List<WorkoutEntity>> = dao.observeDone()
+
+    // 자동 기록 (tracking/PassiveRecorder): walks and runs found in the background, the day's steps.
+    fun observeAuto(): Flow<List<AutoActivityEntity>> = db.passive().observeActivities()
+    fun observeDaySteps(): Flow<List<DayStepsEntity>> = db.passive().observeDaySteps()
+    fun deleteAuto(id: Long) {
+        scope.launch { db.passive().deleteActivity(id) }
+    }
 
     /** Median pace (s/km) of the user's recent real runs, or null without enough of them. */
     suspend fun typicalRunPace(): Int? = paces(dao.observeDone().first()).runOrNull

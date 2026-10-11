@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Step detector, for telling walking from running. Optional: GPS speed alone still works. -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- 자동 기록: listen for walking/running again after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Finished workouts as calendar events (Google Calendar), when the user turns it on. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
@@ -64,6 +66,20 @@
             android:name=".tracking.WorkoutService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- 자동 기록 (tracking/PassiveRecorder): walking/running transitions from the system,
+             and setting them up again after a restart or an update. -->
+        <receiver
+            android:name=".tracking.TransitionReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".tracking.PassiveBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Health Connect's "why does this app need this" screen; required before it will
              show the permission request. The alias is the Android 14+ entry point. -->

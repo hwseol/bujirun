@@ -46,6 +46,7 @@ import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
 import com.mhmh2.bujirun.course.LoopLearner
 import com.mhmh2.bujirun.course.RouteApi
+import com.mhmh2.bujirun.data.AutoExport
 import com.mhmh2.bujirun.data.WorkoutStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -402,6 +403,7 @@ class WorkoutService : LifecycleService() {
         WorkoutStore.flush(id, newPoints, snapshot, finished) { kept ->
             // Too short to be a real workout (an accidental start): skip the summary too.
             if (!kept) WorkoutSession.publish(WorkoutSnapshot())
+            else if (finished) AutoExport.runPendingLater(this)
         }
     }
 

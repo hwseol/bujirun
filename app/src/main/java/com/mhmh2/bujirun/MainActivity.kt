@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.mhmh2.bujirun.account.Account
+import com.mhmh2.bujirun.data.AutoExport
 import com.mhmh2.bujirun.data.WorkoutStore
 import com.mhmh2.bujirun.net.Notices
+import com.mhmh2.bujirun.tracking.PassiveRecorder
 import com.mhmh2.bujirun.tracking.WorkoutSession
 import com.mhmh2.bujirun.tracking.WorkoutStatus
 import com.mhmh2.bujirun.ui.BujirunApp
@@ -30,12 +32,17 @@ class MainActivity : ComponentActivity() {
         // Nothing is recording in this process (a running workout would have moved the session
         // off IDLE), so any workout still marked in-progress was cut short by the process dying.
         val s = WorkoutSession.state.value
-        if (s.status == WorkoutStatus.IDLE && s.countdown == null) WorkoutStore.recoverInterrupted()
+        if (s.status == WorkoutStatus.IDLE && s.countdown == null) {
+            WorkoutStore.recoverInterrupted { AutoExport.runPendingLater(this) }
+        }
         handleGpx(intent)
         // A session the server no longer knows (account deleted, password reset) signs out.
         lifecycleScope.launch { Account.verify() }
         lifecycleScope.launch { Notices.checkNow() }
         Notices.schedule(this)
+        // 자동 기록: keep the system listening, and count the steps since the last look.
+        PassiveRecorder.apply(this)
+        lifecycleScope.launch { runCatching { PassiveRecorder.check(this@MainActivity) } }
         enableEdgeToEdge()
         setContent {
             BujirunTheme {

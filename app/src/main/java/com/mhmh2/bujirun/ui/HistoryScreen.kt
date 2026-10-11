@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +47,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
+import com.mhmh2.bujirun.Prefs
+import com.mhmh2.bujirun.data.AutoActivityEntity
 import com.mhmh2.bujirun.data.HealthExport
 import com.mhmh2.bujirun.data.WorkoutEntity
 import com.mhmh2.bujirun.data.WorkoutStore
@@ -64,7 +67,8 @@ import kotlin.math.roundToInt
 /**
  * 기록 by date: a month calendar with each day's distance on it, the month's totals, and the
  * chosen day - distance, time, calories, steps (the workouts' own, and the whole day's from
- * Samsung Health via Health Connect when allowed) and its workouts.
+ * Samsung Health via Health Connect when allowed, else the phone's own count) and its workouts,
+ * with the walks and runs 자동 기록 found without the app.
  */
 @Composable
 fun HistoryScreen(onOpen: (Long) -> Unit) {
@@ -78,6 +82,13 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
     val day = LocalDate.parse(dayKey)
 
     val byDay = remember(list) { list.groupBy { Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate() } }
+    // 자동 기록: walks and runs found without the app, and the phone's own count of the day's steps.
+    val autos by remember { WorkoutStore.observeAuto() }.collectAsState(initial = emptyList())
+    val autoByDay = remember(autos) { autos.groupBy { Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate() } }
+    val ownSteps by remember { WorkoutStore.observeDaySteps() }.collectAsState(initial = emptyList())
+    val autoRecord by Prefs.autoRecord.collectAsState()
+    val setAutoRecord = rememberAutoRecordSwitch()
+    var deletingAuto by remember { mutableStateOf<AutoActivityEntity?>(null) }
     // Test runs are listed (labelled) but left out of the totals.
     fun real(ws: List<WorkoutEntity>) = ws.filter { !it.simulated }
 
@@ -108,19 +119,30 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
                 }
                 Spacer(Modifier.weight(1f))
                 val inMonth = real(byDay.filterKeys { YearMonth.from(it) == month }.values.flatten())
+                val autoInMonth = autoByDay.filterKeys { YearMonth.from(it) == month }.values.flatten()
                 Text(
-                    "${inMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM })}km · ${inMonth.sumOf { it.calories }.roundToInt()}kcal",
+                    "${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · " +
+                        "${(inMonth.sumOf { it.calories } + autoInMonth.sumOf { it.calories }).roundToInt()}kcal",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            MonthGrid(month, day, byDay.mapValues { (_, ws) -> real(ws).sumOf { it.distanceM } }) { dayKey = it.toString() }
-            Spacer(Modifier.height(12.dp))
-            DayCard(day, real(byDay[day].orEmpty()), daySteps, canReadSteps) {
-                stepsPermission.launch(setOf(HealthExport.readSteps))
+            val kmByDay = remember(byDay, autoByDay) {
+                (byDay.keys + autoByDay.keys).associateWith { d ->
+                    real(byDay[d].orEmpty()).sumOf { it.distanceM } + autoByDay[d].orEmpty().sumOf { it.distanceM }
+                }
             }
+            MonthGrid(month, day, kmByDay) { dayKey = it.toString() }
+            Spacer(Modifier.height(12.dp))
+            DayCard(
+                day, real(byDay[day].orEmpty()), autoByDay[day].orEmpty(),
+                daySteps ?: ownSteps.firstOrNull { it.day == dayKey }?.steps, canReadSteps, autoRecord,
+                onAllowSteps = { stepsPermission.launch(setOf(HealthExport.readSteps)) },
+                onAutoRecord = { setAutoRecord(true) },
+            )
         }
         val ofDay = byDay[day].orEmpty()
-        if (ofDay.isEmpty()) {
+        val autoOfDay = autoByDay[day].orEmpty()
+        if (ofDay.isEmpty() && autoOfDay.isEmpty()) {
             item {
                 Text(
                     if (list.isEmpty()) "첫 기록을 남겨보세요.\n홈에서 시작을 누르면 여기에 쌓여요." else "이 날은 운동 기록이 없어요.",
@@ -130,7 +152,18 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
             }
         }
         items(ofDay, key = { it.id }) { w -> WorkoutRow(w, onClick = { onOpen(w.id) }) }
+        items(autoOfDay, key = { "auto${it.id}" }) { a -> AutoRow(a, onClick = { deletingAuto = a }) }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+
+    deletingAuto?.let { a ->
+        AlertDialog(
+            onDismissRequest = { deletingAuto = null },
+            title = { Text("자동 기록") },
+            text = { Text("앱 없이 알아서 남긴 기록이에요. 걸음 수로 거리를 어림했고, 경로는 없어요.\n잘못 남은 기록이면 지울 수 있어요.") },
+            confirmButton = { TextButton(onClick = { WorkoutStore.deleteAuto(a.id); deletingAuto = null }) { Text("지우기") } },
+            dismissButton = { TextButton(onClick = { deletingAuto = null }) { Text("닫기") } },
+        )
     }
 }
 
@@ -193,25 +226,36 @@ private fun MonthGrid(month: YearMonth, selected: LocalDate, kmByDay: Map<LocalD
 }
 
 @Composable
-private fun DayCard(day: LocalDate, ws: List<WorkoutEntity>, daySteps: Long?, canReadSteps: Boolean, onAllowSteps: () -> Unit) {
+private fun DayCard(
+    day: LocalDate, ws: List<WorkoutEntity>, autos: List<AutoActivityEntity>, daySteps: Long?, canReadSteps: Boolean,
+    autoRecord: Boolean, onAllowSteps: () -> Unit, onAutoRecord: () -> Unit,
+) {
     val n = NumberFormat.getIntegerInstance(Locale.KOREA)
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(
                 "${day.monthValue}월 ${day.dayOfMonth}일 (${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)})" +
-                    if (ws.isNotEmpty()) " · 운동 ${ws.size}회" else "",
+                    listOfNotNull(
+                        ws.size.takeIf { it > 0 }?.let { "운동 ${it}회" },
+                        autos.size.takeIf { it > 0 }?.let { "자동 ${it}회" },
+                    ).joinToString(" · ").let { if (it.isEmpty()) "" else " · $it" },
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth()) {
-                DayStat("거리", "${formatKm(ws.sumOf { it.distanceM })}km", Modifier.weight(1f))
-                DayStat("시간", formatDuration(ws.sumOf { it.durationMs }), Modifier.weight(1f))
-                DayStat("칼로리", "${ws.sumOf { it.calories }.roundToInt()}kcal", Modifier.weight(1f))
+                DayStat("거리", "${formatKm(ws.sumOf { it.distanceM } + autos.sumOf { it.distanceM })}km", Modifier.weight(1f))
+                DayStat("시간", formatDuration(ws.sumOf { it.durationMs } + autos.sumOf { it.movingMs }), Modifier.weight(1f))
+                DayStat("칼로리", "${(ws.sumOf { it.calories } + autos.sumOf { it.calories }).roundToInt()}kcal", Modifier.weight(1f))
                 DayStat(
-                    if (daySteps != null) "하루 걸음" else "운동 걸음",
-                    n.format(daySteps ?: ws.sumOf { it.steps }.toLong()),
+                    if (daySteps != null) "하루 걸음" else "걸음",
+                    n.format(daySteps ?: (ws.sumOf { it.steps }.toLong() + autos.sumOf { it.steps })),
                     Modifier.weight(1f)
                 )
+            }
+            if (!autoRecord) {
+                TextButton(onClick = onAutoRecord, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                    Text("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", style = MaterialTheme.typography.bodySmall)
+                }
             }
             if (!canReadSteps) {
                 TextButton(onClick = onAllowSteps, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
@@ -239,6 +283,25 @@ private fun WorkoutRow(w: WorkoutEntity, onClick: () -> Unit) {
             listOfNotNull(
                 "${formatKm(w.distanceM)}km", formatDuration(w.durationMs), "${formatPace(pace)}/km",
                 "${w.calories.roundToInt()}kcal", w.steps.takeIf { it > 0 }?.let { "${it}걸음" },
+            ).forEach {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    HorizontalDivider()
+}
+
+/** A walk or run recorded in the background: no route to open, so a tap explains (and can delete). */
+@Composable
+private fun AutoRow(a: AutoActivityEntity, onClick: () -> Unit) {
+    val at = Instant.ofEpochMilli(a.startedAt).atZone(ZoneId.systemDefault())
+    val time = "${if (at.hour < 12) "오전" else "오후"} ${(at.hour + 11) % 12 + 1}:${"%02d".format(at.minute)}"
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp)) {
+        Text("${if (a.isRun) "🏃 달리기" else "🚶 걷기"} · $time", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(
+                "약 ${formatKm(a.distanceM)}km", formatDuration(a.movingMs), "${a.calories.roundToInt()}kcal",
+                "${NumberFormat.getIntegerInstance(Locale.KOREA).format(a.steps)}걸음", "자동 기록",
             ).forEach {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

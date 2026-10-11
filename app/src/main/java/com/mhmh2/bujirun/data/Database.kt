@@ -75,6 +75,9 @@ interface WorkoutDao {
     @Query("SELECT * FROM workouts WHERE status = 'IN_PROGRESS'") suspend fun inProgress(): List<WorkoutEntity>
     @Query("SELECT * FROM track_points WHERE workoutId = :id ORDER BY id") fun observePoints(id: Long): Flow<List<TrackPointEntity>>
     @Query("SELECT COUNT(*) FROM track_points WHERE workoutId = :id") suspend fun pointCount(id: Long): Int
+    @Query("SELECT * FROM track_points WHERE workoutId = :id ORDER BY id") suspend fun points(id: Long): List<TrackPointEntity>
+    @Query("SELECT * FROM workouts WHERE status = 'DONE' AND simulated = 0 AND startedAt >= :since ORDER BY startedAt")
+    suspend fun doneSince(since: Long): List<WorkoutEntity>
 
     @Query("DELETE FROM track_points WHERE workoutId = :id") suspend fun deletePoints(id: Long)
     @Query("DELETE FROM workouts WHERE id = :id") suspend fun deleteWorkout(id: Long)
@@ -135,14 +138,60 @@ interface CourseDao {
     }
 }
 
+/**
+ * A walk or run found in the background without the app (tracking/Passive): no route, steps
+ * from the phone's step counter, distance estimated from them.
+ */
+@Entity(tableName = "auto_activities")
+data class AutoActivityEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startedAt: Long,
+    val endedAt: Long,
+    val kind: String,           // WALK / RUN
+    val movingMs: Long,
+    val steps: Long,
+    val distanceM: Double,
+    val calories: Double,
+) {
+    val isRun: Boolean get() = kind == "RUN"
+}
+
+/** The phone's own count of a day's steps (the step counter, read now and then). */
+@Entity(tableName = "day_steps")
+data class DayStepsEntity(
+    @PrimaryKey val day: String,  // yyyy-MM-dd
+    val steps: Long,
+)
+
+@Dao
+interface PassiveDao {
+    @Insert suspend fun insertActivity(a: AutoActivityEntity): Long
+    @Query("SELECT * FROM auto_activities ORDER BY startedAt DESC") fun observeActivities(): Flow<List<AutoActivityEntity>>
+    @Query("DELETE FROM auto_activities WHERE id = :id") suspend fun deleteActivity(id: Long)
+    @Query("SELECT COUNT(*) FROM workouts WHERE startedAt < :end AND endedAt > :start") suspend fun workoutsOverlapping(start: Long, end: Long): Int
+
+    @Query("SELECT * FROM day_steps") fun observeDaySteps(): Flow<List<DayStepsEntity>>
+    @Query("SELECT steps FROM day_steps WHERE day = :day") suspend fun daySteps(day: String): Long?
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) suspend fun putDaySteps(row: DayStepsEntity)
+
+    @Transaction
+    suspend fun addSteps(day: String, steps: Long) {
+        putDaySteps(DayStepsEntity(day, (daySteps(day) ?: 0) + steps))
+    }
+}
+
 @Database(
-    entities = [WorkoutEntity::class, TrackPointEntity::class, CourseEntity::class, CoursePointEntity::class],
-    version = 5,
+    entities = [
+        WorkoutEntity::class, TrackPointEntity::class, CourseEntity::class, CoursePointEntity::class,
+        AutoActivityEntity::class, DayStepsEntity::class,
+    ],
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workouts(): WorkoutDao
     abstract fun courses(): CourseDao
+    abstract fun passive(): PassiveDao
 
     companion object {
         // Testers' phones already hold databases with real workouts: migrate, never wipe.
@@ -174,6 +223,16 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE workouts ADD COLUMN steps INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `auto_activities` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`startedAt` INTEGER NOT NULL, `endedAt` INTEGER NOT NULL, `kind` TEXT NOT NULL, " +
+                        "`movingMs` INTEGER NOT NULL, `steps` INTEGER NOT NULL, `distanceM` REAL NOT NULL, `calories` REAL NOT NULL)"
+                )
+                db.execSQL("CREATE TABLE IF NOT EXISTS `day_steps` (`day` TEXT NOT NULL, `steps` INTEGER NOT NULL, PRIMARY KEY(`day`))")
             }
         }
     }

@@ -24,7 +24,17 @@ object Prefs {
         _autoPause.value = sp.getBoolean("auto_pause", true)
         _autoCalendar.value = sp.getBoolean("auto_calendar", false)
         _autoHealth.value = sp.getBoolean("auto_health", false)
+        _autoRecord.value = sp.getBoolean("auto_record", false)
+        // Turned on before "since" was kept: from now on, not the whole history at once.
+        for (where in listOf("calendar", "health")) {
+            if (sp.getBoolean("auto_$where", false) && !sp.contains("auto_${where}_since")) {
+                sp.edit().putLong("auto_${where}_since", System.currentTimeMillis()).apply()
+            }
+        }
     }
+
+    /** When automatic export to [where] ("calendar", "health") was last turned on. */
+    fun autoSince(where: String): Long = sp.getLong("auto_${where}_since", Long.MAX_VALUE)
 
     // After a workout, without a tap: an event in the phone's (Google) calendar, and the
     // workout in Health Connect (where Samsung Health picks it up).
@@ -35,12 +45,12 @@ object Prefs {
 
     fun setAutoCalendar(enabled: Boolean) {
         _autoCalendar.value = enabled
-        sp.edit().putBoolean("auto_calendar", enabled).apply()
+        sp.edit().putBoolean("auto_calendar", enabled).also { if (enabled) it.putLong("auto_calendar_since", System.currentTimeMillis()) }.apply()
     }
 
     fun setAutoHealth(enabled: Boolean) {
         _autoHealth.value = enabled
-        sp.edit().putBoolean("auto_health", enabled).apply()
+        sp.edit().putBoolean("auto_health", enabled).also { if (enabled) it.putLong("auto_health_since", System.currentTimeMillis()) }.apply()
     }
 
     /** Workouts already written somewhere ("calendar", "health"), so nothing is written twice. */
@@ -84,6 +94,28 @@ object Prefs {
         _voiceEnabled.value = enabled
         sp.edit().putBoolean("voice_enabled", enabled).apply()
     }
+
+    // Walks, runs and the day's steps recorded without the app open (tracking/PassiveRecorder).
+    private val _autoRecord = MutableStateFlow(false)
+    val autoRecord: StateFlow<Boolean> = _autoRecord.asStateFlow()
+
+    fun setAutoRecord(enabled: Boolean) {
+        _autoRecord.value = enabled
+        sp.edit().putBoolean("auto_record", enabled).apply()
+    }
+
+    /** The step counter's last reading and when (null: none yet), for the day's steps. */
+    var stepReading: Pair<Long, Long>?
+        get() = if (sp.contains("step_reading")) sp.getLong("step_reading", 0) to sp.getLong("step_reading_at", 0) else null
+        set(v) {
+            if (v == null) sp.edit().remove("step_reading").remove("step_reading_at").apply()
+            else sp.edit().putLong("step_reading", v.first).putLong("step_reading_at", v.second).apply()
+        }
+
+    /** The walk or run in progress in the background (BoutTracker.State, encoded). */
+    var boutState: String?
+        get() = sp.getString("bout_state", null)
+        set(v) = sp.edit().putString("bout_state", v).apply()
 
     /** The newest server notice already shown (net/Notices). */
     var lastNoticeId: Int
