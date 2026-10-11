@@ -88,8 +88,8 @@ private val DISTANCES = listOf(3000, 5000, 7000, 10000)
  * AiCourseScreen.)
  */
 @Composable
-fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
-    var tab by rememberSaveable { mutableStateOf(0) }
+fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> Unit, initialTab: Int = 0) {
+    var tab by rememberSaveable { mutableStateOf(initialTab) }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }

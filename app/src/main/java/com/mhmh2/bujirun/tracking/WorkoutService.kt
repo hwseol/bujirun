@@ -148,8 +148,15 @@ class WorkoutService : LifecycleService() {
         }
     }
 
+    // Steps in this workout: counted from the start, through auto-pauses (a slow walk at a
+    // crossing is still walking), not during a pause the runner chose.
+    private var steps = 0
+
     private val stepListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) = cadenceMeter.onStep(SystemClock.elapsedRealtime())
+        override fun onSensorChanged(event: SensorEvent) {
+            cadenceMeter.onStep(SystemClock.elapsedRealtime())
+            if (tracker != null && countdown == null && pausedBy != PausedBy.USER) steps++
+        }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
@@ -220,6 +227,7 @@ class WorkoutService : LifecycleService() {
         savedPoints = 0
         speedMeter = SpeedMeter()
         learner = LoopLearner()
+        steps = 0
         autoReroutes = 0
         cadenceMeter = CadenceMeter()
         classifier = ActivityClassifier()
@@ -495,7 +503,7 @@ class WorkoutService : LifecycleService() {
             workoutId = workoutId, goal = goal, countdown = countdown,
             autoPaused = pausedBy == PausedBy.AUTO, simScale = simScale,
             courseId = courseId.takeIf { navigator != null }, course = navigator?.progress(), position = position,
-            courseRoute = navigator?.route?.points, rerouting = rerouting,
+            courseRoute = navigator?.route?.points, rerouting = rerouting, steps = steps,
         )
         WorkoutSession.publish(snapshot)
         // At most once a real second: a 10x test run ticks ten times a second, and Android

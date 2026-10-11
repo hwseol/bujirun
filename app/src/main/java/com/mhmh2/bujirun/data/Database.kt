@@ -37,6 +37,8 @@ data class WorkoutEntity(
     @ColumnInfo(defaultValue = "0") val simulated: Boolean = false,
     // The course this workout followed, if any (the course may since have been deleted).
     val courseId: Long? = null,
+    // Steps taken during the workout (the phone's step detector; 0 before v5 or without one).
+    @ColumnInfo(defaultValue = "0") val steps: Int = 0,
 ) {
     val isRun: Boolean get() = runMs >= walkMs
 
@@ -135,7 +137,7 @@ interface CourseDao {
 
 @Database(
     entities = [WorkoutEntity::class, TrackPointEntity::class, CourseEntity::class, CoursePointEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -167,6 +169,11 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE workouts ADD COLUMN courseId INTEGER")
+            }
+        }
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workouts ADD COLUMN steps INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

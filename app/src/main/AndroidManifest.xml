@@ -21,6 +21,8 @@
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE_ROUTE" />
     <uses-permission android:name="android.permission.health.WRITE_DISTANCE" />
     <uses-permission android:name="android.permission.health.WRITE_TOTAL_CALORIES_BURNED" />
+    <!-- The day's steps (from Samsung Health via Health Connect) in the history, when allowed. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
 
     <!-- Android 13 and below: Health Connect is a separate app we need to be able to see. -->
     <queries>

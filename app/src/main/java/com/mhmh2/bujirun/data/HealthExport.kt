@@ -6,6 +6,9 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseRoute
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
@@ -42,6 +45,19 @@ object HealthExport {
 
     suspend fun missingPermissions(context: Context): Set<String> =
         permissions - HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions()
+
+    /** Reading the day's steps (Samsung Health writes them to Health Connect). */
+    val readSteps = HealthPermission.getReadPermission(StepsRecord::class)
+
+    suspend fun canReadSteps(context: Context): Boolean =
+        availability(context) == Availability.AVAILABLE &&
+            readSteps in HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions()
+
+    /** All steps between [start] and [end] from every app that records them, or null if unreadable. */
+    suspend fun steps(context: Context, start: Instant, end: Instant): Long? = runCatching {
+        HealthConnectClient.getOrCreate(context)
+            .aggregate(AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(start, end)))[StepsRecord.COUNT_TOTAL]
+    }.getOrNull()
 
     /** The route is optional: without its permission the session is saved without the map line. */
     suspend fun write(context: Context, workout: WorkoutEntity, points: List<TrackPointEntity>) {

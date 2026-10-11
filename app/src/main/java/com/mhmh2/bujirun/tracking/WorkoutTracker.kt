@@ -36,6 +36,8 @@ data class WorkoutSnapshot(
     val walkMs: Long = 0,
     val hasFix: Boolean = false,
     val pointCount: Int = 0,
+    // Steps taken since the start (step detector; set by the service).
+    val steps: Int = 0,
 )
 
 /**

@@ -71,7 +71,7 @@ object PendingImport {
 }
 
 @Composable
-fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> Unit, onAi: () -> Unit) {
+fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: Int) -> Unit, onAi: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val courses by remember { CourseStore.observeAll() }.collectAsState(initial = null)
@@ -97,11 +97,12 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> U
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("코스", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
-        AiHeroCard(onAi)
+        // The one used most first: courses around here, each kind a tap away.
+        NearbyHeroCard(onSuggest)
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MakeCard(Icons.Filled.Draw, "DIY 코스 만들기", "지도에 점을 찍어\n나만의 코스", onDraw, Modifier.weight(1f))
-            MakeCard(Icons.Filled.NearMe, "AI 주변 코스", "공원·트랙·천변 코스를\nAI가 바로 짜 드려요", onSuggest, Modifier.weight(1f), ai = true)
+            MakeCard(Icons.Filled.AutoAwesome, "AI 코스 추천", "말하듯 적으면\n코스를 짜 드려요", onAi, Modifier.weight(1f), ai = true)
         }
         // GPX has no reliable MIME type across apps and file managers; accept anything and let
         // the parser decide.
@@ -140,29 +141,31 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: () -> U
     }
 }
 
-/** The way in to AI course suggestions: the feature to notice first. */
+/** The way in to courses around here, the most used: each kind (its tab) one tap away. */
 @Composable
-private fun AiHeroCard(onClick: () -> Unit) {
+private fun NearbyHeroCard(onOpen: (tab: Int) -> Unit) {
     val brush = Brush.linearGradient(listOf(Color(0xFFFF6A2B), Color(0xFFFF3D6E)))
     Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(brush).clickable(onClick = onClick)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(brush).clickable { onOpen(0) }
             .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.AutoAwesome, null, tint = Color.White)
+                Icon(Icons.Filled.NearMe, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("AI 코스 추천", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("AI 주변 코스", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(6.dp))
-            Text("말하듯 적으면 내 주변 공원·강변으로 코스를 짜 드려요", color = Color.White.copy(alpha = 0.92f),
+            Text("지금 있는 곳에서 바로 달릴 코스를 AI가 짜 드려요", color = Color.White.copy(alpha = 0.92f),
                 style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(12.dp))
+            // The tabs of the nearby screen, in its order.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("한강 따라 5km", "공원 뺑뺑이 3km", "남산 왕복").forEach {
-                    Text(it, color = Color.White, style = MaterialTheme.typography.labelMedium,
+                listOf("공원·트랙", "천·강변", "순환", "걷기길").forEachIndexed { i, label ->
+                    Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium, maxLines = 1,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.2f))
-                            .padding(horizontal = 10.dp, vertical = 5.dp))
+                            .clickable { onOpen(i) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp))
                 }
             }
         }

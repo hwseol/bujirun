@@ -32,7 +32,7 @@ object WorkoutStore {
     fun init(context: Context) {
         if (::db.isInitialized) return
         db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "bujirun.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
             .build()
     }
 
@@ -76,6 +76,7 @@ object WorkoutStore {
                         ascentM = s.ascentM,
                         runMs = s.runMs,
                         walkMs = s.walkMs,
+                        steps = s.steps,
                     )
                 )
                 if (finished) onDone(true)
