@@ -269,7 +269,7 @@ class CourseNavigator(
     private val onCourseM: Double = 25.0,
     // Generous: under trees GPS wanders 20-30 m, and a false "off course" is worse than a late one.
     private val offCourseM: Double = 50.0,
-    private val offCourseHoldMs: Long = 10_000,
+    private val offCourseHoldMs: Long = 15_000,
     /** Metres at the course's start that are the way from where the runner started (CourseJoin). */
     private val approachM: Double = 0.0,
     /** False for a route rebuilt mid-run (CourseJoin.rejoin): its halfway isn't the course's. */
@@ -294,6 +294,9 @@ class CourseNavigator(
     private var progress = 0.0
     private var offSinceMs: Long? = null
     private var offCourse = false
+    private var following = false
+    private var backSinceMs: Long? = null
+    private var lastBackMs = -BACK_QUIET_MS
     private var lastOffDistance = 0.0
     private var finished = false
     private var toStartAnnounced = false
@@ -317,10 +320,15 @@ class CourseNavigator(
 
     fun begin(): CourseCue = CourseCue.Begin(route.lengthM, approachM, laps?.count ?: 0, laps?.lapM ?: 0.0)
 
-    /** The runner's heading from the last ~20 m moved, or null if they haven't moved that far. */
-    private fun heading(): Double? {
+    /**
+     * The runner's heading over the last [overM] moved, or null if they haven't moved that far.
+     * Short (20 m) to say where the course is now; long (60 m) to judge whether they're going the
+     * course's way - over 20 m a GPS jump sideways swings the heading by 45 degrees or more.
+     */
+    private fun heading(overM: Double = 20.0): Double? {
         val now = trail.lastOrNull() ?: return null
-        val back = trail.lastOrNull { distanceBetween(it, now) >= 20 } ?: return null
+        val back = trail.lastOrNull { distanceBetween(it, now) >= overM }
+            ?: trail.firstOrNull()?.takeIf { overM > 20 && distanceBetween(it, now) >= 20 } ?: return null
         return bearingBetween(back, now)
     }
 
@@ -357,32 +365,51 @@ class CourseNavigator(
             route.locate(p, progress - 150, progress + 200)
         }
         lastOffDistance = dist
-        if (dist <= onCourseM) {
+        val h = heading()
+        val diff = heading(60.0)?.let { angleBetween(it, route.headingAt(along)) } // 0..180
+        // Following the course: on its line, or alongside it going its way - the pavement across
+        // the road, the path beside the one mapped, GPS a few dozen metres off. In the big picture
+        // that's the course; calling it "off course" every few seconds was the noise to stop.
+        following = dist <= onCourseM || (dist <= PARALLEL_M && diff != null && diff <= 45)
+        if (following) {
             progress = maxOf(progress, along)
             offSinceMs = null
-            if (offCourse) { offCourse = false; cues += CourseCue.BackOnCourse }
-        } else if (dist > offCourseM) {
-            val since = offSinceMs ?: nowMs.also { offSinceMs = it }
-            // Said once on leaving, then again every 40 s while still drifting further away.
-            val remind = offCourse && nowMs - lastOffReminderMs >= 40_000 && dist > lastOffReminderM + 10
-            if ((!offCourse && nowMs - since >= offCourseHoldMs) || remind) {
-                offCourse = true
-                lastOffReminderMs = nowMs
-                lastOffReminderM = dist
-                val target = route.pointAt(along)
-                val toward = heading()?.let { Relative.of(bearingBetween(p, target) - it) }
-                cues += CourseCue.OffCourse(toward, roundTo10(dist))
+            // Back on course: said once it's been so for a while, not on the first good fix.
+            if (offCourse) {
+                val back = backSinceMs ?: nowMs.also { backSinceMs = it }
+                if (nowMs - back >= BACK_HOLD_MS) {
+                    offCourse = false
+                    backSinceMs = null
+                    lastBackMs = nowMs
+                    cues += CourseCue.BackOnCourse
+                }
+            }
+        } else {
+            backSinceMs = null
+            if (dist > offCourseM) {
+                val since = offSinceMs ?: nowMs.also { offSinceMs = it }
+                // Said once on leaving, then again every 40 s while still drifting further away;
+                // and not within a minute of "back on course" unless clearly gone (no ping-pong).
+                val remind = offCourse && nowMs - lastOffReminderMs >= 40_000 && dist > lastOffReminderM + 10
+                val justBack = nowMs - lastBackMs < 60_000 && dist <= 2 * PARALLEL_M
+                if ((!offCourse && !justBack && nowMs - since >= offCourseHoldMs) || remind) {
+                    offCourse = true
+                    lastOffReminderMs = nowMs
+                    lastOffReminderM = dist
+                    val target = route.pointAt(along)
+                    val toward = h?.let { Relative.of(bearingBetween(p, target) - it) }
+                    cues += CourseCue.OffCourse(toward, roundTo10(dist))
+                }
             }
         }
         if (offCourse) return cues
 
-        // Wrong way: on the course but heading against it for 10 s (after moving 20 m, so a
-        // runner turning on the spot doesn't set it off).
-        val h = heading()
-        if (h != null && dist <= onCourseM) {
-            var diff = (h - route.headingAt(along)) % 360
-            if (diff < 0) diff += 360
-            if (diff in 135.0..225.0) {
+        // Wrong way: by the course (on it or alongside) but heading against it for 10 s (after
+        // moving 20 m, so a runner turning on the spot doesn't set it off). The short heading:
+        // a turn back should be noticed in seconds; the 10 s hold covers GPS jumps.
+        val against = h?.let { angleBetween(it, route.headingAt(along)) }
+        if (against != null && dist <= PARALLEL_M) {
+            if (against >= 135) {
                 val since = wrongSinceMs ?: nowMs.also { wrongSinceMs = it }
                 if (!wrongWay && nowMs - since >= 10_000) { wrongWay = true; cues += CourseCue.WrongWay }
             } else {
@@ -485,12 +512,25 @@ class CourseNavigator(
     fun matchedAlongM(): Double? =
         // Round an open loop, laps already run count on (the distance must never step back).
         (progress + if (openLaps) (lapsDone - lapsAtStart) * route.lengthM else 0.0)
-            .takeIf { started && !offCourse && !wrongWay && lastOffDistance <= onCourseM }
+            .takeIf { started && !offCourse && !wrongWay && following }
     private val lapsAtStart = lapsAlready
 
     private fun roundTo10(m: Double) = ((m / 10).roundToInt() * 10).coerceAtLeast(10)
 
     private companion object {
+        /** Alongside the course this far, going its way, still counts as following it. */
+        const val PARALLEL_M = 100.0
+        /** Back on the course this long before it's said (a GPS blip isn't "back"). */
+        const val BACK_HOLD_MS = 8_000L
+        const val BACK_QUIET_MS = 60_000L
+
+        /** Smallest angle between two bearings, 0..180. */
+        fun angleBetween(a: Double, b: Double): Double {
+            var d = (a - b) % 360
+            if (d < 0) d += 360
+            return if (d > 180) 360 - d else d
+        }
+
         fun distanceBetween(a: GeoPoint, b: GeoPoint): Double {
             val kx = 111_195.0 * cos(Math.toRadians((a.lat + b.lat) / 2))
             val dx = (b.lon - a.lon) * kx; val dy = (b.lat - a.lat) * 111_195.0

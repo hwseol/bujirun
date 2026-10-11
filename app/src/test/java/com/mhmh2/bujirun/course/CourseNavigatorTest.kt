@@ -158,11 +158,36 @@ class CourseNavigatorTest {
         // Wander 80 m east of the path.
         var t = 20_000L
         val off = mutableListOf<CourseCue>()
-        repeat(12) { off += nav.update(at(80.0, 60.0), t); t += 1000 }
+        repeat(20) { off += nav.update(at(80.0, 60.0), t); t += 1000 }
         // Came north, then drifted east: the course (at x = 0) is behind-left of the way they're going.
         assertEquals(listOf<CourseCue>(CourseCue.OffCourse(Relative.BEHIND, 80)), off)
         assertFalse(nav.progress().onCourse)
-        assertEquals(listOf<CourseCue>(CourseCue.BackOnCourse), nav.update(at(2.0, 70.0), t))
+        // Back on the course: said once they've stayed there a few seconds, not on the first fix.
+        val back = mutableListOf<CourseCue>()
+        for (n in 0..10) { back += nav.update(at(2.0, 70.0 + 3 * n), t); t += 1000 }
+        assertEquals(listOf<CourseCue>(CourseCue.BackOnCourse), back)
+    }
+
+    @Test fun runningAlongsideAcrossTheRoadIsFollowingNotOffCourse() {
+        // The whole course on the pavement across the road, ~50 m to its left, GPS wandering
+        // +-15 m on top: no "off course", no "back on course", and the turns still come.
+        val nav = CourseNavigator("L", CourseRoute(lShape))
+        val r = nav.route
+        val cues = mutableListOf<CourseCue>()
+        var d = 0.0; var t = 0L
+        nav.update(r.pointAt(0.0), t) // starts on the course
+        while (d <= r.lengthM) {
+            val p = r.pointAt(d)
+            val hdg = Math.toRadians(r.headingAt(d))
+            val off = 50.0 + (if ((t / 3000) % 2 == 0L) 15.0 else -15.0)
+            // Left of the direction of travel.
+            val q = at(0.0, 0.0).let { GeoPoint(p.lat + off * kotlin.math.sin(hdg) / 111_195.0, p.lon - off * kotlin.math.cos(hdg) / kx) }
+            cues += nav.update(q, t)
+            d += 3; t += 1000
+        }
+        assertTrue(cues.toString(), cues.none { it is CourseCue.OffCourse || it == CourseCue.BackOnCourse })
+        assertTrue(cues.toString(), cues.any { it is CourseCue.TurnNow })
+        assertTrue("progress ${nav.progress().progressM}", nav.progress().progressM > 1000)
     }
 
     @Test fun offCourseSaysWhereTheCourseIsAndRemindsWhileDrifting() {
