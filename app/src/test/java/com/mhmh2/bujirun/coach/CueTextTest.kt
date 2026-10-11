@@ -32,8 +32,12 @@ class CueTextTest {
         assertEquals("운동을 시작합니다. 목표 5킬로미터.", CueText.of(Cue.Started(Goal.Distance(5000.0))))
         assertEquals("운동을 시작합니다. 목표 페이스 6분.", CueText.of(Cue.Started(Goal.Pace(360))))
         assertEquals(
-            "1킬로미터. 이번 구간 6분 12초. 총 시간 6분 12초.",
+            "1킬로미터 달렸어요. 이번 1킬로미터 6분 12초. 평균 페이스 6분 12초. 총 시간 6분 12초.",
             CueText.of(Cue.Split(1000.0, 372_000, 372_000))
+        )
+        assertEquals(
+            "3킬로미터 달렸어요. 이번 1킬로미터 5분 40초. 평균 페이스 5분 50초. 총 시간 17분 30초.",
+            CueText.of(Cue.Split(3000.0, 340_000, 1_050_000))
         )
         assertEquals("조금 빠르게. 지금 6분 30초 페이스예요.", CueText.of(Cue.PaceAdvice(true, 390.0)))
         assertEquals("목표 달성! 5킬로미터, 31분 4초.", CueText.of(Cue.GoalReached(5000.0, 1_864_000)))

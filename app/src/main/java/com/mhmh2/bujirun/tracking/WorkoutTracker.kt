@@ -98,27 +98,38 @@ class WorkoutTracker(
         lastTickMs = nowMs
     }
 
-    fun pause(nowMs: Long) {
+    /**
+     * [keepPlace]: an auto-pause (waiting at a crossing). The runner carries on from where they
+     * stopped, and the metres between stopping and the resume being noticed (2-5 s of moving
+     * again) count - dropping them at every crossing is what made distance come out short. A
+     * pause the runner chose drops whatever happens while paused (walking back to the start...).
+     */
+    fun pause(nowMs: Long, keepPlace: Boolean = false) {
         if (status != WorkoutStatus.RUNNING) return
         tick(nowMs)
         activeMsBeforeSegment += nowMs - segmentStartMs
         status = WorkoutStatus.PAUSED
-        // Whatever distance is covered while paused (walking back to the start, etc.) must not
-        // count: the first fix after resuming becomes a fresh anchor.
-        anchor = null
-        anchorAlong = null
-        lastAccepted = null
+        keptPlace = keepPlace
+        if (!keepPlace) {
+            anchor = null
+            anchorAlong = null
+            lastAccepted = null
+        }
         recent.clear()
         speeds.clear()
-        elevation.breakSegment()
+        if (!keepPlace) elevation.breakSegment()
     }
+
+    private var keptPlace = false
 
     fun resume(nowMs: Long) {
         if (status != WorkoutStatus.PAUSED) return
         status = WorkoutStatus.RUNNING
         segmentStartMs = nowMs
         lastTickMs = nowMs
-        segment++
+        // The track goes on unbroken after a crossing; a chosen pause starts a new segment.
+        if (!keptPlace) segment++
+        keptPlace = false
     }
 
     fun finish(nowMs: Long) {

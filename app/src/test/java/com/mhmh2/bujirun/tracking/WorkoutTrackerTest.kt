@@ -57,6 +57,20 @@ class WorkoutTrackerTest {
         assertEquals(120.0, t.distanceM, 3.0)
     }
 
+    @Test fun autoPauseAtACrossingLosesNoDistance() {
+        // 180 m, stop at a crossing (auto-pause), then 12 m of moving again before the resume is
+        // noticed, then 180 m more: all 372 m count, and the track isn't split.
+        val t = WorkoutTracker()
+        t.start(0)
+        t.run(0, 0.0, seconds = 60, mps = 3.0)
+        t.pause(60_000, keepPlace = true)
+        t.run(80_000, 180.0, seconds = 4, mps = 3.0) // ignored while paused: 180 -> 192 m
+        t.resume(84_000)
+        t.run(85_000, 195.0, seconds = 59, mps = 3.0) // 195 -> 372 m
+        assertEquals(372.0, t.distanceM, 5.0)
+        assertEquals(1, t.track.map { it.segment }.distinct().size)
+    }
+
     @Test fun pausedTimeAndMovementDoNotCount() {
         val t = WorkoutTracker()
         t.start(0)

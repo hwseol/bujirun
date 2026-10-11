@@ -282,6 +282,12 @@ class CourseNavigator(
     val openLaps: Boolean = false,
     lapsAlready: Int = 0,
     lapStartMs: Long? = null,
+    /**
+     * The route begins where the runner is (joined from their position, rerouted, their own
+     * loop): they're on it from the first fix. A GPS jump right after must not turn into "the
+     * start is 80 m away, go there" in the middle of a run.
+     */
+    startsHere: Boolean = false,
 ) {
     // Recent positions, for the runner's own heading (needed to say "the course is to your
     // right" and to notice running the wrong way).
@@ -290,7 +296,7 @@ class CourseNavigator(
     private var lastOffReminderM = 0.0
     private var wrongSinceMs: Long? = null
     private var wrongWay = false
-    private var started = false
+    private var started = startsHere
     private var progress = 0.0
     private var offSinceMs: Long? = null
     private var offCourse = false

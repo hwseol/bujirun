@@ -297,7 +297,7 @@ class WorkoutService : LifecycleService() {
         val approach = if (d > CourseJoin.JOIN_M) walkingRoute(here, points[i]) else null
         val run = CourseJoin.join(points, here, approach)
         val extra = (CourseRoute(run).lengthM - CourseRoute(points).lengthM).coerceAtLeast(0.0)
-        return CourseNavigator(name, CourseRoute(run), approachM = extra)
+        return CourseNavigator(name, CourseRoute(run), approachM = extra, startsHere = true)
     }
 
     /** Names at the turns, for the voice ("역삼역 근처에서 오른쪽"); guidance goes on without them. */
@@ -347,7 +347,7 @@ class WorkoutService : LifecycleService() {
         val ownWay = p == null || p.finished || (p.started && !p.onCourse)
         if (!ownWay || nav?.openLaps == true) return
         val route = CourseRoute(loop.points)
-        navigator = CourseNavigator("내 바퀴", route, announceHalfway = false, openLaps = true, lapsAlready = 1, lapStartMs = now)
+        navigator = CourseNavigator("내 바퀴", route, announceHalfway = false, openLaps = true, lapsAlready = 1, lapStartMs = now, startsHere = true)
         offSinceMs = null
         say(Cue.Course(CourseCue.LoopLearned(route.lengthM, loop.lapMs)))
         publish()
@@ -369,7 +369,7 @@ class WorkoutService : LifecycleService() {
             val newRoute = CourseRoute(run)
             rerouting = false
             if (navigator !== nav || tracker == null) return@launch // stopped or rerouted meanwhile
-            val rerouted = CourseNavigator(courseName, newRoute, announceHalfway = false)
+            val rerouted = CourseNavigator(courseName, newRoute, announceHalfway = false, startsHere = true)
             navigator = rerouted
             fetchLandmarks(rerouted)
             val toCourse = (newRoute.lengthM - (route.lengthM - at)).coerceAtLeast(0.0)
@@ -415,7 +415,7 @@ class WorkoutService : LifecycleService() {
         val announce = t.distanceM >= 10
         when (decision) {
             AutoPauseDetector.Decision.PAUSE -> if (t.status == WorkoutStatus.RUNNING) {
-                t.pause(now)
+                t.pause(now, keepPlace = true)
                 pausedBy = PausedBy.AUTO
                 if (announce) say(Cue.AutoPaused)
             }

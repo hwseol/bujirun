@@ -168,6 +168,18 @@ class CourseNavigatorTest {
         assertEquals(listOf<CourseCue>(CourseCue.BackOnCourse), back)
     }
 
+    @Test fun aRouteFromHereNeverSendsTheRunnerToItsStart() {
+        // Rerouted (or joined) from where the runner is; the next fix jumps 80 m: no "the start
+        // is 80 m away", no "off course" - and the run goes on along it.
+        val nav = CourseNavigator("L", CourseRoute(lShape), announceHalfway = false, startsHere = true)
+        var t = 0L
+        val cues = mutableListOf<CourseCue>()
+        cues += nav.update(at(-80.0, 0.0), t)
+        for (n in 3..120 step 3) { t += 1000; cues += nav.update(at(0.0, n.toDouble()), t) }
+        assertTrue(cues.toString(), cues.none { it is CourseCue.ToStart || it is CourseCue.OffCourse || it == CourseCue.WrongWay })
+        assertEquals(120.0, nav.progress().progressM, 5.0)
+    }
+
     @Test fun backOnTheCourseAfterAGapInFixesIsNotOffCourse() {
         // Following the first leg, then no usable fix for 400 m (tunnel, bad GPS), then on the
         // course again 400 m further: that's where they are, not "80 m off course".

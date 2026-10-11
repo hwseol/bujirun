@@ -11,9 +11,12 @@ object CueText {
         is Cue.Countdown -> when (cue.n) { 3 -> "셋"; 2 -> "둘"; 1 -> "하나"; else -> cue.n.toString() }
         is Cue.Started -> "운동을 시작합니다." + goalPhrase(cue.goal)
         is Cue.Split ->
-            "${km(cue.distanceM)}. 이번 구간 ${duration(cue.splitMs)}" +
-                (if (cue.splitM != 1000.0 && cue.splitM > 0) ", 페이스 ${pace(cue.splitMs / cue.splitM)}" else "") +
-                ". 총 시간 ${duration(cue.totalMs)}."
+            // How far, this kilometre's time (that is its pace), the average pace, the time so far.
+            "${km(cue.distanceM)} 달렸어요. " +
+                (if (cue.splitM == 1000.0) "이번 1킬로미터 ${duration(cue.splitMs)}. "
+                else "이번 구간 ${duration(cue.splitMs)}, 페이스 ${pace(cue.splitMs / cue.splitM)}. ") +
+                (if (cue.distanceM > 0) "평균 페이스 ${pace(cue.totalMs / cue.distanceM)}. " else "") +
+                "총 시간 ${duration(cue.totalMs)}."
         is Cue.TimeMark ->
             "${duration(cue.totalMs)} 경과. ${km(cue.distanceM)}." +
                 (cue.averagePaceSecPerKm?.let { " 평균 페이스 ${pace(it)}." } ?: "")
