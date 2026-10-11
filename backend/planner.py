@@ -19,6 +19,7 @@ import parkpaths
 import places
 import elevation
 import routes
+import cache
 import shade
 import waterside
 
@@ -152,7 +153,10 @@ def km(m) -> str:
 class Planner:
     def __init__(self, user_id: int, route=None, find=None, nearby=None, shape=None, charge=None, loops=None,
                  poi=None, paths=None, now=None, tracks=None, waterside_fn=None):
-        self.route_fn = route or routes.pedestrian
+        # The real router is cached (routes.pedestrian) and charges the user only on a TMAP
+        # request; an injected one (tests) is charged on every call.
+        self._real_router = route is None
+        self.route_fn = route or (lambda a, b, via: routes.pedestrian(a, b, via, on_miss=self.charge))
         self.find = find or places.find
         # Names places.db doesn't have (landmarks, stations, buildings): TMAP place search.
         self.poi = poi or routes.poi_search
@@ -163,7 +167,8 @@ class Planner:
         self.waterside = waterside_fn or waterside.along
         # Every TMAP request counts against the user's daily allowance (routes.charge).
         self.charge = charge or (lambda: routes.charge(user_id))
-        self.loops = loops or (lambda s, d: routes.loops(s, d, user_id, count=2, route=self.route_fn))
+        self.loops = loops or (lambda s, d: routes.loops(s, d, user_id, count=2,
+                                                          route=None if self._real_router else self.route_fn))
         self.calls = 0
         self.now = now  # planning time, for the sun (tests pass a fixed one)
         self.prefer_shade = False
@@ -172,7 +177,8 @@ class Planner:
     def route(self, a, b, via=None, spurs=False):
         """Walking route a -> via -> b. Dead-end detours are cut (a via point at the end of a
         cul-de-sac) unless [spurs] - going into a park and back out is the point of a park tour."""
-        self.charge()
+        if not self._real_router:
+            self.charge()
         self.calls += 1
         r = self.route_fn(a, b, via)
         return r["points"] if spurs else routes.remove_spurs(r["points"])
@@ -642,23 +648,17 @@ class Planner:
 
 # --- cache: the same request from the same spot within a week reuses the answer --------------
 
-_cache: dict = {}
-
-
 def cached_plan(start, intent, planner: Planner) -> dict:
+    """The plan from cache.py when the same request came from about the same spot (~100 m)
+    this week - kept on disk, so a restart or a deploy doesn't throw a week of them away."""
     # Whether the sun is high is part of the request: the same words make a shadier course at noon.
-    key = (round(start[0], 3), round(start[1], 3), json.dumps(intent, sort_keys=True, ensure_ascii=False),
-           shade.strong_sun(start[0], start[1], planner.now))
-    hit = _cache.get(key)
-    if hit and time.time() - hit[0] < CACHE_S:
-        return hit[1]
+    key = cache.key_of(round(start[0], 3), round(start[1], 3), intent, shade.strong_sun(start[0], start[1], planner.now))
+    if (hit := cache.get("plan", key, CACHE_S)) is not None:
+        return hit
     result = planner.plan(start, intent).to_json()
     # Made without the waterside paths because they're still being fetched: good enough for
     # now, but not to keep for a week - the next request will have them.
     if waterside.fetching():
         return result
-    _cache[key] = (time.time(), result)
-    if len(_cache) > 2000:
-        for k in sorted(_cache, key=lambda k: _cache[k][0])[:500]:
-            del _cache[k]
+    cache.put("plan", key, result)
     return result

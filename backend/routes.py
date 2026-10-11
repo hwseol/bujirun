@@ -14,6 +14,8 @@ import urllib.parse
 import urllib.request
 from datetime import date
 
+import cache
+
 TMAP_URL = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1"
 PER_USER_DAILY = 300
 
@@ -58,7 +60,43 @@ def parse_tmap(data: dict) -> dict:
     return {"distance_m": distance, "points": points}
 
 
-def pedestrian(start: list[float], end: list[float], via: list[list[float]] | None = None) -> dict:
+ROUTE_CACHE_S = 30 * 86400    # streets and paths change rarely
+NO_ROUTE_CACHE_S = 86400      # "no walkable route" remembered a day: not asked again and again
+
+
+class NoRoute(RouteError):
+    """TMAP found no walkable way (a point in a river, a motorway): worth remembering."""
+
+
+def _snap(p) -> list[float]:
+    # ~10 m: the same spot asked for again (a chip tapped twice, DIY undo and redo, the same park
+    # from the same flat) is the same request.
+    return [round(p[0], 4), round(p[1], 4)]
+
+
+def pedestrian(start: list[float], end: list[float], via: list[list[float]] | None = None, on_miss=None) -> dict:
+    """A walking route start -> (via...) -> end, from the cache when it's been asked before -
+    either way round: a walk from B to A is the walk from A to B reversed. Only an actual TMAP
+    request calls [on_miss] (the per-user daily allowance counts those, not cache hits)."""
+    stops = [_snap(start)] + [_snap(v) for v in (via or [])[:5]] + [_snap(end)]
+    flip = stops[::-1] < stops
+    key = cache.key_of(stops[::-1] if flip else stops)
+    if (hit := cache.get("route", key, ROUTE_CACHE_S)) is not None:
+        return {"distance_m": hit["distance_m"], "points": hit["points"][::-1] if flip else hit["points"]}
+    if (err := cache.get("noroute", key, NO_ROUTE_CACHE_S)) is not None:
+        raise NoRoute(err)
+    if on_miss:
+        on_miss()
+    try:
+        r = _tmap_pedestrian(start, end, via)
+    except NoRoute as e:
+        cache.put("noroute", key, str(e))
+        raise
+    cache.put("route", key, {"distance_m": r["distance_m"], "points": r["points"][::-1] if flip else r["points"]})
+    return r
+
+
+def _tmap_pedestrian(start: list[float], end: list[float], via: list[list[float]] | None = None) -> dict:
     """A walking route start -> (via...) -> end. TMAP takes up to 5 via points in one request."""
     key = os.environ.get("TMAP_APP_KEY")
     if not key:
@@ -82,7 +120,7 @@ def pedestrian(start: list[float], end: list[float], via: list[list[float]] | No
         if e.code == 429:
             raise RouteError("경로 계산이 잠시 몰렸어요. 잠시 후 다시 해 주세요.")
         # 400s here are mostly "no walkable route" (e.g. a point in the river) or out of range.
-        raise RouteError("이 두 지점 사이의 걷는 길을 찾지 못했어요.")
+        raise NoRoute("이 두 지점 사이의 걷는 길을 찾지 못했어요.")
     except (urllib.error.URLError, TimeoutError, ValueError):
         raise RouteError("경로를 계산하지 못했어요. 잠시 후 다시 해 주세요.")
 
@@ -90,12 +128,31 @@ def pedestrian(start: list[float], end: list[float], via: list[list[float]] | No
 POI_URL = "https://apis.openapi.sk.com/tmap/pois"
 
 
+POI_CACHE_S = 7 * 86400
+
+
 def poi_search(keyword: str, near: list[float], radius_km: int = 30) -> list[dict]:
     """TMAP place search around [near], for names places.db doesn't know (landmarks, buildings,
-    stations). [{name, lat, lon, away_m, address}], best match first as TMAP ranks them."""
+    stations). [{name, lat, lon, away_m, address}], best match first as TMAP ranks them. The
+    same words from about the same place (~1 km) within a week come from the cache, with the
+    distances worked out again from where the asker is."""
+    words = " ".join(keyword.split())
+    key = cache.key_of(words, round(near[0], 2), round(near[1], 2), min(radius_km, 33))
+    found = cache.get("poi", key, POI_CACHE_S)
+    if found is None:
+        found = _tmap_poi(words, near, radius_km)
+        if found is None:
+            return []  # TMAP unreachable: nothing to remember
+        cache.put("poi", key, found)
+    kx = M_PER_DEG * math.cos(math.radians(near[0]))
+    return [{**p, "away_m": round(math.hypot((p["lon"] - near[1]) * kx, (p["lat"] - near[0]) * M_PER_DEG))} for p in found]
+
+
+def _tmap_poi(keyword: str, near: list[float], radius_km: int = 30) -> list[dict] | None:
+    """TMAP's answer, or None if it couldn't be asked (no key, network)."""
     key = os.environ.get("TMAP_APP_KEY")
     if not key:
-        return []
+        return None
     qs = urllib.parse.urlencode({
         "version": 1, "searchKeyword": keyword, "count": 10, "searchType": "all",
         "centerLat": near[0], "centerLon": near[1], "radius": min(radius_km, 33),
@@ -106,7 +163,7 @@ def poi_search(keyword: str, near: list[float], radius_km: int = 30) -> list[dic
         with urllib.request.urlopen(req, timeout=10) as r:
             body = r.read()
     except (urllib.error.URLError, TimeoutError):
-        return []
+        return None
     if not body:  # TMAP answers 204 with no body when nothing matches
         return []
     pois = ((json.loads(body).get("searchPoiInfo") or {}).get("pois") or {}).get("poi") or []
@@ -226,7 +283,10 @@ def loops(start: list[float], distance_m: float, user_id: int, count: int = 3, s
     Each direction gets up to two tries: the second rescales the circle by how far the first
     route's length missed. Loops that mostly double back on themselves are dropped.
     [route] is injectable for tests (defaults to TMAP)."""
-    route = route or (lambda s, e, via: pedestrian(s, e, via))
+    # The default router charges the user only when it actually asks TMAP (cache misses); an
+    # injected one (the planner's, tests') is charged as before.
+    charged = route is not None
+    route = route or (lambda s, e, via: pedestrian(s, e, via, on_miss=lambda: charge(user_id)))
     rng = random.Random(seed)
     base = rng.uniform(0, 2 * math.pi)
     results = []
@@ -235,7 +295,8 @@ def loops(start: list[float], distance_m: float, user_id: int, count: int = 3, s
         radius = distance_m / (2 * math.pi * DETOUR)
         best = None
         for _ in range(2):
-            charge(user_id)
+            if charged:
+                charge(user_id)
             try:
                 r = route(start, start, circle_waypoints(start, radius, theta))
             except RouteError:

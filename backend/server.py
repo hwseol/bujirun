@@ -11,6 +11,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 import accounts
+import cache
 import elevation
 import landmarks
 import places
@@ -106,8 +107,8 @@ def pedestrian_route(req: RouteRequest, authorization: str | None = Header(None)
     if len(req.start) != 2 or len(req.end) != 2:
         raise HTTPException(status_code=400, detail="잘못된 위치예요.")
     try:
-        routes.charge(user["id"])
-        return routes.pedestrian(req.start, req.end)
+        # Charged only when TMAP is actually asked (routes.pedestrian caches answers).
+        return routes.pedestrian(req.start, req.end, on_miss=lambda: routes.charge(user["id"]))
     except routes.RouteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -120,10 +121,9 @@ def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
     user = _user(authorization)
     if len(req.start) != 2 or not 1_000 <= req.distance_m <= 21_100:
         raise HTTPException(status_code=400, detail="1~21km 사이로 골라 주세요.")
-    key = (round(req.start[0], 3), round(req.start[1], 3), round(req.distance_m))
-    hit = _loop_cache.get(key)
-    if hit and time.time() - hit[0] < planner.CACHE_S:
-        return {"loops": hit[1]}
+    key = cache.key_of(round(req.start[0], 3), round(req.start[1], 3), round(req.distance_m))
+    if (hit := cache.get("loops", key, planner.CACHE_S)) is not None:
+        return {"loops": hit}
     try:
         loops = routes.loops(req.start, req.distance_m, user["id"])
     except routes.RouteError as e:
@@ -141,14 +141,8 @@ def loop_routes(req: LoopRequest, authorization: str | None = Header(None)):
     if shade.has_map():
         if shade.strong_sun(*req.start):
             loops.sort(key=lambda c: -c["shade"])
-    _loop_cache[key] = (time.time(), loops)
-    if len(_loop_cache) > 2000:
-        for k in sorted(_loop_cache, key=lambda k: _loop_cache[k][0])[:500]:
-            del _loop_cache[k]
+    cache.put("loops", key, loops)
     return {"loops": loops}
-
-
-_loop_cache: dict = {}
 
 
 class PlanPlace(BaseModel):

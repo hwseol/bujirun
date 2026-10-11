@@ -195,7 +195,7 @@ class PlannerTest(unittest.TestCase):
         self.assertFalse({"동작주차", "동작주차공원"} <= set(via))
 
     def test_cache_answers_the_same_request_without_routing_again(self):
-        planner._cache.clear()
+        planner.cache.clear("plan")
         r = FakeRouter()
         intent = {"distance_m": 3000, "places": [{"name": "네모공원", "role": "AROUND"}]}
         a = planner.cached_plan(START, intent, make(r))
