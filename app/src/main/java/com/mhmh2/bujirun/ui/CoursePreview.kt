@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.doOnLayout
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.mhmh2.bujirun.course.CourseGeometry
@@ -176,7 +177,7 @@ private fun legLines(points: List<GeoPoint>, legs: List<RouteApi.Leg>): List<Lis
  * show on its own - drawn over the (faded) course and zoomed to.
  */
 @Composable
-private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null) {
+internal fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null) {
     val part = remember { PathOverlay() }
     val whole = remember { PathOverlay() }
     val density = LocalDensity.current.density
@@ -200,7 +201,8 @@ private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null)
             directionMarkers(map, points, density, color)
             endpointMarker(map, fit.first(), "출발", START_GREEN, density)
             if (!CourseGeometry.isLoop(points)) endpointMarker(map, fit.last(), "도착", END_DARK, density)
-            map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(fit), (48 * density).toInt()))
+            // Fitted once the view has its size (inside a scrolling page it may not have yet).
+            mapView.doOnLayout { map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(fit), (48 * density).toInt())) }
         }
     }
     LaunchedEffect(mapView, highlight) {

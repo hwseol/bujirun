@@ -31,6 +31,8 @@ def _db():
     path = Path(os.environ.get("BJ_DATA_DIR") or Path(__file__).parent) / "waterside.db"
     db = sqlite3.connect(path)
     db.execute("CREATE TABLE IF NOT EXISTS areas (key TEXT PRIMARY KEY, at REAL, elements TEXT)")
+    # Prebuilt: per 0.01 degree cell (~1 km), only what along() uses (see prebuild).
+    db.execute("CREATE TABLE IF NOT EXISTS cells (key TEXT PRIMARY KEY, elements TEXT)")
     return db
 
 
@@ -58,6 +60,9 @@ def elements_around(points, fetch=None) -> list | None:
     e = math.ceil((max(p[1] for p in points) + pad) * 100) / 100
     if (n - s) * (e - w) > 0.0025:  # over ~5 x 4.5 km: too big a query for a course stretch
         return None
+    # Built ahead of time on the PC (prebuild below) for the rivers people run by: no waiting.
+    if (els := _from_cells(s, w, n, e)) is not None:
+        return els
     key = f"{s:.2f},{w:.2f},{n:.2f},{e:.2f}"
     db = _db()
     try:
@@ -263,3 +268,155 @@ def along(points, start=None, fetch=None, within_m: float = 150, sides=None, riv
             return None
         out += part[1:] if out else part
     return [list(n) for n in parkpaths._drop_backtracks(out)]
+
+
+# --- Prebuilt cells ---------------------------------------------------------------------------
+# Fetching an area from Overpass while someone waits for a course takes seconds to minutes (the
+# public servers are busy). So for the rivers in places.db the paths by the water are fetched
+# ahead of time on the PC and shipped in waterside.db, per 0.01 degree cell, cut down to what
+# along() uses: path segments within NEAR_M of the water, the water's lines and outlines, and
+# the river names. Each piece is stored in the cell of its midpoint, so cells add up without
+# overlap.
+
+def _cell_of(lat, lon) -> tuple[int, int]:
+    return math.floor(lat * 100), math.floor(lon * 100)
+
+
+def _from_cells(s, w, n, e) -> list | None:
+    """The prebuilt elements for the box (whole cells), or None if any cell isn't built."""
+    keys = [f"{i},{j}" for i in range(round(s * 100), round(n * 100)) for j in range(round(w * 100), round(e * 100))]
+    if not keys:
+        return None
+    db = _db()
+    try:
+        marks = ",".join("?" * len(keys))
+        rows = db.execute(f"SELECT elements FROM cells WHERE key IN ({marks})", keys).fetchall()
+    finally:
+        db.close()
+    if len(rows) < len(keys):
+        return None
+    return [el for (els,) in rows for el in json.loads(els)]
+
+
+_KEEP_TAGS = ("highway", "bridge", "waterway", "natural", "name")
+
+
+def _split(a, b, max_m=200):
+    """[a, b] cut into pieces no longer than max_m (so a long edge lands in the cells it crosses)."""
+    k = max(1, math.ceil(parkpaths._dist(a, b) / max_m))
+    pts = [[a[0] + (b[0] - a[0]) * i / k, a[1] + (b[1] - a[1]) * i / k] for i in range(k + 1)]
+    return list(zip(pts, pts[1:]))
+
+
+def cells_from(elements, wanted: set) -> dict:
+    """Overpass elements (an area padded beyond the [wanted] cells, so the water near their edges
+    is there) as compact per-cell element lists for the wanted cells."""
+    water = Water(elements)
+    out: dict = {c: [] for c in wanted}
+    for el in elements:
+        t = el.get("tags", {})
+        is_water = "waterway" in t or t.get("natural") == "water"
+        if not is_water and "highway" not in t:
+            continue
+        if is_water:
+            lines = osm.lines_of(el)
+        else:
+            lines = [[[p["lat"], p["lon"]] for p in el.get("geometry") or [] if p]]
+        tags = {k: t[k] for k in _KEEP_TAGS if k in t}
+        for line in lines:
+            runs: dict = {}  # cell -> the line being extended there
+            for a, b in zip(line, line[1:]):
+                for pa, pb in _split(a, b):
+                    mid = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2]
+                    cell = _cell_of(*mid)
+                    if cell not in wanted or (not is_water and water.distance(mid) > NEAR_M):
+                        runs.pop(cell, None)
+                        continue
+                    run = runs.get(cell)
+                    if run is not None and run[-1] == pa:
+                        run.append(pb)
+                    else:
+                        run = [pa, pb]
+                        runs[cell] = run
+                        out[cell].append((tags, run))
+    return {
+        c: [{"type": "way", "tags": tags, "geometry": [{"lat": round(p[0], 6), "lon": round(p[1], 6)} for p in run]}
+            for tags, run in pieces]
+        for c, pieces in out.items()
+    }
+
+
+def store_cells(cells: dict) -> None:
+    db = _db()
+    try:
+        db.executemany("INSERT OR REPLACE INTO cells VALUES (?, ?)",
+                       [(f"{c[0]},{c[1]}", json.dumps(els, separators=(",", ":"), ensure_ascii=False))
+                        for c, els in cells.items()])
+        db.commit()
+    finally:
+        db.close()
+
+
+def river_cells(places_db: str, s, w, n, e) -> set:
+    """Cells a river or stream line in places.db passes through, and their neighbours (a course
+    request pads 300 m and rounds out to whole cells)."""
+    conn = sqlite3.connect(places_db)
+    rows = conn.execute("SELECT shape FROM places WHERE kind = 'river' AND shape IS NOT NULL "
+                        "AND max_lat >= ? AND min_lat <= ? AND max_lon >= ? AND min_lon <= ?", (s, n, w, e)).fetchall()
+    conn.close()
+    near = set()
+    for (shape,) in rows:
+        for line in json.loads(shape):
+            for a, b in zip(line, line[1:]):
+                for pa, pb in _split(a, b, 300):
+                    for q in (pa, pb):
+                        if s <= q[0] < n and w <= q[1] < e:
+                            near.add(_cell_of(*q))
+    return {(i + di, j + dj) for i, j in near for di in (-1, 0, 1) for dj in (-1, 0, 1)}
+
+
+def prebuild(places_db: str, s, w, n, e, tile=0.05, log=print) -> None:
+    """Fetches and stores the cells for every river in the box, tile by tile, patiently (this
+    runs on the PC, nobody is waiting). Cells already built are skipped, so it can be resumed."""
+    wanted = river_cells(places_db, s, w, n, e)
+    db = _db()
+    done = {r[0] for r in db.execute("SELECT key FROM cells")}
+    db.close()
+
+    def tile_of(c):
+        return math.floor(c[0] / 100 / tile + 1e-9), math.floor(c[1] / 100 / tile + 1e-9)
+
+    todo = sorted({tile_of(c) for c in wanted if f"{c[0]},{c[1]}" not in done})
+    log(f"{len(wanted)} cells, {len(todo)} tiles to fetch")
+    for k, (ti, tj) in enumerate(todo, 1):
+        ts, tw = ti * tile, tj * tile
+        cells = {c for c in wanted if tile_of(c) == (ti, tj)}
+        pad = 0.003
+        q = query(ts - pad, tw - pad, ts + tile + pad, tw + tile + pad).replace("[timeout:25]", "[timeout:180]")
+        els = None
+        for attempt in range(6):
+            for url in landmarks.QUICK_SERVERS[::-1]:
+                try:
+                    body = landmarks._fetch(url, q, timeout=200)
+                    if body[:1] == b"{":
+                        els = json.loads(body)["elements"]
+                        break
+                except Exception as ex:  # busy, rate-limited: wait and retry
+                    log(f"  {url.split('/')[2]}: {ex}")
+            if els is not None:
+                break
+            time.sleep(30 * (attempt + 1))
+        if els is None:
+            log(f"tile {ts:.2f},{tw:.2f}: gave up")
+            continue
+        store_cells(cells_from(els, cells))
+        log(f"[{k}/{len(todo)}] tile {ts:.2f},{tw:.2f}: {len(els)} elements -> {len(cells)} cells")
+        time.sleep(5)  # be kind to the public server
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 7 and sys.argv[1] == "prebuild":
+        prebuild(sys.argv[2], *map(float, sys.argv[3:7]))
+    else:
+        sys.exit("usage: waterside.py prebuild <places.db> <south> <west> <north> <east>   (BJ_DATA_DIR set)")

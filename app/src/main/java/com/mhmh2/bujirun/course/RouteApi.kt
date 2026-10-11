@@ -8,6 +8,8 @@ import org.json.JSONObject
 
 /** Walking routes and courses from our server (which asks TMAP where it must). */
 object RouteApi {
+    // Planning somewhere new can take the server a while (routes to fetch); don't give up at 20 s.
+    private const val PLAN_TIMEOUT_MS = 60_000
     suspend fun walk(from: GeoPoint, to: GeoPoint): List<GeoPoint> {
         val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
         val json = Api.post(
@@ -30,7 +32,7 @@ object RouteApi {
         val json = Api.post(
             "/routes/loops",
             JSONObject().put("start", JSONArray().put(start.lat).put(start.lon)).put("distance_m", distanceM),
-            token,
+            token, readTimeoutMs = PLAN_TIMEOUT_MS,
         )
         val loops = json.getJSONArray("loops")
         return (0 until loops.length()).map {
@@ -85,7 +87,7 @@ object RouteApi {
         val json = Api.post(
             "/routes/plan",
             JSONObject().put("start", JSONArray().put(start.lat).put(start.lon)).put("intent", body),
-            token,
+            token, readTimeoutMs = PLAN_TIMEOUT_MS,
         )
         val courses = json.getJSONArray("courses")
         return Plan(

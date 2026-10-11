@@ -2,7 +2,16 @@ package com.mhmh2.bujirun.ui
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.mhmh2.bujirun.course.CourseGpx
+import com.mhmh2.bujirun.course.CourseRoute
+import com.mhmh2.bujirun.course.CourseSection
+import com.mhmh2.bujirun.course.Landmark
+import com.mhmh2.bujirun.course.RouteApi
+import com.mhmh2.bujirun.course.isOutAndBack
+import com.mhmh2.bujirun.course.sections
+import com.mhmh2.bujirun.course.slice
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
 import com.mhmh2.bujirun.course.sourceEnum
@@ -51,6 +67,17 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
     val points by remember(courseId) { CourseStore.observePoints(courseId) }.collectAsState(initial = emptyList())
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    // The course piece by piece, turn to turn; the tapped one is shown on its own on the map.
+    val route = remember(points) { points.takeIf { it.size >= 2 }?.let(::CourseRoute) }
+    val sections = remember(route) { route?.sections().orEmpty() }
+    var picked by remember(points) { mutableStateOf<Int?>(null) }
+    // What's at each turn ("GS25 앞에서"), from the server when it knows; the list works without.
+    var landmarks by remember(points) { mutableStateOf<List<Landmark?>>(emptyList()) }
+    LaunchedEffect(route) {
+        val r = route ?: return@LaunchedEffect
+        val turns = sections.mapNotNull { it.turn }.take(40)
+        if (turns.isNotEmpty()) landmarks = runCatching { RouteApi.landmarks(turns.map { r.pointAt(it.atM) }) }.getOrDefault(emptyList())
+    }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -64,11 +91,17 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
             Text(c.name, style = MaterialTheme.typography.headlineSmall)
             Text(c.sourceEnum.label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
-            CourseLineView(points)
+            // A real map: pinch or +/- to zoom, drag to look around.
+            if (points.size >= 2) {
+                Box(Modifier.fillMaxWidth().height(360.dp).clip(RoundedCornerShape(16.dp))) {
+                    val highlight = picked?.let { i -> sections.getOrNull(i) }?.let { s -> route?.slice(s.fromM, s.toM) }
+                    CourseMap(points, highlight)
+                }
+            }
             Spacer(Modifier.height(20.dp))
             Row(Modifier.fillMaxWidth()) {
                 Stat("거리", "${formatKm(c.distanceM)}km", Modifier.weight(1f))
-                Stat("형태", if (c.isLoop) "순환" else "편도", Modifier.weight(1f))
+                Stat("형태", if (route?.isOutAndBack() == true) "왕복" else if (c.isLoop) "순환" else "편도", Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth()) {
@@ -81,6 +114,22 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
                     "달리기 ${formatDuration(paces.runMs(c.distanceM))} · 걷기 ${formatDuration(paces.walkMs(c.distanceM))}",
                     Modifier.weight(1f), small = true,
                 )
+            }
+            if (sections.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("코스 안내", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.width(8.dp))
+                    Text("누르면 지도에서 보여줘요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(4.dp))
+                var turnNo = 0
+                sections.forEachIndexed { i, s ->
+                    val landmark = s.turn?.let { landmarks.getOrNull(turnNo++) }
+                    SectionRow(i, s, landmark, last = i == sections.lastIndex, loop = c.isLoop, selected = picked == i) {
+                        picked = if (picked == i) null else i
+                    }
+                }
             }
             Spacer(Modifier.height(28.dp))
             Button(
@@ -115,6 +164,32 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
             confirmButton = { TextButton(onClick = { confirmDelete = false; CourseStore.delete(courseId); onClose() }) { Text("삭제") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } }
         )
+    }
+}
+
+/** "3  0.42 → 0.71km · 290m" and what to do at its end: "→ 오른쪽 · GS25 앞에서". */
+@Composable
+private fun SectionRow(index: Int, s: CourseSection, landmark: Landmark?, last: Boolean, loop: Boolean, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .background(if (selected) colors.tertiaryContainer else Color.Transparent)
+            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("${index + 1}", color = colors.primary, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp))
+        Column(Modifier.weight(1f)) {
+            val then = when {
+                s.turn != null -> "${s.turn.direction.arrow} ${s.turn.direction.spoken}" + (landmark?.let { " · ${it.at}" } ?: "")
+                last && loop -> "출발점으로 돌아와 끝"
+                else -> "도착"
+            }
+            Text(then, style = MaterialTheme.typography.titleSmall)
+            Text(
+                "${formatKm(s.fromM)} → ${formatKm(s.toM)}km · ${s.lengthM.roundToInt()}m 가서",
+                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
+            )
+        }
     }
 }
 

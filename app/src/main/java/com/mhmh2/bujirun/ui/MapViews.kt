@@ -28,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.mhmh2.bujirun.course.CourseRoute
+import com.mhmh2.bujirun.course.isOutAndBack
 import com.mhmh2.bujirun.course.GeoPoint
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
@@ -133,25 +134,33 @@ fun directionMarkers(map: NaverMap, points: List<GeoPoint>, density: Float, colo
     val route = CourseRoute(points)
     if (route.lengthM < 100) return emptyList()
     // A few are enough to tell which way round it goes (more just clutter the map): three on
-    // most courses, at a sixth, a half and five sixths of the way.
-    val step = (route.lengthM / 3).coerceIn(300.0, 3000.0)
+    // most courses, at a sixth, a half and five sixths of the way. Out and back on the same
+    // path, the way there and the way back would sit on top of each other: there each arrow
+    // goes beside the line, on its right, so "there" and "back" show side by side.
+    val outAndBack = route.isOutAndBack()
+    val at: List<Double> = if (outAndBack) {
+        val pairs = if (route.lengthM > 6000) listOf(1.0 / 8, 3.0 / 8) else listOf(1.0 / 4)
+        pairs.flatMap { f -> listOf(route.lengthM * f, route.lengthM * (1 - f)) }
+    } else {
+        val step = (route.lengthM / 3).coerceIn(300.0, 3000.0)
+        generateSequence(step / 2) { it + step }.takeWhile { it < route.lengthM - 30 }.toList()
+    }
     val icon = arrowBadge(density, color)
     val out = mutableListOf<Marker>()
-    var d = step / 2
-    while (d < route.lengthM - 30) {
+    for (d in at) {
         val p = route.pointAt(d)
         out += Marker().apply {
             position = LatLng(p.lat, p.lon)
             this.icon = icon
             width = (20 * density).toInt()
             height = (20 * density).toInt()
-            anchor = android.graphics.PointF(0.5f, 0.5f)
+            // The anchor turns with the badge: x < 0 puts it to the right of the way it points.
+            anchor = android.graphics.PointF(if (outAndBack) -0.15f else 0.5f, 0.5f)
             angle = ((route.headingAt(d) % 360 + 360) % 360).toFloat() // clockwise from north, as NAVER's is
             isFlat = true
             isHideCollidedSymbols = false
             this.map = map
         }
-        d += step
     }
     return out
 }
