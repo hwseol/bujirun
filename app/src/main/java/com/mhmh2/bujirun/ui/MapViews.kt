@@ -124,25 +124,17 @@ fun endpointMarker(map: NaverMap, at: LatLng, caption: String, tint: Int, densit
 }
 
 /**
- * Which way a course goes: small white chevrons repeated along its line (a PathOverlay turns the
- * pattern to follow the path, the top of the image pointing forward). Without them a loop on
- * the map could be either way round.
- */
-fun PathOverlay.showDirection(density: Float) {
-    patternImage = arrowImage(density)
-    patternInterval = (56 * density).toInt()
-}
-
-/**
- * Round arrow badges along [points] pointing the way the course goes, spread evenly (about
- * eight on a course, one every 150-600 m) - the line's own pattern is shrunk to the line's
- * width and too small to read on a phone. Flat, so they turn with the map.
+ * Round arrow badges along [points] pointing the way the course goes, spread evenly (a
+ * PathOverlay's own pattern is shrunk to the line's width, too small to read on a phone).
+ * Flat, so they turn with the map.
  */
 fun directionMarkers(map: NaverMap, points: List<GeoPoint>, density: Float, color: Int): List<Marker> {
     if (points.size < 2) return emptyList()
     val route = CourseRoute(points)
     if (route.lengthM < 100) return emptyList()
-    val step = (route.lengthM / 8).coerceIn(150.0, 600.0)
+    // A few are enough to tell which way round it goes (more just clutter the map): three on
+    // most courses, at a sixth, a half and five sixths of the way.
+    val step = (route.lengthM / 3).coerceIn(300.0, 3000.0)
     val icon = arrowBadge(density, color)
     val out = mutableListOf<Marker>()
     var d = step / 2
@@ -185,30 +177,6 @@ private fun arrowBadge(density: Float, color: Int): OverlayImage {
     c.drawPath(head, white)
     c.drawRect(r - s * 0.08f, s * 0.44f, r + s * 0.08f, s * 0.80f, white)
     return OverlayImage.fromBitmap(bmp).also { badge = Triple(density, color, it) }
-}
-
-private var arrow: Pair<Float, OverlayImage>? = null
-
-private fun arrowImage(density: Float): OverlayImage {
-    arrow?.takeIf { it.first == density }?.let { return it.second }
-    val w = (14 * density).toInt().coerceAtLeast(10)
-    val h = (10 * density).toInt().coerceAtLeast(8)
-    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-    val stroke = 2.6f * density
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE
-        style = Paint.Style.STROKE
-        strokeWidth = stroke
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
-    }
-    val chevron = Path().apply {
-        moveTo(stroke, h - stroke)
-        lineTo(w / 2f, stroke)
-        lineTo(w - stroke, h - stroke)
-    }
-    Canvas(bmp).drawPath(chevron, paint)
-    return OverlayImage.fromBitmap(bmp).also { arrow = density to it }
 }
 
 val START_GREEN = AndroidColor.rgb(0x2E, 0x9E, 0x5B)

@@ -43,7 +43,6 @@ fun CourseLineView(points: List<GeoPoint>, modifier: Modifier = Modifier) {
             outlineColor = AndroidColor.WHITE
             width = (7 * density).toInt()
             outlineWidth = (1.25 * density).toInt()
-            showDirection(density)
             this.map = map
         }
         result += directionMarkers(map, points, density, color)

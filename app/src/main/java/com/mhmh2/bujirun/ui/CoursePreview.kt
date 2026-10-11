@@ -195,7 +195,6 @@ private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null)
                 outlineColor = AndroidColor.WHITE
                 width = (7 * density).toInt()
                 outlineWidth = (1.5 * density).toInt()
-                showDirection(density)
                 this.map = map
             }
             directionMarkers(map, points, density, color)
@@ -218,7 +217,6 @@ private fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null)
                 part.outlineColor = AndroidColor.WHITE
                 part.width = (8 * density).toInt()
                 part.outlineWidth = (2 * density).toInt()
-                part.showDirection(density)
                 part.map = map
                 // A short part (the 30 m to a park gate) is shown at street level, not 5 m across.
                 val b = LatLngBounds.from(h)

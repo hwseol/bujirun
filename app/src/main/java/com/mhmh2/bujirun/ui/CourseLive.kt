@@ -90,7 +90,6 @@ fun CourseLiveMap(
             path.outlineColor = AndroidColor.WHITE
             path.width = (8 * density).toInt()
             path.outlineWidth = (1.5 * density).toInt()
-            path.showDirection(density)
             path.map = map
             arrows.forEach { it.map = null }
             arrows.clear()

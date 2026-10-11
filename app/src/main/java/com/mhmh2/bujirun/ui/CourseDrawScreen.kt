@@ -163,7 +163,6 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 path.outlineColor = AndroidColor.WHITE
                 path.width = (7 * density).toInt()
                 path.outlineWidth = (1.25 * density).toInt()
-                path.showDirection(density)
                 path.map = map
             } else {
                 path.map = null
