@@ -357,22 +357,33 @@ class CourseNavigator(
 
         // Normally search a window around where we were (stays on the right pass of a course
         // that crosses itself); after a while off course, look everywhere (a shortcut).
-        val (along, dist) = if (offCourse && offSinceMs?.let { nowMs - it > 30_000 } == true) {
+        var (along, dist) = if (offCourse && offSinceMs?.let { nowMs - it > 30_000 } == true) {
             route.locate(p)
         } else {
             // 150 m back, so a runner going the wrong way is still placed on the course (and told)
             // rather than called off it.
             route.locate(p, progress - 150, progress + 200)
         }
-        lastOffDistance = dist
         val h = heading()
+        // Not near where we thought: maybe the runner is further along than we'd kept up with (a
+        // stretch of bad fixes). Right on the course within the next km, going its way, is where
+        // they are - better than calling them off a course they're standing on.
+        if (dist > onCourseM) {
+            val (aheadAt, aheadDist) = route.locate(p, progress, minOf(route.lengthM, progress + 1_000))
+            val sameWay = h?.let { angleBetween(it, route.headingAt(aheadAt)) <= 45 } ?: false
+            if (aheadDist <= 15 && sameWay) { along = aheadAt; dist = aheadDist }
+        }
+        lastOffDistance = dist
         val diff = heading(60.0)?.let { angleBetween(it, route.headingAt(along)) } // 0..180
+        // Where they are along the course keeps up whenever they're anywhere near it, whatever
+        // their heading (round a corner, stop-start at a crossing the heading is unreliable) -
+        // falling behind it is what put a runner on the course "80 m off" it.
+        if (dist <= PARALLEL_M && along > progress) progress = along
         // Following the course: on its line, or alongside it going its way - the pavement across
         // the road, the path beside the one mapped, GPS a few dozen metres off. In the big picture
         // that's the course; calling it "off course" every few seconds was the noise to stop.
         following = dist <= onCourseM || (dist <= PARALLEL_M && diff != null && diff <= 45)
         if (following) {
-            progress = maxOf(progress, along)
             offSinceMs = null
             // Back on course: said once it's been so for a while, not on the first good fix.
             if (offCourse) {
@@ -404,14 +415,15 @@ class CourseNavigator(
         }
         if (offCourse) return cues
 
-        // Wrong way: by the course (on it or alongside) but heading against it for 10 s (after
-        // moving 20 m, so a runner turning on the spot doesn't set it off). The short heading:
-        // a turn back should be noticed in seconds; the 10 s hold covers GPS jumps.
+        // Wrong way: on the course but heading against it for 15 s (after moving 20 m, so a
+        // runner turning on the spot doesn't set it off). Only right on its line (alongside, it
+        // could be another road) and not at a turn, where the course's own direction flips.
+        val atTurn = route.turns.any { abs(it.atM - along) < 30 }
         val against = h?.let { angleBetween(it, route.headingAt(along)) }
-        if (against != null && dist <= PARALLEL_M) {
+        if (against != null && dist <= onCourseM && !atTurn) {
             if (against >= 135) {
                 val since = wrongSinceMs ?: nowMs.also { wrongSinceMs = it }
-                if (!wrongWay && nowMs - since >= 10_000) { wrongWay = true; cues += CourseCue.WrongWay }
+                if (!wrongWay && nowMs - since >= 15_000) { wrongWay = true; cues += CourseCue.WrongWay }
             } else {
                 wrongSinceMs = null
                 if (wrongWay) { wrongWay = false; cues += CourseCue.RightWayAgain }

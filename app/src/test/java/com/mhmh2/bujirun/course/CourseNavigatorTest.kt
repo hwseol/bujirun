@@ -168,6 +168,36 @@ class CourseNavigatorTest {
         assertEquals(listOf<CourseCue>(CourseCue.BackOnCourse), back)
     }
 
+    @Test fun backOnTheCourseAfterAGapInFixesIsNotOffCourse() {
+        // Following the first leg, then no usable fix for 400 m (tunnel, bad GPS), then on the
+        // course again 400 m further: that's where they are, not "80 m off course".
+        val nav = CourseNavigator("L", CourseRoute(lShape))
+        var t = 0L
+        val cues = mutableListOf<CourseCue>()
+        for (n in 0..60 step 3) { cues += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        t += 130_000
+        // Round the corner and along the second leg.
+        for (e in 0..90 step 3) { cues += nav.update(at(e.toDouble(), 500.0), t); t += 1000 }
+        assertTrue(cues.toString(), cues.none { it is CourseCue.OffCourse || it == CourseCue.WrongWay })
+        assertEquals(590.0, nav.progress().progressM, 15.0)
+    }
+
+    @Test fun progressKeepsUpThroughUnreliableHeadings() {
+        // Up the first leg 35 m to the side, fixes zigzagging across the road (headings all over
+        // the place), then onto the line: progress kept up, no "off course".
+        val nav = CourseNavigator("L", CourseRoute(lShape))
+        var t = 0L
+        val cues = mutableListOf<CourseCue>()
+        nav.update(at(0.0, 0.0), t)
+        for (n in 3..420 step 3) {
+            t += 1000
+            cues += nav.update(at(if ((n / 3) % 2 == 0) -35.0 else -60.0, n.toDouble()), t)
+        }
+        for (n in 423..480 step 3) { t += 1000; cues += nav.update(at(0.0, n.toDouble()), t) }
+        assertTrue(cues.toString(), cues.none { it is CourseCue.OffCourse || it == CourseCue.WrongWay })
+        assertEquals(480.0, nav.progress().progressM, 10.0)
+    }
+
     @Test fun runningAlongsideAcrossTheRoadIsFollowingNotOffCourse() {
         // The whole course on the pavement across the road, ~50 m to its left, GPS wandering
         // +-15 m on top: no "off course", no "back on course", and the turns still come.
@@ -211,11 +241,11 @@ class CourseNavigatorTest {
         // Run the course from 120 m to 200 m in, then turn back toward its start.
         for (n in 120..200 step 4) { nav.update(at(0.0, n.toDouble()), t); t += 1000 }
         val cues = mutableListOf<CourseCue>()
-        for (n in 196 downTo 120 step 4) { cues += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        for (n in 196 downTo 40 step 4) { cues += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
         assertTrue(cues.contains(CourseCue.WrongWay))
         // Turn round.
         val back = mutableListOf<CourseCue>()
-        for (n in 124..200 step 4) { back += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
+        for (n in 44..200 step 4) { back += nav.update(at(0.0, n.toDouble()), t); t += 1000 }
         assertTrue(back.contains(CourseCue.RightWayAgain))
     }
 
