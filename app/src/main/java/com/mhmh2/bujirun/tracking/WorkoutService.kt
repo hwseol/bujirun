@@ -134,7 +134,8 @@ class WorkoutService : LifecycleService() {
                     delay(1000L / simScale)
                     continue
                 }
-                val f = fake.next()
+                // Standing at the start until the countdown is over, like a real runner.
+                val f = if (countdown != null || tracker?.status == WorkoutStatus.IDLE) fake.standing() else fake.next()
                 val t = now()
                 onSample(
                     LocationSample(
@@ -273,6 +274,13 @@ class WorkoutService : LifecycleService() {
                 if (nav != null && here != null && pausedBy != PausedBy.USER && t.status != WorkoutStatus.FINISHED) {
                     val cues = nav.update(here, now())
                     cues.forEach { say(Cue.Course(it)) }
+                    // At the destination (or back at the start of a loop): the workout is done -
+                    // finished and saved, the report up, the voice says the totals. (Not a loop
+                    // of the runner's own: that goes on until they stop.)
+                    if (CourseCue.Finished in cues && !nav.openLaps) {
+                        stop(now())
+                        break
+                    }
                     autoReroute(nav, cues, now())
                 }
                 if (here != null && t.status == WorkoutStatus.RUNNING) learnLoop(here, now())

@@ -168,6 +168,19 @@ class CourseNavigatorTest {
         assertEquals(listOf<CourseCue>(CourseCue.BackOnCourse), back)
     }
 
+    @Test fun aShortLoopDoesNotFinishAsItStarts() {
+        // A 400 m loop; just after the start a fix lands 30 m off, by the loop's end (which is its
+        // start): not "finished" - the run has only begun.
+        val square = listOf(at(0.0, 0.0), at(100.0, 0.0), at(100.0, 100.0), at(0.0, 100.0), at(0.0, 0.0))
+        val nav = CourseNavigator("sq", CourseRoute(square), startsHere = true)
+        var t = 0L
+        val cues = mutableListOf<CourseCue>()
+        for (e in 0..9 step 3) { cues += nav.update(at(e.toDouble(), 0.0), t); t += 1000 }
+        cues += nav.update(at(-2.0, 30.0), t)
+        assertTrue(cues.toString(), CourseCue.Finished !in cues)
+        assertTrue(nav.progress().progressM < 100)
+    }
+
     @Test fun aRouteFromHereNeverSendsTheRunnerToItsStart() {
         // Rerouted (or joined) from where the runner is; the next fix jumps 80 m: no "the start
         // is 80 m away", no "off course" - and the run goes on along it.

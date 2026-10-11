@@ -36,6 +36,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.health.connect.client.PermissionController
+import com.mhmh2.bujirun.data.CalendarExport
+import com.mhmh2.bujirun.data.HealthExport
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.coach.CueInterval
 
@@ -59,6 +66,17 @@ fun SettingsScreen() {
     var confirmSignOut by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val autoCalendar by Prefs.autoCalendar.collectAsState()
+    val autoHealth by Prefs.autoHealth.collectAsState()
+    val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.all { it }) Prefs.setAutoCalendar(true)
+        else Toast.makeText(context, "캘린더 권한을 허용해야 기록할 수 있어요", Toast.LENGTH_LONG).show()
+    }
+    val healthPermission = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        if (granted.containsAll(HealthExport.required)) Prefs.setAutoHealth(true)
+        else Toast.makeText(context, "권한을 허용해야 삼성헬스에 저장할 수 있어요", Toast.LENGTH_LONG).show()
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
         Text("설정", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
@@ -123,6 +141,33 @@ fun SettingsScreen() {
         ToggleRow("음성 안내", "운동 중 음성으로 알려줘요. 운동 화면에서도 바꿀 수 있어요.", voiceOn, Prefs::setVoiceEnabled)
         Divider()
         ToggleRow("자동 일시정지", "멈춰 서면 기록을 잠시 멈추고, 움직이면 다시 시작해요.", autoPause, Prefs::setAutoPause)
+        Divider()
+
+        // After each workout, without a tap. Turning one on asks for its permission there and then.
+        Section("운동이 끝나면 자동으로", "결과 화면이 뜰 때 바로 기록해요. 테스트 운동은 기록하지 않아요.")
+        ToggleRow(
+            "구글 캘린더에 기록",
+            "폰의 구글 계정 캘린더에 운동 시간, 거리, 페이스, 구간 기록이 일정으로 남아요.",
+            autoCalendar,
+        ) { on ->
+            if (!on) Prefs.setAutoCalendar(false)
+            else if (CalendarExport.hasPermission(context)) Prefs.setAutoCalendar(true)
+            else calendarPermission.launch(CalendarExport.permissions)
+        }
+        ToggleRow(
+            "삼성헬스에 저장",
+            "Health Connect를 거쳐 삼성헬스, Google Fit 등에 운동과 경로가 들어가요.",
+            autoHealth,
+        ) { on ->
+            if (!on) Prefs.setAutoHealth(false)
+            else when (HealthExport.availability(context)) {
+                HealthExport.Availability.AVAILABLE -> scope.launch {
+                    if (HealthExport.missingPermissions(context).isEmpty()) Prefs.setAutoHealth(true)
+                    else healthPermission.launch(HealthExport.permissions)
+                }
+                else -> Toast.makeText(context, "이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", Toast.LENGTH_LONG).show()
+            }
+        }
         if (user != null) {
             Divider()
             TextButton(onClick = { deleting = true }, contentPadding = PaddingValues(0.dp)) {

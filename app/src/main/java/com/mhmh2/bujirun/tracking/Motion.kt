@@ -110,7 +110,9 @@ class ActivityClassifier(
  */
 class AutoPauseDetector(
     private val stillSpeedMps: Double = 0.5,
-    private val moveSpeedMps: Double = 1.2,
+    // 0.9 m/s: a slow walk (3.2 km/h) is moving too - at 1.2 an unhurried walker stayed "paused"
+    // for minutes, time and all.
+    private val moveSpeedMps: Double = 0.9,
     private val stillHoldMs: Long = 3_000,
     private val moveHoldTicks: Int = 2,
 ) {

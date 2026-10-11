@@ -22,6 +22,35 @@ object Prefs {
         sp = context.applicationContext.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         _voiceEnabled.value = sp.getBoolean("voice_enabled", true)
         _autoPause.value = sp.getBoolean("auto_pause", true)
+        _autoCalendar.value = sp.getBoolean("auto_calendar", false)
+        _autoHealth.value = sp.getBoolean("auto_health", false)
+    }
+
+    // After a workout, without a tap: an event in the phone's (Google) calendar, and the
+    // workout in Health Connect (where Samsung Health picks it up).
+    private val _autoCalendar = MutableStateFlow(false)
+    val autoCalendar: StateFlow<Boolean> = _autoCalendar.asStateFlow()
+    private val _autoHealth = MutableStateFlow(false)
+    val autoHealth: StateFlow<Boolean> = _autoHealth.asStateFlow()
+
+    fun setAutoCalendar(enabled: Boolean) {
+        _autoCalendar.value = enabled
+        sp.edit().putBoolean("auto_calendar", enabled).apply()
+    }
+
+    fun setAutoHealth(enabled: Boolean) {
+        _autoHealth.value = enabled
+        sp.edit().putBoolean("auto_health", enabled).apply()
+    }
+
+    /** Workouts already written somewhere ("calendar", "health"), so nothing is written twice. */
+    fun exported(where: String, workoutId: Long): Boolean =
+        sp.getStringSet("exported_$where", emptySet())!!.contains(workoutId.toString())
+
+    fun markExported(where: String, workoutId: Long) {
+        val set = sp.getStringSet("exported_$where", emptySet())!!.toMutableSet()
+        set += workoutId.toString()
+        sp.edit().putStringSet("exported_$where", set).apply()
     }
 
     fun setAutoPause(enabled: Boolean) {

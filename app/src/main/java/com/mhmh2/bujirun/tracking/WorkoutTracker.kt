@@ -177,7 +177,12 @@ class WorkoutTracker(
         // Along the course when it's believable (not more than a fast runner could cover, and
         // not wildly more than GPS saw); otherwise GPS, and the course anchor starts afresh.
         val dtS = (sample.timeMs - from.timeMs) / 1000.0
-        val step = if (along != null && along >= 0 && along <= 8 * dtS + 30 && along <= gps * 2 + 30) along else gps
+        // After a gap (an auto-pause, a stretch without fixes) never less than the straight line
+        // between the fixes: a path can't be shorter, and a course position that fell behind would
+        // otherwise drop metres the runner did go. (Fix to fix every second the line carries the
+        // GPS jitter, so there the course alone.)
+        val valid = along != null && along >= 0 && along <= 8 * dtS + 30 && along <= gps * 2 + 30
+        val step = if (!valid) gps else if (dtS > 10) maxOf(along!!, gps) else along!!
         if (step < minStepM) return
         anchorAlong = courseAlongM
         distanceM += step

@@ -36,6 +36,9 @@ class FakeRun(seed: Long, private var lat: Double, private var lon: Double, path
     private val phases = ArrayDeque<Phase>()
     private var started = false
 
+    /** Where the pretend runner stands, not moving (during the countdown: they haven't set off). */
+    fun standing(): Fix = Fix(lat, lon, 20.0, accuracyM = rnd.nextDouble(4.0, 9.0).toFloat(), speedMps = 0.0)
+
     fun next(): Fix {
         val phase = currentPhase()
         phase.secondsLeft--

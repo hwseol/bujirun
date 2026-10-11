@@ -377,7 +377,9 @@ class CourseNavigator(
         if (dist > onCourseM) {
             val (aheadAt, aheadDist) = route.locate(p, progress, minOf(route.lengthM, progress + 1_000))
             val sameWay = h?.let { angleBetween(it, route.headingAt(aheadAt)) <= 45 } ?: false
-            if (aheadDist <= 15 && sameWay) { along = aheadAt; dist = aheadDist }
+            // Never into the last 50 m: the end of a loop is where it started, and jumping there
+            // would finish (and now end) the workout as it begins.
+            if (aheadDist <= 15 && sameWay && aheadAt < route.lengthM - 50) { along = aheadAt; dist = aheadDist }
         }
         lastOffDistance = dist
         val diff = heading(60.0)?.let { angleBetween(it, route.headingAt(along)) } // 0..180

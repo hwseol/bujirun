@@ -12,6 +12,11 @@ import androidx.health.connect.client.PermissionController
 import com.mhmh2.bujirun.course.CourseSource
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import com.mhmh2.bujirun.Prefs
+import com.mhmh2.bujirun.data.CalendarExport
+import com.mhmh2.bujirun.data.WorkoutReport
 import com.mhmh2.bujirun.data.GpxShare
 import com.mhmh2.bujirun.data.HealthExport
 import kotlinx.coroutines.launch
@@ -106,6 +111,57 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         }
     }
 
+    // The course's name and the km splits, for the report (calendar notes, sharing).
+    val courseName by remember(workout?.courseId) {
+        workout?.courseId?.let { CourseStore.observe(it) } ?: kotlinx.coroutines.flow.flowOf(null)
+    }.collectAsState(initial = null)
+    val reportSplits = remember(points, workout?.distanceM, workout?.durationMs) {
+        workout?.let { Splits.compute(points, it.distanceM, it.durationMs) }.orEmpty()
+    }
+    fun report(w: WorkoutEntity) = WorkoutReport.text(w, courseName?.name, reportSplits)
+
+    fun writeToCalendar(quiet: Boolean = false) {
+        val w = workout ?: return
+        val ok = runCatching { CalendarExport.write(context, w, WorkoutReport.title(w), report(w)) }.getOrDefault(false)
+        if (ok) {
+            Prefs.markExported("calendar", w.id)
+            toast("캘린더에 기록했어요")
+        } else if (!quiet) toast("기록할 캘린더가 없어요. 폰에 구글 계정 캘린더가 있는지 확인해 주세요")
+    }
+    val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.all { it }) writeToCalendar() else toast("캘린더 권한을 허용해야 기록할 수 있어요")
+    }
+    fun saveToCalendar() {
+        if (CalendarExport.hasPermission(context)) writeToCalendar() else calendarPermission.launch(CalendarExport.permissions)
+    }
+    fun shareReport() {
+        val w = workout ?: return
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, WorkoutReport.title(w))
+            .putExtra(Intent.EXTRA_TEXT, report(w))
+        context.startActivity(Intent.createChooser(send, "운동 결과 보내기"))
+    }
+
+    // Just finished: what the settings say to do without a tap - a calendar event, the workout
+    // in Health Connect (Samsung Health). Each once per workout; never for a test run.
+    LaunchedEffect(workout?.id, workout?.status, pointRows.size, courseName) {
+        val w = workout ?: return@LaunchedEffect
+        if (!justFinished || w.simulated || w.status != WorkoutEntity.DONE || pointRows.isEmpty()) return@LaunchedEffect
+        if (w.courseId != null && courseName == null) return@LaunchedEffect // its name arrives a moment later
+        if (Prefs.autoCalendar.value && !Prefs.exported("calendar", w.id) && CalendarExport.hasPermission(context)) {
+            writeToCalendar(quiet = true)
+        }
+        if (Prefs.autoHealth.value && !Prefs.exported("health", w.id) &&
+            HealthExport.availability(context) == HealthExport.Availability.AVAILABLE &&
+            HealthExport.missingPermissions(context).isEmpty()
+        ) {
+            runCatching { HealthExport.write(context, w, pointRows) }.onSuccess {
+                Prefs.markExported("health", w.id)
+                toast("삼성헬스(Health Connect)에 저장했어요")
+            }
+        }
+    }
+
     val w = workout
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -167,6 +223,10 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                     Text("삼성헬스에 저장")
                 }
             }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = ::saveToCalendar, modifier = Modifier.weight(1f)) { Text("캘린더에 기록") }
+                OutlinedButton(onClick = ::shareReport, modifier = Modifier.weight(1f)) { Text("결과 공유") }
+            }
             OutlinedButton(
                 onClick = { savingCourse = true },
                 enabled = points.size >= 2,
@@ -174,8 +234,10 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             ) { Text("이 경로를 코스로 저장") }
             Text(
                 if (w.simulated) "테스트 기록은 삼성헬스에 저장하지 않아요."
-                else "GPX는 Strava, Garmin 등에 올릴 수 있어요. 삼성헬스는 Health Connect를 거쳐 저장돼요 " +
-                    "(삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요).",
+                else "캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 결과 공유는 카카오톡·메모 등 " +
+                    "어떤 앱으로든 보낼 수 있어요. GPX는 Strava, Garmin 등에 올릴 수 있고, 삼성헬스는 Health Connect를 " +
+                    "거쳐 저장돼요 (삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요). " +
+                    "설정에서 운동이 끝나면 자동으로 기록되게 할 수 있어요.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
