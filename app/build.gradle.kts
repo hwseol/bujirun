@@ -116,5 +116,6 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.health.connect)
     implementation(libs.naver.map)
+    implementation(libs.work.runtime)
     testImplementation(libs.junit)
 }

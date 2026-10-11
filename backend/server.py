@@ -14,6 +14,7 @@ import accounts
 import cache
 import elevation
 import landmarks
+import notices
 import places
 import planner
 import routes
@@ -265,6 +266,12 @@ def places_search(q: str, lat: float, lon: float, authorization: str | None = He
     _user(authorization)
     found = places.find(q[:40], lat, lon)
     return {"places": found, "sources": sorted({p["source"] for p in found})}
+
+
+@app.get("/notices")
+def notices_after(after: int = 0):
+    """Notices newer than the last one the phone has shown (no login: it's the same for all)."""
+    return {"notices": notices.active(max(0, after))}
 
 
 @app.get("/health")

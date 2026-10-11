@@ -13,6 +13,7 @@ ksp = "2.0.21-1.0.28"
 room = "2.6.1"
 healthConnect = "1.1.0-alpha12"
 naverMap = "3.23.3"
+work = "2.9.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +33,7 @@ room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 health-connect = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
+work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 naver-map = { group = "com.naver.maps", name = "map-sdk", version.ref = "naverMap" }
 
 [plugins]

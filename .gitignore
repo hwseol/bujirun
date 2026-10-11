@@ -12,7 +12,7 @@ captures/
 dist/
 
 backend/.venv/
-backend/accounts.db
+backend/*.db
 backend/__pycache__/
 tools/nlu/data/
 tools/nlu/__pycache__/

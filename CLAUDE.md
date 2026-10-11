@@ -37,6 +37,10 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - The DB is at version 4 (v2 `simulated`, v3 course tables, v4 `workouts.courseId`); testers
   hold real data, so add migrations, never destructive fallbacks.
 
+- Notices to all users: `.venv/bin/python notices.py add "제목" "내용" [days]` in backend/ on the
+  server (BJ_DATA_DIR set, as for the service); also `list` / `remove <id>`. The app polls
+  GET /notices on launch (dialog) and every 6 h via WorkManager (phone notification).
+
 ## Natural-language courses
 - Design in docs/NL_COURSES.md. The phone reads the request (course/IntentParser rules for numbers
   + course/NluModel, a 94 KB char BiGRU in assets/nlu.bin); the server plans the course

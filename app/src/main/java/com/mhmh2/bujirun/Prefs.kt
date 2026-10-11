@@ -85,6 +85,11 @@ object Prefs {
         sp.edit().putBoolean("voice_enabled", enabled).apply()
     }
 
+    /** The newest server notice already shown (net/Notices). */
+    var lastNoticeId: Int
+        get() = sp.getInt("last_notice_id", 0)
+        set(id) = sp.edit().putInt("last_notice_id", id).apply()
+
     /** The goal picked last time, so a daily 5 km runner doesn't re-pick it every morning. */
     var lastGoal: Goal
         get() = Goal.decode(sp.getString("goal_type", null), sp.getFloat("goal_value", 0f).toDouble())

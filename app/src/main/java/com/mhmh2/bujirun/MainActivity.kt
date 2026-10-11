@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.mhmh2.bujirun.account.Account
 import com.mhmh2.bujirun.data.WorkoutStore
+import com.mhmh2.bujirun.net.Notices
 import com.mhmh2.bujirun.tracking.WorkoutSession
 import com.mhmh2.bujirun.tracking.WorkoutStatus
 import com.mhmh2.bujirun.ui.BujirunApp
@@ -33,6 +34,8 @@ class MainActivity : ComponentActivity() {
         handleGpx(intent)
         // A session the server no longer knows (account deleted, password reset) signs out.
         lifecycleScope.launch { Account.verify() }
+        lifecycleScope.launch { Notices.checkNow() }
+        Notices.schedule(this)
         enableEdgeToEdge()
         setContent {
             BujirunTheme {

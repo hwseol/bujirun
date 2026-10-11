@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
+import com.mhmh2.bujirun.net.Notices
 import androidx.compose.ui.unit.dp
 import com.mhmh2.bujirun.account.Account
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -109,6 +110,17 @@ fun BujirunApp() {
     if (signedIn == null && !workoutActive) {
         LoginScreen()
         return
+    }
+
+    // A notice from the server, one at a time.
+    val notices by Notices.waiting.collectAsState()
+    notices.firstOrNull()?.let { n ->
+        AlertDialog(
+            onDismissRequest = { Notices.dismiss() },
+            title = { Text(n.title) },
+            text = { Text(n.body) },
+            confirmButton = { TextButton(onClick = { Notices.dismiss() }) { Text("확인") } },
+        )
     }
 
     fun start(goal: Goal, simScale: Int = 0, courseId: Long? = null) {
