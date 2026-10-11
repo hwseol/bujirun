@@ -259,7 +259,7 @@ private fun Section(title: String, description: String) {
 }
 
 @Composable
-private fun ToggleRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
@@ -283,6 +283,7 @@ fun rememberAutoRecordSwitch(): (Boolean) -> Unit {
         if (granted) {
             Prefs.setAutoRecord(true)
             PassiveRecorder.apply(context)
+            Toast.makeText(context, "자동 기록을 켰어요. 설정에서 언제든 끌 수 있어요", Toast.LENGTH_LONG).show()
         } else {
             Toast.makeText(context, "신체 활동 권한을 허용해야 걸음과 걷기를 기록할 수 있어요", Toast.LENGTH_LONG).show()
         }
@@ -293,6 +294,7 @@ fun rememberAutoRecordSwitch(): (Boolean) -> Unit {
         } else {
             Prefs.setAutoRecord(on)
             PassiveRecorder.apply(context)
+            if (on) Toast.makeText(context, "자동 기록을 켰어요. 설정에서 언제든 끌 수 있어요", Toast.LENGTH_LONG).show()
         }
     }
 }

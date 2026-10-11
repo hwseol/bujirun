@@ -43,6 +43,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -135,6 +136,40 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     fun saveToCalendar() {
         if (CalendarExport.hasPermission(context)) writeToCalendar() else calendarPermission.launch(CalendarExport.permissions)
     }
+    // Turned on from the card on this screen: from now on, and this workout right away.
+    val autoCalendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.all { it }) { Prefs.setAutoCalendar(true); writeToCalendar() }
+        else toast("캘린더 권한을 허용해야 기록할 수 있어요")
+    }
+    val autoHealthPermission = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        if (granted.containsAll(HealthExport.required)) { Prefs.setAutoHealth(true); writeToHealth() }
+        else toast("권한을 허용해야 삼성헬스에 저장할 수 있어요")
+    }
+    fun setAutoCalendar(on: Boolean) {
+        val w = workout ?: return
+        when {
+            !on -> Prefs.setAutoCalendar(false)
+            CalendarExport.hasPermission(context) -> {
+                Prefs.setAutoCalendar(true)
+                if (!Prefs.exported("calendar", w.id)) writeToCalendar()
+            }
+            else -> autoCalendarPermission.launch(CalendarExport.permissions)
+        }
+    }
+    fun setAutoHealth(on: Boolean) {
+        val w = workout ?: return
+        if (!on) { Prefs.setAutoHealth(false); return }
+        if (HealthExport.availability(context) != HealthExport.Availability.AVAILABLE) {
+            toast("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요")
+            return
+        }
+        scope.launch {
+            if (HealthExport.missingPermissions(context).isEmpty()) {
+                Prefs.setAutoHealth(true)
+                if (!Prefs.exported("health", w.id)) writeToHealth()
+            } else autoHealthPermission.launch(HealthExport.permissions)
+        }
+    }
     fun shareReport() {
         val w = workout ?: return
         val send = Intent(Intent.ACTION_SEND).setType("text/plain")
@@ -194,6 +229,31 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 "오르막" to "${w.ascentM.roundToInt()}m",
                 "달리기 · 걷기" to (runPct?.let { "$it% · ${100 - it}%" } ?: "-"),
             )
+
+            // Most people never open the settings: offer the automatic records where the result is.
+            // Shown while either is off (kept for this visit once shown), until "다시 보지 않기".
+            val autoCalendarOn by Prefs.autoCalendar.collectAsState()
+            val autoHealthOn by Prefs.autoHealth.collectAsState()
+            var offerAuto by remember {
+                mutableStateOf(justFinished && !w.simulated && !Prefs.autoExportOfferHidden && !(autoCalendarOn && autoHealthOn))
+            }
+            if (offerAuto) {
+                Spacer(Modifier.height(20.dp))
+                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("운동이 끝날 때마다 자동으로 기록할까요?", style = MaterialTheme.typography.titleMedium)
+                        ToggleRow("구글 캘린더", "운동 시간·거리·페이스가 일정으로 남아요", autoCalendarOn, ::setAutoCalendar)
+                        ToggleRow("삼성헬스", "Health Connect를 거쳐 운동과 경로가 들어가요", autoHealthOn, ::setAutoHealth)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "설정에서도 바꿀 수 있어요", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { Prefs.autoExportOfferHidden = true; offerAuto = false }) { Text("다시 보지 않기") }
+                        }
+                    }
+                }
+            }
 
             val splits = remember(points, w.distanceM, w.durationMs) { Splits.compute(points, w.distanceM, w.durationMs) }
             if (splits.isNotEmpty()) {

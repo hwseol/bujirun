@@ -117,6 +117,11 @@ object Prefs {
         get() = sp.getString("bout_state", null)
         set(v) = sp.edit().putString("bout_state", v).apply()
 
+    /** "다시 보지 않기" on the result screen's offer of automatic calendar / Samsung Health. */
+    var autoExportOfferHidden: Boolean
+        get() = sp.getBoolean("auto_export_offer_hidden", false)
+        set(v) = sp.edit().putBoolean("auto_export_offer_hidden", v).apply()
+
     /** The newest server notice already shown (net/Notices). */
     var lastNoticeId: Int
         get() = sp.getInt("last_notice_id", 0)

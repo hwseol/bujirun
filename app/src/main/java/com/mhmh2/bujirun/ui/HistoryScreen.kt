@@ -89,6 +89,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
     val autoRecord by Prefs.autoRecord.collectAsState()
     val setAutoRecord = rememberAutoRecordSwitch()
     var deletingAuto by remember { mutableStateOf<AutoActivityEntity?>(null) }
+    var askAutoRecord by remember { mutableStateOf(false) }
     // Test runs are listed (labelled) but left out of the totals.
     fun real(ws: List<WorkoutEntity>) = ws.filter { !it.simulated }
 
@@ -137,7 +138,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
                 day, real(byDay[day].orEmpty()), autoByDay[day].orEmpty(),
                 daySteps ?: ownSteps.firstOrNull { it.day == dayKey }?.steps, canReadSteps, autoRecord,
                 onAllowSteps = { stepsPermission.launch(setOf(HealthExport.readSteps)) },
-                onAutoRecord = { setAutoRecord(true) },
+                onAutoRecord = { askAutoRecord = true },
             )
         }
         val ofDay = byDay[day].orEmpty()
@@ -154,6 +155,22 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
         items(ofDay, key = { it.id }) { w -> WorkoutRow(w, onClick = { onOpen(w.id) }) }
         items(autoOfDay, key = { "auto${it.id}" }) { a -> AutoRow(a, onClick = { deletingAuto = a }) }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+
+    // Something that runs in the background from now on: say what it does and ask first.
+    if (askAutoRecord) {
+        AlertDialog(
+            onDismissRequest = { askAutoRecord = false },
+            title = { Text("자동 기록을 켤까요?") },
+            text = {
+                Text(
+                    "앱을 켜지 않아도 하루 걸음 수를 세고, 15분 넘게 걷거나 5분 넘게 달리면 기록에 남겨요.\n\n" +
+                        "GPS는 쓰지 않아 배터리를 거의 쓰지 않아요. '신체 활동' 권한이 필요하고, 설정에서 언제든 끌 수 있어요."
+                )
+            },
+            confirmButton = { TextButton(onClick = { askAutoRecord = false; setAutoRecord(true) }) { Text("켜기") } },
+            dismissButton = { TextButton(onClick = { askAutoRecord = false }) { Text("나중에") } },
+        )
     }
 
     deletingAuto?.let { a ->
