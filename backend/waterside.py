@@ -416,7 +416,8 @@ def prebuild(places_db: str, s, w, n, e, tile=0.05, log=print) -> None:
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) == 7 and sys.argv[1] == "prebuild":
-        prebuild(sys.argv[2], *map(float, sys.argv[3:7]))
+    if len(sys.argv) in (7, 8) and sys.argv[1] == "prebuild":
+        # [tile]: degrees per Overpass query; smaller for dense city tiles that time out.
+        prebuild(sys.argv[2], *map(float, sys.argv[3:7]), tile=float(sys.argv[7]) if len(sys.argv) == 8 else 0.05)
     else:
-        sys.exit("usage: waterside.py prebuild <places.db> <south> <west> <north> <east>   (BJ_DATA_DIR set)")
+        sys.exit("usage: waterside.py prebuild <places.db> <south> <west> <north> <east> [tile]   (BJ_DATA_DIR set)")

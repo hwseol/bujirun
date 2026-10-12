@@ -41,6 +41,10 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
   + the step counter, no GPS; walks >= 15 min / runs >= 5 min become `auto_activities`, steps
   go to `day_steps` (read on transitions, app open, and every 3 h). Can't fire transitions on
   the emulator: test by calling `PassiveRecorder.onTransitions` from a temporary hook.
+- Waterside paths are prebuilt on the PC (`BJ_DATA_DIR=<dir> python waterside.py prebuild
+  <places.db> S W N E [tile]`, resumable; dense tiles that time out: rerun with tile 0.01) into
+  waterside.db `cells`, then merged into the server's waterside.db (ATTACH + INSERT OR REPLACE).
+  Capital region (36.9-38.0, 126.5-127.6) is done; elsewhere falls back to live Overpass.
 - Calendar/Health auto export runs in data/AutoExport (on save and on app open), not only
   from the summary screen.
 
