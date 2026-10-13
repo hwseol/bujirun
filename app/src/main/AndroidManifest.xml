@@ -17,6 +17,10 @@
     <!-- Finished workouts as calendar events (Google Calendar), when the user turns it on. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <!-- Photos taken during a workout, shown with it (found on the phone by when they were taken). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <!-- Health Connect (Samsung Health reads from it): write-only, and only when the user asks. -->
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />

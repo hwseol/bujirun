@@ -34,9 +34,12 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 - Admin's start button offers a real workout or a fake-GPS test run at 1x/5x/10x (FakeRun +
   a scaled clock in WorkoutService, everything reads `now()`). Test runs are saved with
   `simulated = 1`, titled "(테스트)", and never exported to Health Connect.
-- The DB is at version 6 (v2 `simulated`, v3 course tables, v4 `workouts.courseId`, v5
-  `workouts.steps`, v6 `auto_activities` + `day_steps`); testers hold real data, so add
-  migrations, never destructive fallbacks.
+- The DB is at version 7 (v2 `simulated`, v3 course tables, v4 `workouts.courseId`, v5
+  `workouts.steps`, v6 `auto_activities` + `day_steps`, v7 `workout_photos`); testers hold
+  real data, so add migrations, never destructive fallbacks.
+- Workout photos (data/WorkoutPhotos): phone photos found by DATE_TAKEN within the workout
+  (+-3 min), placed on the route by time (PhotoPlaces), no photo location needed; cloud-only
+  ones are added through the system photo picker and kept in `workout_photos`.
 - 자동 기록 (tracking/PassiveRecorder, logic in Passive.kt): activity-recognition transitions
   + the step counter, no GPS; walks >= 15 min / runs >= 5 min become `auto_activities`, steps
   go to `day_steps` (read on transitions, app open, and every 3 h). Can't fire transitions on

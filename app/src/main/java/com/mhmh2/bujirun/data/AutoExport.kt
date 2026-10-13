@@ -49,7 +49,10 @@ object AutoExport {
                 val course = w.courseId?.let { WorkoutStore.database.courses().get(it)?.name }
                 val splits = Splits.compute(points.map { it.toTrackPoint() }, w.distanceM, w.durationMs)
                 val ok = runCatching {
-                    CalendarExport.write(context, w, WorkoutReport.title(w), WorkoutReport.text(w, course, splits))
+                    CalendarExport.write(
+                        context, w, WorkoutReport.title(w),
+                        WorkoutReport.text(w, course, splits, WorkoutReport.mapsUrl(points.map { it.lat to it.lon })),
+                    )
                 }.getOrDefault(false)
                 if (ok) {
                     Prefs.markExported("calendar", w.id)

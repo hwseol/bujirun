@@ -9,6 +9,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import com.mhmh2.bujirun.course.GeoPoint
+import com.mhmh2.bujirun.data.PhotoPlace
+import com.naver.maps.map.overlay.Marker
+import com.naver.maps.map.util.MarkerIcons
 import com.mhmh2.bujirun.tracking.Activity
 import com.mhmh2.bujirun.tracking.TrackPoint
 import com.naver.maps.geometry.LatLng
@@ -22,12 +25,25 @@ import com.naver.maps.map.overlay.PathOverlay
  * line part per pause segment, so a pause spent somewhere else doesn't draw a straight jump.
  */
 @Composable
-fun RouteView(points: List<TrackPoint>, modifier: Modifier = Modifier) {
+fun RouteView(points: List<TrackPoint>, modifier: Modifier = Modifier, photos: List<PhotoPlace?> = emptyList()) {
     val runColor = MaterialTheme.colorScheme.primary.toArgb()
     val walkColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f).compositeOver(Color.White).toArgb()
     val fit = remember(points) { points.map { LatLng(it.sample.lat, it.sample.lon) } }
     LiteMap(fit, modifier, emptyText = "경로를 그릴 위치 기록이 없어요") { map, density ->
-        drawWorkout(map, points, runColor, walkColor, density)
+        drawWorkout(map, points, runColor, walkColor, density) + photos.mapIndexedNotNull { i, p ->
+            // Where each photo was taken, numbered like its thumbnail.
+            p?.let {
+                Marker().apply {
+                    position = LatLng(it.lat, it.lon)
+                    icon = MarkerIcons.BLACK
+                    iconTintColor = PHOTO_BLUE
+                    captionText = "${i + 1}"
+                    width = (20 * density).toInt()
+                    height = (26 * density).toInt()
+                    this.map = map
+                }
+            }
+        }
     }
 }
 

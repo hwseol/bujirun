@@ -24,6 +24,16 @@ class WorkoutReportTest {
         )
     }
 
+    @Test fun mapsLinkGoesThroughTheRoute() {
+        val pts = (0..90).map { 37.5 + it * 0.0001 to 127.0 }
+        val url = WorkoutReport.mapsUrl(pts)!!
+        assertEquals(true, url.startsWith("https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=37.500000,127.000000"))
+        assertEquals(true, url.contains("&destination=37.509000,127.000000"))
+        assertEquals(8, url.substringAfter("&waypoints=").split("%7C").size)
+        assertEquals(null, WorkoutReport.mapsUrl(pts.take(1)))
+        assertEquals(true, WorkoutReport.text(run, mapsUrl = url).contains("지도에서 경로 보기: $url"))
+    }
+
     @Test fun aWalkIsCalledAWalk() {
         assertEquals("🚶 부지런 걷기 5.21km · 31:20", WorkoutReport.title(run.copy(runMs = 100, walkMs = 1_000_000)))
     }

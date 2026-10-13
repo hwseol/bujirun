@@ -16,6 +16,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.data.AutoExport
+import com.mhmh2.bujirun.data.PhotoPlaces
+import com.mhmh2.bujirun.data.WorkoutPhoto
+import com.mhmh2.bujirun.data.WorkoutPhotos
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.runtime.produceState
 import com.mhmh2.bujirun.data.CalendarExport
 import com.mhmh2.bujirun.data.WorkoutReport
 import com.mhmh2.bujirun.data.GpxShare
@@ -120,7 +125,30 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     val reportSplits = remember(points, workout?.distanceM, workout?.durationMs) {
         workout?.let { Splits.compute(points, it.distanceM, it.durationMs) }.orEmpty()
     }
-    fun report(w: WorkoutEntity) = WorkoutReport.text(w, courseName?.name, reportSplits)
+    // The route in Google Maps: in the calendar event and the shared text, and a button below.
+    val mapsUrl = remember(pointRows) { WorkoutReport.mapsUrl(pointRows.map { it.lat to it.lon }) }
+    fun report(w: WorkoutEntity) = WorkoutReport.text(w, courseName?.name, reportSplits, mapsUrl)
+
+    // Photos taken during the workout: on the phone by time, plus ones picked (cloud) for it.
+    var photoPermissionAsked by remember { mutableStateOf(0) }
+    val photoPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { photoPermissionAsked++ }
+    val canReadPhotos = remember(photoPermissionAsked) { WorkoutPhotos.canRead(context) }
+    val added by remember(workoutId) { WorkoutPhotos.observeAdded(workoutId) }.collectAsState(initial = emptyList())
+    val onPhone by produceState(emptyList<WorkoutPhoto>(), workout?.startedAt, workout?.endedAt, canReadPhotos) {
+        val w = workout ?: return@produceState
+        value = WorkoutPhotos.onPhone(context, w.startedAt - PhotoPlaces.MARGIN_MS, w.endedAt + PhotoPlaces.MARGIN_MS)
+    }
+    val photos = remember(onPhone, added) {
+        val times = onPhone.mapNotNull { it.takenAt }.toSet()
+        (onPhone + added.filter { it.takenAt == null || it.takenAt !in times }
+            .map { WorkoutPhoto(Uri.parse(it.uri), it.takenAt, it.id) })
+            .sortedBy { it.takenAt ?: Long.MAX_VALUE }
+    }
+    val photoPlaces = remember(photos, points) { photos.map { p -> p.takenAt?.let { PhotoPlaces.at(points, it) } } }
+    var viewingPhoto by remember { mutableStateOf<Int?>(null) }
+    val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
+        if (uris.isNotEmpty()) scope.launch { WorkoutPhotos.add(context, workoutId, uris) }
+    }
 
     fun writeToCalendar(quiet: Boolean = false) {
         val w = workout ?: return
@@ -209,7 +237,14 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 course?.let { Text("코스: ${it.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
             }
             Spacer(Modifier.height(16.dp))
-            RouteView(points)
+            RouteView(points, photos = photoPlaces)
+            Spacer(Modifier.height(16.dp))
+            PhotoStrip(
+                photos, photoPlaces, canReadPhotos,
+                onAllow = { photoPermission.launch(WorkoutPhotos.permissions) },
+                onAdd = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onOpen = { viewingPhoto = it },
+            )
             Spacer(Modifier.height(20.dp))
 
             val avgPace = if (w.distanceM >= 20) w.durationMs / 1000.0 / (w.distanceM / 1000.0) else null
@@ -281,6 +316,12 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 OutlinedButton(onClick = ::saveToCalendar, modifier = Modifier.weight(1f)) { Text("캘린더에 기록") }
                 OutlinedButton(onClick = ::shareReport, modifier = Modifier.weight(1f)) { Text("결과 공유") }
             }
+            mapsUrl?.let { url ->
+                OutlinedButton(
+                    onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) { Text("구글 지도에서 경로 보기") }
+            }
             OutlinedButton(
                 onClick = { savingCourse = true },
                 enabled = points.size >= 2,
@@ -288,7 +329,8 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             ) { Text("이 경로를 코스로 저장") }
             Text(
                 if (w.simulated) "테스트 기록은 삼성헬스에 저장하지 않아요."
-                else "캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 결과 공유는 카카오톡·메모 등 " +
+                else "캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 일정과 공유한 글에는 구글 지도 " +
+                    "경로 링크가 들어가요 (지도는 그 지점들을 잇는 걷기 길을 보여줘요). 결과 공유는 카카오톡·메모 등 " +
                     "어떤 앱으로든 보낼 수 있어요. GPX는 Strava, Garmin 등에 올릴 수 있고, 삼성헬스는 Health Connect를 " +
                     "거쳐 저장돼요 (삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요). " +
                     "설정에서 운동이 끝나면 자동으로 기록되게 할 수 있어요.",
@@ -300,6 +342,13 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         }
         if (justFinished) {
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp)) { Text("확인") }
+        }
+    }
+
+    viewingPhoto?.let { start ->
+        PhotoViewer(photos, photoPlaces, start, onDismiss = { viewingPhoto = null }) { p ->
+            viewingPhoto = null
+            p.addedId?.let { id -> scope.launch { WorkoutPhotos.remove(id) } }
         }
     }
 

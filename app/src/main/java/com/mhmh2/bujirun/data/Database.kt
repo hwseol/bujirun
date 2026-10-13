@@ -82,12 +82,27 @@ interface WorkoutDao {
     @Query("DELETE FROM track_points WHERE workoutId = :id") suspend fun deletePoints(id: Long)
     @Query("DELETE FROM workouts WHERE id = :id") suspend fun deleteWorkout(id: Long)
 
+    @Insert suspend fun insertPhoto(photo: WorkoutPhotoEntity): Long
+    @Query("SELECT * FROM workout_photos WHERE workoutId = :id ORDER BY takenAt") fun observePhotos(id: Long): Flow<List<WorkoutPhotoEntity>>
+    @Query("DELETE FROM workout_photos WHERE id = :id") suspend fun deletePhoto(id: Long)
+    @Query("DELETE FROM workout_photos WHERE workoutId = :id") suspend fun deletePhotos(id: Long)
+
     @Transaction
     suspend fun delete(id: Long) {
         deletePoints(id)
+        deletePhotos(id)
         deleteWorkout(id)
     }
 }
+
+/** A photo picked for a workout (the cloud ones the phone search doesn't find): its content URI. */
+@Entity(tableName = "workout_photos", indices = [Index("workoutId")])
+data class WorkoutPhotoEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val workoutId: Long,
+    val uri: String,
+    val takenAt: Long?,
+)
 
 /** A route to run: imported from GPX, saved from a workout, or drawn on the map. */
 @Entity(tableName = "courses")
@@ -183,9 +198,9 @@ interface PassiveDao {
 @Database(
     entities = [
         WorkoutEntity::class, TrackPointEntity::class, CourseEntity::class, CoursePointEntity::class,
-        AutoActivityEntity::class, DayStepsEntity::class,
+        AutoActivityEntity::class, DayStepsEntity::class, WorkoutPhotoEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -233,6 +248,15 @@ abstract class AppDatabase : RoomDatabase() {
                         "`movingMs` INTEGER NOT NULL, `steps` INTEGER NOT NULL, `distanceM` REAL NOT NULL, `calories` REAL NOT NULL)"
                 )
                 db.execSQL("CREATE TABLE IF NOT EXISTS `day_steps` (`day` TEXT NOT NULL, `steps` INTEGER NOT NULL, PRIMARY KEY(`day`))")
+            }
+        }
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `workout_photos` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`workoutId` INTEGER NOT NULL, `uri` TEXT NOT NULL, `takenAt` INTEGER)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_photos_workoutId` ON `workout_photos` (`workoutId`)")
             }
         }
     }
