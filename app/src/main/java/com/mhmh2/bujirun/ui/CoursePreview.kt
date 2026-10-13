@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,7 +88,7 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(bars)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "닫기") }
+                    IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("닫기", "Close")) }
                     Text(info.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
                 // Tapping a part of the course shows just that part on the map (tap again: all of it).
@@ -103,9 +105,9 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                     if (info.legs.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("코스 구성", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text(tr("코스 구성", "Course parts"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(8.dp))
-                            Text("누르면 지도에서 보여줘요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(tr("누르면 지도에서 보여줘요", "Tap to see it on the map"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         info.legs.forEachIndexed { i, leg ->
                             val on = selected == i
@@ -121,8 +123,8 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                                 Column(Modifier.weight(1f)) {
                                     Text(leg.label, style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        "${formatKm(leg.distanceM.toDouble())}km" + (leg.shade?.let { " · 나무 그늘 $it%" } ?: "") +
-                                            (leg.ascentM?.let { " · 오르막 ${it}m" } ?: ""),
+                                        "${formatKm(leg.distanceM.toDouble())}km" + (leg.shade?.let { tr(" · 나무 그늘 $it%", " · tree shade $it%") } ?: "") +
+                                            (leg.ascentM?.let { tr(" · 오르막 ${it}m", " · climb ${it}m") } ?: ""),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -133,7 +135,7 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                     }
                     if (info.shade != null) {
                         Text(
-                            "그늘 %는 코스 길이 중 나무 그늘 아래를 지나는 비율이에요 (위성 자료 기준, 건물 그늘은 빠져 있어요).",
+                            tr("그늘 %는 코스 길이 중 나무 그늘 아래를 지나는 비율이에요 (위성 자료 기준, 건물 그늘은 빠져 있어요).", "Shade % is the share of the course under trees (from satellite data; building shade isn't counted)."),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 10.dp)
@@ -141,8 +143,8 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f).height(52.dp)) { Text("내 코스에 저장") }
-                    Button(onClick = onRun, modifier = Modifier.weight(1f).height(52.dp)) { Text("바로 달리기") }
+                    OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f).height(52.dp)) { Text(tr("내 코스에 저장", "Save to my courses")) }
+                    Button(onClick = onRun, modifier = Modifier.weight(1f).height(52.dp)) { Text(tr("바로 달리기", "Run now")) }
                 }
             }
         }
@@ -199,8 +201,8 @@ internal fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null
                 this.map = map
             }
             directionMarkers(map, points, density, color)
-            endpointMarker(map, fit.first(), "출발", START_GREEN, density)
-            if (!CourseGeometry.isLoop(points)) endpointMarker(map, fit.last(), "도착", END_DARK, density)
+            endpointMarker(map, fit.first(), tr("출발", "Start"), START_GREEN, density)
+            if (!CourseGeometry.isLoop(points)) endpointMarker(map, fit.last(), tr("도착", "Finish"), END_DARK, density)
             // Fitted once the view has its size (inside a scrolling page it may not have yet).
             mapView.doOnLayout { map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(fit), (48 * density).toInt())) }
         }

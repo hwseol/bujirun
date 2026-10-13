@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,9 +80,9 @@ fun LoginScreen() {
         Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp)
     ) {
         Spacer(Modifier.height(40.dp))
-        Text("부지런", style = MaterialTheme.typography.headlineLarge)
+        Text(tr("부지런", "Bujirun"), style = MaterialTheme.typography.headlineLarge)
         Text(
-            if (signUp) "계정을 만들어요" else "다시 오셨네요",
+            if (signUp) tr("계정을 만들어요", "Create your account") else tr("다시 오셨네요", "Welcome back"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -89,11 +91,11 @@ fun LoginScreen() {
         OutlinedTextField(
             value = email,
             onValueChange = { email = it.trim(); serverError = null },
-            label = { Text("이메일") },
+            label = { Text(tr("이메일", "Email")) },
             placeholder = { Text("name@example.com") },
             singleLine = true,
             isError = attempted && !emailOk,
-            supportingText = { if (attempted && !emailOk) Text("이메일 형식으로 입력해 주세요") },
+            supportingText = { if (attempted && !emailOk) Text(tr("이메일 형식으로 입력해 주세요", "Please enter an email address")) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth()
         )
@@ -101,11 +103,11 @@ fun LoginScreen() {
             OutlinedTextField(
                 value = nickname,
                 onValueChange = { nickname = it.take(20); serverError = null },
-                label = { Text("닉네임") },
-                placeholder = { Text("달리는 사람") },
+                label = { Text(tr("닉네임", "Nickname")) },
+                placeholder = { Text(tr("달리는 사람", "Runner")) },
                 singleLine = true,
                 isError = attempted && !nicknameOk,
-                supportingText = { if (attempted && !nicknameOk) Text("2~12자로 입력해 주세요") },
+                supportingText = { if (attempted && !nicknameOk) Text(tr("2~12자로 입력해 주세요", "2 to 12 characters, please")) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -113,14 +115,14 @@ fun LoginScreen() {
         OutlinedTextField(
             value = password,
             onValueChange = { password = it; serverError = null },
-            label = { Text("비밀번호") },
+            label = { Text(tr("비밀번호", "Password")) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             isError = attempted && !passwordOk,
             supportingText = {
                 when {
-                    attempted && !passwordOk -> Text(if (signUp) "8자 이상으로 입력해 주세요" else "비밀번호를 입력해 주세요")
-                    signUp -> Text("8자 이상")
+                    attempted && !passwordOk -> Text(if (signUp) tr("8자 이상으로 입력해 주세요", "At least 8 characters, please") else tr("비밀번호를 입력해 주세요", "Please enter your password"))
+                    signUp -> Text(tr("8자 이상", "At least 8 characters"))
                 }
             },
             keyboardOptions = KeyboardOptions(
@@ -134,11 +136,11 @@ fun LoginScreen() {
             OutlinedTextField(
                 value = passwordAgain,
                 onValueChange = { passwordAgain = it; serverError = null },
-                label = { Text("비밀번호 확인") },
+                label = { Text(tr("비밀번호 확인", "Confirm password")) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 isError = attempted && !againOk,
-                supportingText = { if (attempted && !againOk) Text("비밀번호가 서로 달라요") },
+                supportingText = { if (attempted && !againOk) Text(tr("비밀번호가 서로 달라요", "The passwords don't match")) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
                 modifier = Modifier.fillMaxWidth()
@@ -152,12 +154,12 @@ fun LoginScreen() {
         Button(onClick = ::submit, enabled = !busy, modifier = Modifier.fillMaxWidth().height(56.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                else Text(if (signUp) "가입하기" else "로그인")
+                else Text(if (signUp) tr("가입하기", "Sign up") else tr("로그인", "Log in"))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (signUp) "이미 계정이 있나요?" else "처음이신가요?",
+                if (signUp) tr("이미 계정이 있나요?", "Already have an account?") else tr("처음이신가요?", "New here?"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -165,11 +167,11 @@ fun LoginScreen() {
                 signUp = !signUp
                 attempted = false
                 serverError = null
-            }) { Text(if (signUp) "로그인" else "가입하기") }
+            }) { Text(if (signUp) tr("로그인", "Log in") else tr("가입하기", "Sign up")) }
         }
         if (!signUp) {
             Text(
-                "비밀번호를 잊으셨다면 운영자에게 문의해 주세요.",
+                tr("비밀번호를 잊으셨다면 운영자에게 문의해 주세요.", "Forgot your password? Please contact the operator."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

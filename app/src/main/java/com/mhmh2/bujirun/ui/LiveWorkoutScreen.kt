@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,22 +70,22 @@ fun LiveWorkoutScreen(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             StatusBadge(
                 when {
-                    state.autoPaused -> "자동 일시정지"
-                    paused -> "일시정지"
-                    !state.hasFix -> "GPS 찾는 중"
+                    state.autoPaused -> tr("자동 일시정지", "Auto paused")
+                    paused -> tr("일시정지", "Paused")
+                    !state.hasFix -> tr("GPS 찾는 중", "Finding GPS")
                     else -> activityLabel(state.activity)
                 },
                 emphasized = !paused && state.hasFix
             )
             if (state.simScale > 0) {
                 Spacer(Modifier.width(8.dp))
-                StatusBadge("테스트 ×${state.simScale}", emphasized = false)
+                StatusBadge(tr("테스트 ×${state.simScale}", "Test ×${state.simScale}"), emphasized = false)
             }
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { Prefs.setVoiceEnabled(!voiceOn) }) {
                 Icon(
                     if (voiceOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                    contentDescription = if (voiceOn) "음성 안내 끄기" else "음성 안내 켜기"
+                    contentDescription = if (voiceOn) tr("음성 안내 끄기", "Turn voice off") else tr("음성 안내 켜기", "Turn voice on")
                 )
             }
         }
@@ -99,11 +101,11 @@ fun LiveWorkoutScreen(
             )
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                SmallStat("시간", formatDuration(state.elapsedMs))
-                SmallStat("거리", "${formatKm(state.distanceM)}km")
-                SmallStat("페이스", formatPace(state.currentPaceSecPerKm))
-                if (course.lap != null) SmallStat("바퀴", course.laps?.let { "${course.lap}/$it" } ?: "${course.lap}바퀴째")
-                else SmallStat("코스 남은", "${formatKm(course.remainingM)}km")
+                SmallStat(tr("시간", "Time"), formatDuration(state.elapsedMs))
+                SmallStat(tr("거리", "Distance"), "${formatKm(state.distanceM)}km")
+                SmallStat(tr("페이스", "Pace"), formatPace(state.currentPaceSecPerKm))
+                if (course.lap != null) SmallStat(tr("바퀴", "Lap"), course.laps?.let { "${course.lap}/$it" } ?: tr("${course.lap}바퀴째", "Lap ${course.lap}"))
+                else SmallStat(tr("코스 남은", "Course left"), "${formatKm(course.remainingM)}km")
             }
             Spacer(Modifier.height(16.dp))
         } else {
@@ -114,10 +116,10 @@ fun LiveWorkoutScreen(
             Text(formatDuration(state.elapsedMs), fontSize = 56.sp)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                BigStat("거리", formatKm(state.distanceM), "km")
-                if (state.goal is Goal.Free) BigStat("평균 페이스", formatPace(state.averagePaceSecPerKm), "/km")
-                else BigStat("현재 페이스", formatPace(state.currentPaceSecPerKm), "/km")
-                BigStat("칼로리", "${state.calories.roundToInt()}", "kcal")
+                BigStat(tr("거리", "Distance"), formatKm(state.distanceM), "km")
+                if (state.goal is Goal.Free) BigStat(tr("평균 페이스", "Avg pace"), formatPace(state.averagePaceSecPerKm), "/km")
+                else BigStat(tr("현재 페이스", "Current pace"), formatPace(state.currentPaceSecPerKm), "/km")
+                BigStat(tr("칼로리", "Calories"), "${state.calories.roundToInt()}", "kcal")
             }
             Spacer(Modifier.height(12.dp))
             GoalPanel(state)
@@ -126,11 +128,11 @@ fun LiveWorkoutScreen(
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (paused) {
-                Button(onClick = onResume, modifier = Modifier.weight(1f).height(56.dp)) { Text("재개") }
+                Button(onClick = onResume, modifier = Modifier.weight(1f).height(56.dp)) { Text(tr("재개", "Resume")) }
             } else {
-                OutlinedButton(onClick = onPause, modifier = Modifier.weight(1f).height(56.dp)) { Text("일시정지") }
+                OutlinedButton(onClick = onPause, modifier = Modifier.weight(1f).height(56.dp)) { Text(tr("일시정지", "Pause")) }
             }
-            HoldToConfirmButton("길게 눌러 종료", onConfirm = onStop, modifier = Modifier.weight(1f))
+            HoldToConfirmButton(tr("길게 눌러 종료", "Hold to finish"), onConfirm = onStop, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -141,13 +143,13 @@ private fun GoalPanel(state: WorkoutSnapshot) {
         is Goal.Distance, is Goal.Time -> {
             val progress = goal.progress(state.distanceM, state.elapsedMs) ?: 0f
             val left = when (goal) {
-                is Goal.Distance -> "남은 거리 ${formatKm((goal.meters - state.distanceM).coerceAtLeast(0.0))}km"
-                is Goal.Time -> "남은 시간 ${formatDuration((goal.ms - state.elapsedMs).coerceAtLeast(0))}"
+                is Goal.Distance -> tr("남은 거리 ${formatKm((goal.meters - state.distanceM).coerceAtLeast(0.0))}km", "${formatKm((goal.meters - state.distanceM).coerceAtLeast(0.0))}km to go")
+                is Goal.Time -> tr("남은 시간 ${formatDuration((goal.ms - state.elapsedMs).coerceAtLeast(0))}", "${formatDuration((goal.ms - state.elapsedMs).coerceAtLeast(0))} to go")
                 else -> ""
             }
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth()) {
-                    Text(if (progress >= 1f) "목표 달성" else left, style = MaterialTheme.typography.bodyMedium)
+                    Text(if (progress >= 1f) tr("목표 달성", "Goal reached") else left, style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.weight(1f))
                     Text("${(progress * 100).roundToInt()}%", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -163,10 +165,10 @@ private fun GoalPanel(state: WorkoutSnapshot) {
             val current = state.currentPaceSecPerKm
             val delta = current?.let { (it - goal.secPerKm).roundToInt() }
             val (text, color) = when {
-                delta == null || current >= 3600 -> "목표 ${formatPace(goal.secPerKm.toDouble())}" to MaterialTheme.colorScheme.onSurfaceVariant
-                abs(delta) <= 15 -> "목표 페이스 유지 중" to MaterialTheme.colorScheme.primary
-                delta > 0 -> "목표보다 ${delta}초 느려요" to MaterialTheme.colorScheme.error
-                else -> "목표보다 ${-delta}초 빨라요" to MaterialTheme.colorScheme.tertiary
+                delta == null || current >= 3600 -> tr("목표 ${formatPace(goal.secPerKm.toDouble())}", "Target ${formatPace(goal.secPerKm.toDouble())}") to MaterialTheme.colorScheme.onSurfaceVariant
+                abs(delta) <= 15 -> tr("목표 페이스 유지 중", "On target pace") to MaterialTheme.colorScheme.primary
+                delta > 0 -> tr("목표보다 ${delta}초 느려요", "${delta}s slower than target") to MaterialTheme.colorScheme.error
+                else -> tr("목표보다 ${-delta}초 빨라요", "${-delta}s faster than target") to MaterialTheme.colorScheme.tertiary
             }
             Text(text, style = MaterialTheme.typography.titleMedium, color = color)
         }

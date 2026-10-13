@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,20 +80,20 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         located = granted
-        if (!granted) error = "주변 천을 찾으려면 위치 권한이 필요해요."
+        if (!granted) error = tr("주변 천을 찾으려면 위치 권한이 필요해요.", "Location permission is needed to find streams around you.")
     }
     LaunchedEffect(Unit) { if (!located) permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
 
     LaunchedEffect(located, CourseStart.picked) {
         if (!located && CourseStart.picked == null) return@LaunchedEffect
         try {
-            val at = CourseStart.resolve(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            val at = CourseStart.resolve(context) ?: throw ApiException(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on."))
             here = at
             val (found, credit) = RouteApi.rivers(at)
             rivers = found
             sources = credit
             if (chosen == null || found.none { it.id == chosen }) chosen = found.firstOrNull()?.id
-            error = if (found.isEmpty()) "3km 안에 천이나 강이 없어요. 공원 코스나 순환 코스를 이용해 보세요." else null
+            error = if (found.isEmpty()) tr("3km 안에 천이나 강이 없어요. 공원 코스나 순환 코스를 이용해 보세요.", "No stream or river within 3 km. Try a park course or a loop.") else null
         } catch (e: ApiException) {
             error = e.message
         }
@@ -125,8 +127,8 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Text(
-                "가까운 천·강을 골라 거리만 정하면, 물 바로 옆 길로 갔다가 건너편 둑길로 돌아오는 코스를 짜 드려요. " +
-                    "건너편 길이 지도에 없으면 같은 물가 길로 돌아와요.",
+                tr("가까운 천·강을 골라 거리만 정하면, 물 바로 옆 길로 갔다가 건너편 둑길로 돌아오는 코스를 짜 드려요. ", "Pick a stream or river nearby and a distance: the course goes out on the path by the water and back on the far bank. ") +
+                    tr("건너편 길이 지도에 없으면 같은 물가 길로 돌아와요.", "Where the far bank has no mapped path, it comes back the same way."),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp)
@@ -152,7 +154,7 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     Row(Modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (rivers == null) "주변 천을 찾는 중…" else "물가 길로 코스를 짜는 중…",
+                        Text(if (rivers == null) tr("주변 천을 찾는 중…", "Finding streams nearby…") else tr("물가 길로 코스를 짜는 중…", "Planning along the water…"),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -161,7 +163,7 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                 }
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
+                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text(tr("위치 권한 허용", "Allow location")) }
                 }
             }
         }
@@ -172,7 +174,7 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         if (credits.isNotEmpty()) {
             item {
                 Text(
-                    "장소 정보: " + credits.joinToString(", "),
+                    tr("장소 정보: ", "Place data: ") + credits.joinToString(", "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -196,10 +198,10 @@ private fun RiverCard(r: RouteApi.NearbyRiver, selected: Boolean, onClick: () ->
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(r.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                if (r.awayM < 50) "바로 여기" else "${formatKm(r.awayM.toDouble())}km 거리",
+                if (r.awayM < 50) tr("바로 여기", "Right here") else tr("${formatKm(r.awayM.toDouble())}km 거리", "${formatKm(r.awayM.toDouble())}km away"),
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant
             )
-            Text("물가 길 따라", style = MaterialTheme.typography.labelSmall, color = colors.primary)
+            Text(tr("물가 길 따라", "Along the water"), style = MaterialTheme.typography.labelSmall, color = colors.primary)
         }
     }
 }

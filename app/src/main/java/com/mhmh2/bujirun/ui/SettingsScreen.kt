@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,11 +51,11 @@ import com.mhmh2.bujirun.data.HealthExport
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.coach.CueInterval
 
-private val intervals = listOf(
+private val intervals get() = listOf(
     "500m" to CueInterval.EveryDistance(500.0),
     "1km" to CueInterval.EveryDistance(1000.0),
-    "5분" to CueInterval.EveryTime(5 * 60_000L),
-    "10분" to CueInterval.EveryTime(10 * 60_000L),
+    tr("5분", "5 min") to CueInterval.EveryTime(5 * 60_000L),
+    tr("10분", "10 min") to CueInterval.EveryTime(10 * 60_000L),
 )
 
 @Composable
@@ -74,15 +76,32 @@ fun SettingsScreen() {
     val autoHealth by Prefs.autoHealth.collectAsState()
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.all { it }) Prefs.setAutoCalendar(true)
-        else Toast.makeText(context, "캘린더 권한을 허용해야 기록할 수 있어요", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, tr("캘린더 권한을 허용해야 기록할 수 있어요", "Calendar permission is needed to record there"), Toast.LENGTH_LONG).show()
     }
     val healthPermission = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
         if (granted.containsAll(HealthExport.required)) Prefs.setAutoHealth(true)
-        else Toast.makeText(context, "권한을 허용해야 삼성헬스에 저장할 수 있어요", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Permission is needed to save to Samsung Health"), Toast.LENGTH_LONG).show()
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-        Text("설정", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
+        Text(tr("설정", "Settings"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
+
+        Section("언어 · Language", tr("앱 화면과 음성 안내의 언어예요.", "The language of the app and the voice."))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("ko" to "한국어", "en" to "English").forEach { (code, name) ->
+                FilterChip(
+                    selected = Prefs.language == code,
+                    onClick = {
+                        if (Prefs.language != code) {
+                            Prefs.language = code
+                            (context as? android.app.Activity)?.recreate()
+                        }
+                    },
+                    label = { Text(name) },
+                )
+            }
+        }
+        Divider()
 
         user?.let { u ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -92,7 +111,7 @@ fun SettingsScreen() {
                         if (u.isAdmin) {
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "관리자",
+                                tr("관리자", "Admin"),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -100,12 +119,12 @@ fun SettingsScreen() {
                     }
                     Text(u.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                TextButton(onClick = { confirmSignOut = true }) { Text("로그아웃") }
+                TextButton(onClick = { confirmSignOut = true }) { Text(tr("로그아웃", "Log out")) }
             }
             Divider()
         }
 
-        Section("체중", "칼로리 계산에 써요. 폰에만 저장돼요.")
+        Section(tr("체중", "Weight"), tr("칼로리 계산에 써요. 폰에만 저장돼요.", "Used for calories. Kept on this phone only."))
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = weightText,
@@ -123,13 +142,13 @@ fun SettingsScreen() {
             Text("kg")
         }
         if (weightText.isNotEmpty() && !weightValid) {
-            Text("25~250 사이로 입력해 주세요", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(tr("25~250 사이로 입력해 주세요", "Please enter 25 to 250"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         } else if (weightText.isEmpty()) {
-            Text("비워두면 65kg으로 계산해요", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text(tr("비워두면 65kg으로 계산해요", "Left empty, 65 kg is used"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         Divider()
 
-        Section("음성 안내 주기", "이 간격마다 거리, 시간, 페이스를 알려줘요.")
+        Section(tr("음성 안내 주기", "Voice updates"), tr("이 간격마다 거리, 시간, 페이스를 알려줘요.", "Distance, time and pace at this interval."))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             intervals.forEach { (label, value) ->
                 FilterChip(
@@ -141,26 +160,26 @@ fun SettingsScreen() {
         }
         Divider()
 
-        ToggleRow("음성 안내", "운동 중 음성으로 알려줘요. 운동 화면에서도 바꿀 수 있어요.", voiceOn, Prefs::setVoiceEnabled)
+        ToggleRow(tr("음성 안내", "Voice guidance"), tr("운동 중 음성으로 알려줘요. 운동 화면에서도 바꿀 수 있어요.", "Spoken updates during a workout. Can also be changed on the workout screen."), voiceOn, Prefs::setVoiceEnabled)
         Divider()
-        ToggleRow("자동 일시정지", "멈춰 서면 기록을 잠시 멈추고, 움직이면 다시 시작해요.", autoPause, Prefs::setAutoPause)
+        ToggleRow(tr("자동 일시정지", "Auto pause"), tr("멈춰 서면 기록을 잠시 멈추고, 움직이면 다시 시작해요.", "Pauses when you stop and resumes when you move."), autoPause, Prefs::setAutoPause)
         Divider()
 
         val autoRecord by Prefs.autoRecord.collectAsState()
         val setAutoRecord = rememberAutoRecordSwitch()
         ToggleRow(
-            "자동 기록 · 만보기",
-            "앱을 켜지 않아도 하루 걸음 수를 세고, 15분 넘게 걷거나 5분 넘게 달리면 기록에 남겨요. GPS는 쓰지 않아요.",
+            tr("자동 기록 · 만보기", "Auto recording · pedometer"),
+            tr("앱을 켜지 않아도 하루 걸음 수를 세고, 15분 넘게 걷거나 5분 넘게 달리면 기록에 남겨요. GPS는 쓰지 않아요.", "Counts daily steps without opening the app, and records walks over 15 minutes and runs over 5. No GPS."),
             autoRecord,
             setAutoRecord,
         )
         Divider()
 
         // After each workout, without a tap. Turning one on asks for its permission there and then.
-        Section("운동이 끝나면 자동으로", "운동을 마치면 바로 기록해요 (앱을 닫아서 끝낸 운동도). 테스트 운동은 기록하지 않아요.")
+        Section(tr("운동이 끝나면 자동으로", "When a workout ends"), tr("운동을 마치면 바로 기록해요 (앱을 닫아서 끝낸 운동도). 테스트 운동은 기록하지 않아요.", "Recorded right away, even for workouts ended by closing the app. Test runs are skipped."))
         ToggleRow(
-            "구글 캘린더에 기록",
-            "폰의 구글 계정 캘린더에 운동 시간, 거리, 페이스, 구간 기록이 일정으로 남아요.",
+            tr("구글 캘린더에 기록", "Add to Google Calendar"),
+            tr("폰의 구글 계정 캘린더에 운동 시간, 거리, 페이스, 구간 기록이 일정으로 남아요.", "Time, distance, pace and splits go into your Google account's calendar as an event."),
             autoCalendar,
         ) { on ->
             if (!on) Prefs.setAutoCalendar(false)
@@ -168,8 +187,8 @@ fun SettingsScreen() {
             else calendarPermission.launch(CalendarExport.permissions)
         }
         ToggleRow(
-            "삼성헬스에 저장",
-            "Health Connect를 거쳐 삼성헬스, Google Fit 등에 운동과 경로가 들어가요.",
+            tr("삼성헬스에 저장", "Save to Samsung Health"),
+            tr("Health Connect를 거쳐 삼성헬스, Google Fit 등에 운동과 경로가 들어가요.", "The workout and route go to Samsung Health, Google Fit and others through Health Connect."),
             autoHealth,
         ) { on ->
             if (!on) Prefs.setAutoHealth(false)
@@ -178,13 +197,13 @@ fun SettingsScreen() {
                     if (HealthExport.missingPermissions(context).isEmpty()) Prefs.setAutoHealth(true)
                     else healthPermission.launch(HealthExport.permissions)
                 }
-                else -> Toast.makeText(context, "이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", Toast.LENGTH_LONG).show()
+                else -> Toast.makeText(context, tr("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", "Health Connect needs installing or updating on this phone first"), Toast.LENGTH_LONG).show()
             }
         }
         if (user != null) {
             Divider()
             TextButton(onClick = { deleting = true }, contentPadding = PaddingValues(0.dp)) {
-                Text("계정 삭제", color = MaterialTheme.colorScheme.error)
+                Text(tr("계정 삭제", "Delete account"), color = MaterialTheme.colorScheme.error)
             }
         }
         Spacer(Modifier.height(32.dp))
@@ -193,12 +212,12 @@ fun SettingsScreen() {
     if (confirmSignOut) {
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
-            title = { Text("로그아웃할까요?") },
-            text = { Text("운동 기록은 이 폰에 그대로 남아요.") },
+            title = { Text(tr("로그아웃할까요?", "Log out?")) },
+            text = { Text(tr("운동 기록은 이 폰에 그대로 남아요.", "Your workouts stay on this phone.")) },
             confirmButton = {
-                TextButton(onClick = { confirmSignOut = false; scope.launch { Account.logOut() } }) { Text("로그아웃") }
+                TextButton(onClick = { confirmSignOut = false; scope.launch { Account.logOut() } }) { Text(tr("로그아웃", "Log out")) }
             },
-            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("취소") } }
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(tr("취소", "Cancel")) } }
         )
     }
     if (deleting) DeleteAccountDialog(onDismiss = { deleting = false })
@@ -213,15 +232,15 @@ private fun DeleteAccountDialog(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("계정을 삭제할까요?") },
+        title = { Text(tr("계정을 삭제할까요?", "Delete your account?")) },
         text = {
             Column {
-                Text("서버에서 계정이 지워지고 되돌릴 수 없어요. 이 폰의 운동 기록은 남아요.")
+                Text(tr("서버에서 계정이 지워지고 되돌릴 수 없어요. 이 폰의 운동 기록은 남아요.", "The account is removed from the server for good. Workouts on this phone stay."))
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it; error = null },
-                    label = { Text("비밀번호") },
+                    label = { Text(tr("비밀번호", "Password")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -245,9 +264,9 @@ private fun DeleteAccountDialog(onDismiss: () -> Unit) {
                         }
                     }
                 }
-            ) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+            ) { Text(tr("삭제", "Delete"), color = MaterialTheme.colorScheme.error) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("취소") } }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(tr("취소", "Cancel")) } }
     )
 }
 
@@ -283,9 +302,9 @@ fun rememberAutoRecordSwitch(): (Boolean) -> Unit {
         if (granted) {
             Prefs.setAutoRecord(true)
             PassiveRecorder.apply(context)
-            Toast.makeText(context, "자동 기록을 켰어요. 설정에서 언제든 끌 수 있어요", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, tr("자동 기록을 켰어요. 설정에서 언제든 끌 수 있어요", "Auto recording is on. You can turn it off in Settings any time"), Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(context, "신체 활동 권한을 허용해야 걸음과 걷기를 기록할 수 있어요", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, tr("신체 활동 권한을 허용해야 걸음과 걷기를 기록할 수 있어요", "The Physical activity permission is needed to record steps and walks"), Toast.LENGTH_LONG).show()
         }
     }
     return { on ->
@@ -294,7 +313,7 @@ fun rememberAutoRecordSwitch(): (Boolean) -> Unit {
         } else {
             Prefs.setAutoRecord(on)
             PassiveRecorder.apply(context)
-            if (on) Toast.makeText(context, "자동 기록을 켰어요. 설정에서 언제든 끌 수 있어요", Toast.LENGTH_LONG).show()
+            if (on) Toast.makeText(context, tr("자동 기록을 켰어요. 설정에서 언제든 끌 수 있어요", "Auto recording is on. You can turn it off in Settings any time"), Toast.LENGTH_LONG).show()
         }
     }
 }

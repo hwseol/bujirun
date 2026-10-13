@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -77,7 +79,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         located = granted
-        if (!granted) error = "주변 공원을 찾으려면 위치 권한이 필요해요."
+        if (!granted) error = tr("주변 공원을 찾으려면 위치 권한이 필요해요.", "Location permission is needed to find parks around you.")
     }
     LaunchedEffect(Unit) { if (!located) permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
 
@@ -86,13 +88,13 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     LaunchedEffect(located, CourseStart.picked) {
         if (!located && CourseStart.picked == null) return@LaunchedEffect
         try {
-            val at = CourseStart.resolve(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            val at = CourseStart.resolve(context) ?: throw ApiException(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on."))
             here = at
             val (found, credit) = RouteApi.lapParks(at)
             parks = found
             sources = credit
             if (chosen == null || found.none { it.id == chosen }) chosen = found.firstOrNull()?.id
-            error = if (found.isEmpty()) "2km 안에 돌 만한 공원이 없어요. 순환 코스를 이용해 보세요." else null
+            error = if (found.isEmpty()) tr("2km 안에 돌 만한 공원이 없어요. 순환 코스를 이용해 보세요.", "No park to go round within 2 km. Try a loop instead.") else null
         } catch (e: ApiException) {
             error = e.message
         }
@@ -128,7 +130,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         item {
             Column(Modifier.padding(horizontal = 24.dp)) {
                 Text(
-                    "가까운 공원 산책로나 러닝트랙(대학교·천변·공원)을 도는 코스예요. 가고 오는 길도 거리에 포함돼요.",
+                    tr("가까운 공원 산책로나 러닝트랙(대학교·천변·공원)을 도는 코스예요. 가고 오는 길도 거리에 포함돼요.", "Courses round nearby park paths or running tracks (universities, riversides, parks). The way there and back counts too."),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -154,7 +156,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     Row(Modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (parks == null) "주변 공원을 찾는 중…" else "코스를 짜는 중…",
+                        Text(if (parks == null) tr("주변 공원을 찾는 중…", "Finding parks nearby…") else tr("코스를 짜는 중…", "Planning the course…"),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -163,7 +165,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                 }
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
+                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text(tr("위치 권한 허용", "Allow location")) }
                 }
             }
         }
@@ -174,7 +176,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         if (credits.isNotEmpty()) {
             item {
                 Text(
-                    "장소 정보: " + credits.joinToString(", "),
+                    tr("장소 정보: ", "Place data: ") + credits.joinToString(", "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -198,19 +200,19 @@ private fun ParkCard(p: RouteApi.LapPark, selected: Boolean, onClick: () -> Unit
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(p.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                (if (p.awayM < 50) "바로 여기" else "${formatKm(p.awayM.toDouble())}km") +
-                    (if (p.kind == "track") " · 한 바퀴 " else " · 둘레 ") + "${formatKm(p.lapM.toDouble())}km",
+                (if (p.awayM < 50) tr("바로 여기", "Right here") else "${formatKm(p.awayM.toDouble())}km") +
+                    (if (p.kind == "track") tr(" · 한 바퀴 ", " · lap ") else tr(" · 둘레 ", " · round ")) + "${formatKm(p.lapM.toDouble())}km",
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 2
             )
             Text(
                 when {
                     // A school's track is often locked outside school hours.
-                    p.kind == "track" && p.subtype == "school" -> "학교 운동장 트랙 · 개방 시간 확인"
-                    p.kind == "track" -> "러닝트랙"
-                    p.kind == "lake" -> "호숫가 산책로"
-                    p.paths -> "공원 산책로 따라"
-                    else -> "공원 둘레"
-                } + (p.shade?.let { " · 숲 $it%" } ?: ""),
+                    p.kind == "track" && p.subtype == "school" -> tr("학교 운동장 트랙 · 개방 시간 확인", "School track · check opening hours")
+                    p.kind == "track" -> tr("러닝트랙", "Running track")
+                    p.kind == "lake" -> tr("호숫가 산책로", "Lakeside path")
+                    p.paths -> tr("공원 산책로 따라", "Along park paths")
+                    else -> tr("공원 둘레", "Round the park")
+                } + (p.shade?.let { tr(" · 숲 $it%", " · trees $it%") } ?: ""),
                 style = MaterialTheme.typography.labelSmall, color = colors.primary, maxLines = 2
             )
         }

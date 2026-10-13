@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.account.Account
 import com.mhmh2.bujirun.net.Api
 import com.mhmh2.bujirun.net.ApiException
@@ -18,7 +20,7 @@ data class Trail(
     val summary: String,
     val preview: List<GeoPoint>,
 ) {
-    val levelLabel: String? get() = when (level) { 1 -> "쉬움"; 2 -> "보통"; 3 -> "어려움"; else -> null }
+    val levelLabel: String? get() = when (level) { 1 -> tr("쉬움", "Easy"); 2 -> tr("보통", "Moderate"); 3 -> tr("어려움", "Hard"); else -> null }
 }
 
 /** Official walking trails from our server (a copy of 한국관광공사 두루누비). */
@@ -48,7 +50,7 @@ object TrailApi {
     /** The full trail line (with altitude where the GPX has it). */
     suspend fun points(id: String): List<GeoPoint> = points(Api.get("/trails/$id", token()).getJSONArray("points"))
 
-    private fun token() = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+    private fun token() = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
 
     private fun points(arr: JSONArray) = (0 until arr.length()).map { i ->
         val p = arr.getJSONArray(i)

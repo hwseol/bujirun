@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.account.Account
 import com.mhmh2.bujirun.net.Api
 import com.mhmh2.bujirun.net.ApiException
@@ -11,7 +13,7 @@ object RouteApi {
     // Planning somewhere new can take the server a while (routes to fetch); don't give up at 20 s.
     private const val PLAN_TIMEOUT_MS = 60_000
     suspend fun walk(from: GeoPoint, to: GeoPoint): List<GeoPoint> {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val json = Api.post(
             "/routes/pedestrian",
             JSONObject().put("start", JSONArray().put(from.lat).put(from.lon)).put("end", JSONArray().put(to.lat).put(to.lon)),
@@ -28,7 +30,7 @@ object RouteApi {
 
     /** Suggested loops of about [distanceM] that start and end at [start]. */
     suspend fun loops(start: GeoPoint, distanceM: Int): List<Loop> {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val json = Api.post(
             "/routes/loops",
             JSONObject().put("start", JSONArray().put(start.lat).put(start.lon)).put("distance_m", distanceM),
@@ -72,7 +74,7 @@ object RouteApi {
      * worked out on the phone (time at the user's pace, or a default); null to a destination.
      */
     suspend fun plan(start: GeoPoint, intent: CourseIntent, distanceM: Int?): Plan {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val body = JSONObject()
             .put("shape", intent.shape.name)
             .put("themes", JSONArray(intent.themes.map { it.name }))
@@ -117,7 +119,7 @@ object RouteApi {
     )
 
     suspend fun lapParks(near: GeoPoint): Pair<List<LapPark>, List<String>> {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val json = Api.get("/places/parks?lat=${near.lat}&lon=${near.lon}", token)
         val arr = json.getJSONArray("places")
         return (0 until arr.length()).map { i ->
@@ -132,7 +134,7 @@ object RouteApi {
 
     /** Streams and rivers within 3 km, nearest first, and the credits for the data. */
     suspend fun rivers(near: GeoPoint): Pair<List<NearbyRiver>, List<String>> {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val json = Api.get("/places/nearby?lat=${near.lat}&lon=${near.lon}&radius_m=3000", token)
         val arr = json.getJSONArray("places")
         return (0 until arr.length()).map { arr.getJSONObject(it) }.filter { it.optString("kind") == "river" }.map {
@@ -145,7 +147,7 @@ object RouteApi {
 
     /** Places matching [query] (names, stations, addresses), the best match first. */
     suspend fun lookup(query: String, near: GeoPoint): List<FoundPlace> {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val q = java.net.URLEncoder.encode(query, "UTF-8")
         val arr = Api.get("/places/lookup?q=$q&lat=${near.lat}&lon=${near.lon}", token).getJSONArray("places")
         return (0 until arr.length()).map { i ->
@@ -156,7 +158,7 @@ object RouteApi {
 
     /** Named things at each of [points] (a course's turns), null where there's nothing useful. */
     suspend fun landmarks(points: List<GeoPoint>): List<Landmark?> {
-        val token = Account.token ?: throw ApiException("다시 로그인해 주세요.", 401)
+        val token = Account.token ?: throw ApiException(tr("다시 로그인해 주세요.", "Please log in again."), 401)
         val pts = JSONArray().apply { points.forEach { put(JSONArray().put(it.lat).put(it.lon)) } }
         val arr = Api.post("/routes/landmarks", JSONObject().put("points", pts), token).getJSONArray("landmarks")
         return (0 until arr.length()).map { i ->

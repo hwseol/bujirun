@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -58,11 +60,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    HOME("홈", Icons.Filled.Home),
-    COURSES("코스", Icons.Filled.Map),
-    HISTORY("기록", Icons.AutoMirrored.Filled.List),
-    SETTINGS("설정", Icons.Filled.Settings),
+private enum class Tab(private val ko: String, private val en: String, val icon: ImageVector) {
+    HOME("홈", "Home", Icons.Filled.Home),
+    COURSES("코스", "Courses", Icons.Filled.Map),
+    HISTORY("기록", "History", Icons.AutoMirrored.Filled.List),
+    SETTINGS("설정", "Settings", Icons.Filled.Settings);
+
+    val label: String get() = tr(ko, en)
 }
 
 /** Picks the screen from the workout state - the service is the source of truth, not the UI. */
@@ -119,7 +123,7 @@ fun BujirunApp() {
             onDismissRequest = { Notices.dismiss() },
             title = { Text(n.title) },
             text = { Text(n.body) },
-            confirmButton = { TextButton(onClick = { Notices.dismiss() }) { Text("확인") } },
+            confirmButton = { TextButton(onClick = { Notices.dismiss() }) { Text(tr("확인", "OK")) } },
         )
     }
 
@@ -254,12 +258,12 @@ fun BujirunApp() {
 private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("어떻게 시작할까요?") },
+        title = { Text(tr("어떻게 시작할까요?", "How do you want to start?")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onReal, modifier = Modifier.fillMaxWidth()) { Text("실제 운동") }
+                Button(onClick = onReal, modifier = Modifier.fillMaxWidth()) { Text(tr("실제 운동", "Real workout")) }
                 Text(
-                    "테스트 (가짜 GPS · 기록에 '테스트'로 저장, 삼성헬스 제외)",
+                    tr("테스트 (가짜 GPS · 기록에 '테스트'로 저장, 삼성헬스 제외)", "Test (fake GPS · saved as a test, never sent to Samsung Health)"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -270,13 +274,13 @@ private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismis
                             onClick = { onTest(scale) },
                             contentPadding = PaddingValues(horizontal = 4.dp),
                             modifier = Modifier.weight(1f)
-                        ) { Text("${scale}배속", maxLines = 1) }
+                        ) { Text(tr("${scale}배속", "${scale}x"), maxLines = 1) }
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("취소", "Cancel")) } }
     )
 }
 

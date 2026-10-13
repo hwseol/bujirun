@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
@@ -92,16 +94,16 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
             Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(8.dp))
-            Text("AI 주변 코스", style = MaterialTheme.typography.titleLarge)
+            Text(tr("AI 주변 코스", "AI courses nearby"), style = MaterialTheme.typography.titleLarge)
         }
         TabRow(selectedTabIndex = tab) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("공원·트랙") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("천·강변") })
-            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("순환") })
-            Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("걷기길") })
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(tr("공원·트랙", "Parks")) })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(tr("천·강변", "Rivers")) })
+            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text(tr("순환", "Loop")) })
+            Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text(tr("걷기길", "Trails")) })
         }
         Spacer(Modifier.height(12.dp))
         when (tab) {
@@ -124,11 +126,11 @@ internal fun rememberWithLocation(onError: (String) -> Unit, action: suspend (Ge
     fun go() {
         scope.launch {
             val here = currentLocation(context)
-            if (here == null) onError("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.") else action(here)
+            if (here == null) onError(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on.")) else action(here)
         }
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) go() else onError("주변 코스를 찾으려면 위치 권한이 필요해요.")
+        if (granted) go() else onError(tr("주변 코스를 찾으려면 위치 권한이 필요해요.", "Location permission is needed to find courses around you."))
     }
     return {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) go()
@@ -171,7 +173,7 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     val inReach = trails.orEmpty().filter { it.awayM <= TRAIL_REACH_M }
     Column(Modifier.padding(horizontal = 24.dp)) {
         Text(
-            "코리아둘레길 등 공식 걷기길 중 ${TRAIL_REACH_M / 1000}km 안에 지나는 길이에요.",
+            tr("코리아둘레길 등 공식 걷기길 중 ${TRAIL_REACH_M / 1000}km 안에 지나는 길이에요.", "Official walking trails such as the Korea Dulle-gil passing within ${TRAIL_REACH_M / 1000}km."),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -180,9 +182,9 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         val nearest = trails?.firstOrNull()
         if (trails != null && inReach.isEmpty()) {
             Text(
-                "근처를 지나는 공식 걷기길이 없어요." +
-                    (nearest?.let { " 가장 가까운 길은 ${it.name} (${formatKm(it.awayM)}km)예요." } ?: "") +
-                    "\n공원 코스나 순환 코스를 이용해 보세요.",
+                tr("근처를 지나는 공식 걷기길이 없어요.", "No official trail passes nearby.") +
+                    (nearest?.let { tr(" 가장 가까운 길은 ${it.name} (${formatKm(it.awayM)}km)예요.", " The nearest is ${it.name} (${formatKm(it.awayM)}km).") } ?: "") +
+                    tr("\n공원 코스나 순환 코스를 이용해 보세요.", "\nTry a park course or a loop."),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 16.dp)
             )
@@ -203,15 +205,15 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                         listOfNotNull(
                             t.region.takeIf { it.isNotBlank() },
                             "${formatKm(t.distanceM)}km",
-                            if (t.loop) "순환" else "편도",
+                            if (t.loop) tr("순환", "Loop") else tr("편도", "One way"),
                             t.levelLabel,
-                            t.hours?.let { "약 ${com.mhmh2.bujirun.coach.CueText.duration((it * 3_600_000).toLong())}" },
+                            t.hours?.let { tr("약 ${com.mhmh2.bujirun.coach.CueText.duration((it * 3_600_000).toLong())}", "about ${com.mhmh2.bujirun.coach.CueText.duration((it * 3_600_000).toLong())}") },
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "여기서 ${formatKm(t.awayM)}km",
+                        tr("여기서 ${formatKm(t.awayM)}km", "${formatKm(t.awayM)}km from here"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -226,8 +228,8 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { keep(t, onRun) }, enabled = busyId == null, modifier = Modifier.weight(1f)) { Text("바로 달리기") }
-                        OutlinedButton(onClick = { keep(t, onOpen) }, enabled = busyId == null, modifier = Modifier.weight(1f)) { Text("내 코스에 저장") }
+                        Button(onClick = { keep(t, onRun) }, enabled = busyId == null, modifier = Modifier.weight(1f)) { Text(tr("바로 달리기", "Run now")) }
+                        OutlinedButton(onClick = { keep(t, onOpen) }, enabled = busyId == null, modifier = Modifier.weight(1f)) { Text(tr("내 코스에 저장", "Save to my courses")) }
                     }
                 }
             }
@@ -235,7 +237,7 @@ private fun TrailsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         if (inReach.isNotEmpty()) {
             item {
                 Text(
-                    "걷기길 정보: ${TrailApi.SOURCE}",
+                    tr("걷기길 정보: ${TrailApi.SOURCE}", "Trail data: ${TrailApi.SOURCE}"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
@@ -258,7 +260,7 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         located = granted
-        if (!granted) error = "주변 코스를 찾으려면 위치 권한이 필요해요."
+        if (!granted) error = tr("주변 코스를 찾으려면 위치 권한이 필요해요.", "Location permission is needed to find courses around you.")
     }
     LaunchedEffect(Unit) { if (!located) permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
 
@@ -270,7 +272,7 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         loading = true
         error = null
         try {
-            val here = CourseStart.resolve(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            val here = CourseStart.resolve(context) ?: throw ApiException(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on."))
             loops = RouteApi.loops(here, distance)
         } catch (e: ApiException) {
             error = e.message
@@ -283,7 +285,7 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     fun save(points: List<GeoPoint>, then: (Long) -> Unit) {
         scope.launch {
             val km = formatKm(CourseGeometry.distanceM(points))
-            then(CourseStore.save("추천 순환 ${km}km", CourseSource.RECOMMENDED, points))
+            then(CourseStore.save(tr("추천 순환 ${km}km", "Suggested loop ${km}km"), CourseSource.RECOMMENDED, points))
         }
     }
 
@@ -292,7 +294,7 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         item {
             Column(Modifier.padding(horizontal = 24.dp)) {
                 Text(
-                    "출발점에서 시작해 다시 돌아오는 코스를 찾아드려요.",
+                    tr("출발점에서 시작해 다시 돌아오는 코스를 찾아드려요.", "Courses that start at your start point and come back to it."),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -313,25 +315,25 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("${distance / 1000}km 코스를 찾는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("${distance / 1000}km 코스를 찾는 중…", "Finding ${distance / 1000}km courses…"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
+                    if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text(tr("위치 권한 허용", "Allow location")) }
                 }
             }
         }
         itemsIndexed(loops) { i, loop ->
             val points = loop.points
-            LoopCard(points, "추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade, hills = loop.hills)
+            LoopCard(points, tr("추천 ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km 순환", "Suggestion ${i + 1} · ${formatKm(CourseGeometry.distanceM(points))}km loop"), onRun = { save(points, onRun) }, onSave = { save(points, onOpen) }, shade = loop.shade, hills = loop.hills)
         }
         if (loops.any { it.shade != null || it.hills != null }) {
             item {
                 Text(
                     listOfNotNull(
-                        "그늘: ESA WorldCover 2021 (나무 그늘 기준)".takeIf { loops.any { it.shade != null } },
-                        "높이: Copernicus DEM (ESA)".takeIf { loops.any { it.hills != null } },
+                        tr("그늘: ESA WorldCover 2021 (나무 그늘 기준)", "Shade: ESA WorldCover 2021 (tree cover)").takeIf { loops.any { it.shade != null } },
+                        tr("높이: Copernicus DEM (ESA)", "Height: Copernicus DEM (ESA)").takeIf { loops.any { it.hills != null } },
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -348,7 +350,7 @@ private fun LoopsTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
 internal fun ShadeBadge(percent: Int) {
     val strong = percent >= 50
     Text(
-        "🌳 그늘 $percent%",
+        tr("🌳 그늘 $percent%", "🌳 Shade $percent%"),
         style = MaterialTheme.typography.labelMedium,
         color = if (strong) Color(0xFF1B5E20) else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50))
@@ -362,8 +364,8 @@ internal fun ShadeBadge(percent: Int) {
 internal fun HillsLine(h: RouteApi.Hills) {
     val hilly = h.terrain.contains("언덕")
     Text(
-        if (h.terrain == "평지") "⛰ 평지 코스 (오르막 ${h.ascentM}m)"
-        else "⛰ 오르막 ${h.ascentM}m · 최대 경사 ${h.maxGrade.roundToInt()}% · ${h.terrain}",
+        if (h.terrain == "평지") tr("⛰ 평지 코스 (오르막 ${h.ascentM}m)", "⛰ Flat course (climb ${h.ascentM}m)")
+        else tr("⛰ 오르막 ${h.ascentM}m · 최대 경사 ${h.maxGrade.roundToInt()}% · ${h.terrain}", "⛰ Climb ${h.ascentM}m · steepest ${h.maxGrade.roundToInt()}% · ${if (hilly) "a hilly course" else "some gentle climbs"}"),
         style = MaterialTheme.typography.bodySmall,
         fontWeight = if (hilly) FontWeight.Bold else null,
         color = if (hilly) Color(0xFFB45309) else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -377,8 +379,8 @@ internal fun rememberPaces(): Paces =
 
 /** "달리기 약 32:10 · 걷기 약 1:01:00", at the user's own paces when known ("내 페이스"). */
 internal fun estimateText(meters: Double, paces: Paces): String {
-    val run = "달리기 약 ${formatDuration(paces.runMs(meters))}" + if (paces.runOrNull != null) " (내 페이스)" else ""
-    val walk = "걷기 약 ${formatDuration(paces.walkMs(meters))}" + if (paces.walkOrNull != null) " (내 페이스)" else ""
+    val run = tr("달리기 약 ${formatDuration(paces.runMs(meters))}", "Run about ${formatDuration(paces.runMs(meters))}") + if (paces.runOrNull != null) tr(" (내 페이스)", " (your pace)") else ""
+    val walk = tr("걷기 약 ${formatDuration(paces.walkMs(meters))}", "Walk about ${formatDuration(paces.walkMs(meters))}") + if (paces.walkOrNull != null) tr(" (내 페이스)", " (your pace)") else ""
     return "$run · $walk"
 }
 
@@ -435,10 +437,10 @@ internal fun LoopCard(
                     maxLines = 2,
                 )
             }
-            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("지도 크게 보기 · 자세히 ›") }
+            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text(tr("지도 크게 보기 · 자세히 ›", "Bigger map · details ›")) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRun, modifier = Modifier.weight(1f)) { Text("바로 달리기") }
-                OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text("내 코스에 저장") }
+                Button(onClick = onRun, modifier = Modifier.weight(1f)) { Text(tr("바로 달리기", "Run now")) }
+                OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text(tr("내 코스에 저장", "Save to my courses")) }
             }
         }
     }

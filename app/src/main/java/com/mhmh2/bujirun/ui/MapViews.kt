@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
@@ -83,7 +85,7 @@ fun LiteMap(
     fit: List<LatLng>,
     modifier: Modifier = Modifier,
     height: Dp = 240.dp,
-    emptyText: String = "표시할 경로가 없어요",
+    emptyText: String = tr("표시할 경로가 없어요", "No route to show"),
     draw: (NaverMap, density: Float) -> List<Overlay>,
 ) {
     val box = modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(16.dp))

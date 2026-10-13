@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.coach
 
+import com.mhmh2.bujirun.tr
+
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -53,7 +55,7 @@ class VoiceAnnouncer(context: Context) {
             beforeReady.clear()
             return
         }
-        val lang = tts.setLanguage(Locale.KOREAN)
+        val lang = tts.setLanguage(if (com.mhmh2.bujirun.Lang.english) Locale.US else Locale.KOREAN)
         if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) {
             Log.w(TAG, "Korean TTS voice not available ($lang), using the engine default")
         }
@@ -71,7 +73,7 @@ class VoiceAnnouncer(context: Context) {
         // "셋" behind the 3 on screen. Synthesize a word to a scratch file first, unheard; the
         // engine counts as ready once that's done (or after 1.5 s regardless).
         warmFile = File(cacheDir, "tts-warm.wav")
-        val started = tts.synthesizeToFile("셋 둘 하나", Bundle(), warmFile, WARM_UP) == TextToSpeech.SUCCESS
+        val started = tts.synthesizeToFile(tr("셋 둘 하나", "three two one"), Bundle(), warmFile, WARM_UP) == TextToSpeech.SUCCESS
         if (started) main.postDelayed(::warmedUp, 1_500) else warmedUp()
     }
 

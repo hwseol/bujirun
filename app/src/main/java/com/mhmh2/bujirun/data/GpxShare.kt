@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.data
 
+import com.mhmh2.bujirun.tr
+
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
@@ -25,6 +27,6 @@ object GpxShare {
             .putExtra(Intent.EXTRA_STREAM, uri)
             .putExtra(Intent.EXTRA_SUBJECT, title)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        context.startActivity(Intent.createChooser(send, "GPX 내보내기"))
+        context.startActivity(Intent.createChooser(send, tr("GPX 내보내기", "Export GPX")))
     }
 }

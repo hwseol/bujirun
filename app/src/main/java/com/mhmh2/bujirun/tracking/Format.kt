@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.tracking
 
+import com.mhmh2.bujirun.tr
+
 import java.util.Locale
 import kotlin.math.roundToLong
 
@@ -17,10 +19,10 @@ fun formatDuration(ms: Long): String {
 fun formatKm(meters: Double): String = String.format(Locale.US, "%.2f", meters / 1000.0)
 
 fun activityLabel(activity: Activity) = when (activity) {
-    Activity.RUN -> "달리는 중"
-    Activity.WALK -> "걷는 중"
-    Activity.STILL -> "멈춤"
-    Activity.UNKNOWN -> "기록 중"
+    Activity.RUN -> tr("달리는 중", "Running")
+    Activity.WALK -> tr("걷는 중", "Walking")
+    Activity.STILL -> tr("멈춤", "Stopped")
+    Activity.UNKNOWN -> tr("기록 중", "Recording")
 }
 
 /** 6'11" per km, or --'--" when there isn't enough data yet. */

@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.tracking
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -369,13 +371,13 @@ class WorkoutService : LifecycleService() {
         val ownWay = p == null || p.finished || (p.started && !p.onCourse)
         if (!ownWay || nav?.openLaps == true) return
         val route = CourseRoute(loop.points)
-        navigator = CourseNavigator("내 바퀴", route, announceHalfway = false, openLaps = true, lapsAlready = 1, lapStartMs = now, startsHere = true)
+        navigator = CourseNavigator(tr("내 바퀴", "My lap"), route, announceHalfway = false, openLaps = true, lapsAlready = 1, lapStartMs = now, startsHere = true)
         offSinceMs = null
         say(Cue.Course(CourseCue.LoopLearned(route.lengthM, loop.lapMs)))
         publish()
     }
 
-    /** "경로 다시 찾기": a new route from here to the nearest part of the course not yet run. */
+    /** tr("경로 다시 찾기", "Find route again"): a new route from here to the nearest part of the course not yet run. */
     private fun reroute() {
         val nav = navigator ?: return
         if (rerouting) return
@@ -547,8 +549,8 @@ class WorkoutService : LifecycleService() {
             PackageManager.PERMISSION_GRANTED
 
     private fun createChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, "운동 기록", NotificationManager.IMPORTANCE_LOW)
-            .apply { description = "운동 중 시간과 거리를 보여줍니다" }
+        val channel = NotificationChannel(CHANNEL_ID, tr("운동 기록", "Workout"), NotificationManager.IMPORTANCE_LOW)
+            .apply { description = tr("운동 중 시간과 거리를 보여줍니다", "Shows time and distance during a workout") }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
@@ -560,10 +562,10 @@ class WorkoutService : LifecycleService() {
         )
         val paused = s.status == WorkoutStatus.PAUSED
         val title = when {
-            s.countdown != null -> "곧 시작합니다"
-            s.autoPaused -> "자동 일시정지"
-            paused -> "일시정지"
-            !s.hasFix -> "GPS 찾는 중"
+            s.countdown != null -> tr("곧 시작합니다", "Starting soon")
+            s.autoPaused -> tr("자동 일시정지", "Auto paused")
+            paused -> tr("일시정지", "Paused")
+            !s.hasFix -> tr("GPS 찾는 중", "Finding GPS")
             else -> activityLabel(s.activity)
         }
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -577,12 +579,12 @@ class WorkoutService : LifecycleService() {
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         when (s.status) {
-            WorkoutStatus.RUNNING -> builder.addAction(0, "일시정지", servicePendingIntent(ACTION_PAUSE))
-            WorkoutStatus.PAUSED -> builder.addAction(0, "재개", servicePendingIntent(ACTION_RESUME))
+            WorkoutStatus.RUNNING -> builder.addAction(0, tr("일시정지", "Pause"), servicePendingIntent(ACTION_PAUSE))
+            WorkoutStatus.PAUSED -> builder.addAction(0, tr("재개", "Resume"), servicePendingIntent(ACTION_RESUME))
             else -> {}
         }
         // Lost on a course: the way back from the lock screen, without opening the app.
-        if (s.course != null && s.countdown == null) builder.addAction(0, "경로 다시 찾기", servicePendingIntent(ACTION_REROUTE))
+        if (s.course != null && s.countdown == null) builder.addAction(0, tr("경로 다시 찾기", "Find route again"), servicePendingIntent(ACTION_REROUTE))
         return builder.build()
     }
 

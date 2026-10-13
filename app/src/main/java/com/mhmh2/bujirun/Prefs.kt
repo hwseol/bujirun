@@ -25,6 +25,7 @@ object Prefs {
         _autoCalendar.value = sp.getBoolean("auto_calendar", false)
         _autoHealth.value = sp.getBoolean("auto_health", false)
         _autoRecord.value = sp.getBoolean("auto_record", false)
+        Lang.english = sp.getString("language", "ko") == "en"
         // Turned on before "since" was kept: from now on, not the whole history at once.
         for (where in listOf("calendar", "health")) {
             if (sp.getBoolean("auto_$where", false) && !sp.contains("auto_${where}_since")) {
@@ -121,6 +122,14 @@ object Prefs {
     var autoExportOfferHidden: Boolean
         get() = sp.getBoolean("auto_export_offer_hidden", false)
         set(v) = sp.edit().putBoolean("auto_export_offer_hidden", v).apply()
+
+    /** "ko" (default) or "en"; see Lang. */
+    var language: String
+        get() = if (Lang.english) "en" else "ko"
+        set(v) {
+            Lang.english = v == "en"
+            sp.edit().putString("language", v).apply()
+        }
 
     /** The newest server notice already shown (net/Notices). */
     var lastNoticeId: Int

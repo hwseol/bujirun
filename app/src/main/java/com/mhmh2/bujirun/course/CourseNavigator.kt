@@ -1,15 +1,19 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-enum class TurnDirection(val spoken: String, val arrow: String) {
-    SLIGHT_LEFT("왼쪽 방향", "↖"), LEFT("왼쪽", "←"), SHARP_LEFT("크게 왼쪽", "↙"),
-    SLIGHT_RIGHT("오른쪽 방향", "↗"), RIGHT("오른쪽", "→"), SHARP_RIGHT("크게 오른쪽", "↘"),
-    U_TURN("유턴", "↶"),
+enum class TurnDirection(private val ko: String, private val en: String, val arrow: String) {
+    SLIGHT_LEFT("왼쪽 방향", "bear left", "↖"), LEFT("왼쪽", "turn left", "←"), SHARP_LEFT("크게 왼쪽", "sharp left", "↙"),
+    SLIGHT_RIGHT("오른쪽 방향", "bear right", "↗"), RIGHT("오른쪽", "turn right", "→"), SHARP_RIGHT("크게 오른쪽", "sharp right", "↘"),
+    U_TURN("유턴", "make a U-turn", "↶");
+
+    val spoken: String get() = tr(ko, en)
 }
 
 data class Turn(val atM: Double, val direction: TurnDirection)
@@ -18,9 +22,9 @@ data class Turn(val atM: Double, val direction: TurnDirection)
 data class Landmark(val name: String, val kind: String) {
     /** "역삼역사거리에서", "강남역 근처에서", "양재천공원 앞에서". */
     val at: String get() = when (kind) {
-        "junction", "bridge" -> "${name}에서"
-        "station" -> "$name 근처에서"
-        else -> "$name 앞에서"
+        "junction", "bridge" -> tr("${name}에서", "at $name")
+        "station" -> tr("$name 근처에서", "near $name")
+        else -> tr("$name 앞에서", "by $name")
     }
 }
 
@@ -213,9 +217,12 @@ data class CourseProgress(
 }
 
 /** Where something is relative to the way the runner is heading, as said out loud. */
-enum class Relative(val spoken: String) {
-    AHEAD("앞쪽"), AHEAD_RIGHT("오른쪽 앞"), RIGHT("오른쪽"), BEHIND_RIGHT("오른쪽 뒤"),
-    BEHIND("뒤쪽"), BEHIND_LEFT("왼쪽 뒤"), LEFT("왼쪽"), AHEAD_LEFT("왼쪽 앞");
+enum class Relative(private val ko: String, private val en: String) {
+    AHEAD("앞쪽", "ahead"), AHEAD_RIGHT("오른쪽 앞", "ahead on your right"), RIGHT("오른쪽", "to your right"),
+    BEHIND_RIGHT("오른쪽 뒤", "behind on your right"), BEHIND("뒤쪽", "behind you"), BEHIND_LEFT("왼쪽 뒤", "behind on your left"),
+    LEFT("왼쪽", "to your left"), AHEAD_LEFT("왼쪽 앞", "ahead on your left");
+
+    val spoken: String get() = tr(ko, en)
 
     companion object {
         /** [angle]: bearing to the thing minus the runner's heading, degrees. */

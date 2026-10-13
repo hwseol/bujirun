@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.tracking.distanceMeters
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
@@ -10,8 +12,10 @@ import kotlin.math.cos
 data class GeoPoint(val lat: Double, val lon: Double, val altitudeM: Double? = null)
 
 /** Where a course came from - shown on the list, and decides the default name. */
-enum class CourseSource(val label: String) {
-    GPX("파일"), WORKOUT("내 기록"), DRAWN("직접 만듦"), RECOMMENDED("추천"),
+enum class CourseSource(private val ko: String, private val en: String) {
+    GPX("파일", "File"), WORKOUT("내 기록", "My workout"), DRAWN("직접 만듦", "Drawn"), RECOMMENDED("추천", "Suggested");
+
+    val label: String get() = tr(ko, en)
 }
 
 object CourseGeometry {

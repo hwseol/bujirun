@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -56,7 +58,7 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * "운동하며 찍은 사진": thumbnails (each also sits on the map where it was taken); a tap opens
+ * tr("운동하며 찍은 사진", "Photos from the run"): thumbnails (each also sits on the map where it was taken); a tap opens
  * them full screen. Asks for the photo permission first; "+" adds photos from the picker (cloud too).
  */
 @Composable
@@ -69,11 +71,11 @@ fun PhotoStrip(
     onOpen: (Int) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    Text("운동하며 찍은 사진", style = MaterialTheme.typography.titleMedium)
+    Text(tr("운동하며 찍은 사진", "Photos from the run"), style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     if (!canRead) {
         TextButton(onClick = onAllow, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            Text("폰에 있는 사진 중 이 운동 시간에 찍은 사진 보기")
+            Text(tr("폰에 있는 사진 중 이 운동 시간에 찍은 사진 보기", "Show photos on the phone taken during this workout"))
         }
     }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -88,8 +90,8 @@ fun PhotoStrip(
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
                 Icon(Icons.Filled.AddPhotoAlternate, null, tint = colors.primary)
-                Text("사진 추가", style = MaterialTheme.typography.labelSmall, color = colors.primary)
-                Text("클라우드 포함", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                Text(tr("사진 추가", "Add photos"), style = MaterialTheme.typography.labelSmall, color = colors.primary)
+                Text(tr("클라우드 포함", "Cloud too"), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
             }
         }
     }
@@ -105,7 +107,7 @@ fun PhotoViewer(photos: List<WorkoutPhoto>, places: List<PhotoPlace?>, start: In
                 Thumbnail(photos[i].uri, 2048, Modifier.fillMaxSize(), ContentScale.Fit)
             }
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp)) {
-                Icon(Icons.Filled.Close, "닫기", tint = Color.White)
+                Icon(Icons.Filled.Close, tr("닫기", "Close"), tint = Color.White)
             }
             val p = photos.getOrNull(pager.currentPage)
             if (p != null) {
@@ -115,14 +117,14 @@ fun PhotoViewer(photos: List<WorkoutPhoto>, places: List<PhotoPlace?>, start: In
                     Text(
                         listOfNotNull(
                             "${pager.currentPage + 1} / ${photos.size}",
-                            p.takenAt?.let { clock(it) },
-                            place?.let { "${formatKm(it.distanceM)}km 지점" },
+                            p.takenAt?.let { clockTime(it) },
+                            place?.let { tr("${formatKm(it.distanceM)}km 지점", "at ${formatKm(it.distanceM)}km") },
                         ).joinToString(" · "),
                         color = Color.White,
                     )
                     if (p.addedId != null) {
                         TextButton(onClick = { onRemove(p) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                            Text("이 운동에서 빼기", color = Color.White.copy(alpha = 0.8f))
+                            Text(tr("이 운동에서 빼기", "Remove from this workout"), color = Color.White.copy(alpha = 0.8f))
                         }
                     }
                 }
@@ -138,10 +140,6 @@ private fun Thumbnail(uri: Uri, px: Int, modifier: Modifier, scale: ContentScale
     bmp?.let { Image(it.asImageBitmap(), null, modifier, contentScale = scale) }
 }
 
-private fun clock(ms: Long): String {
-    val t = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
-    return "${if (t.hour < 12) "오전" else "오후"} ${(t.hour + 11) % 12 + 1}:${"%02d".format(t.minute)}"
-}
 
 internal val PHOTO_BLUE_C = Color(0xFF2F80ED)
 const val PHOTO_BLUE = 0xFF2F80ED.toInt()

@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.data
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.tracking.Split
 import com.mhmh2.bujirun.tracking.formatDuration
 import com.mhmh2.bujirun.tracking.formatKm
@@ -12,7 +14,7 @@ import kotlin.math.roundToInt
  */
 object WorkoutReport {
     fun title(w: WorkoutEntity): String =
-        (if (w.isRun) "🏃 부지런 러닝" else "🚶 부지런 걷기") + " ${formatKm(w.distanceM)}km · ${formatDuration(w.durationMs)}"
+        (if (w.isRun) tr("🏃 부지런 러닝", "🏃 Bujirun run") else tr("🚶 부지런 걷기", "🚶 Bujirun walk")) + " ${formatKm(w.distanceM)}km · ${formatDuration(w.durationMs)}"
 
     /**
      * The route in Google Maps (a directions link through points of it): opens in the Maps app
@@ -32,15 +34,15 @@ object WorkoutReport {
     fun text(w: WorkoutEntity, courseName: String? = null, splits: List<Split> = emptyList(), mapsUrl: String? = null): String = buildList {
         add(title(w))
         val pace = if (w.distanceM >= 20) w.durationMs / 1000.0 / (w.distanceM / 1000.0) else null
-        add("평균 페이스 ${formatPace(pace)}/km · 칼로리 약 ${w.calories.roundToInt()}kcal · 오르막 ${w.ascentM.roundToInt()}m")
-        courseName?.let { add("코스: $it") }
+        add(tr("평균 페이스 ${formatPace(pace)}/km · 칼로리 약 ${w.calories.roundToInt()}kcal · 오르막 ${w.ascentM.roundToInt()}m", "Avg pace ${formatPace(pace)}/km · about ${w.calories.roundToInt()} kcal · climb ${w.ascentM.roundToInt()}m"))
+        courseName?.let { add(tr("코스: $it", "Course: $it")) }
         if (splits.isNotEmpty()) {
             // "1km 5'58"" for each full kilometre, the last part by its length ("+0.21km 6'10"").
-            add("구간: " + splits.joinToString(" · ") {
+            add(tr("구간: ", "Splits: ") + splits.joinToString(" · ") {
                 (if (it.distanceM >= 999) "${it.index}km" else "+${formatKm(it.distanceM)}km") + " ${formatPace(it.paceSecPerKm)}"
             })
         }
-        mapsUrl?.let { add("지도에서 경로 보기: $it") }
-        add("부지런으로 기록했어요")
+        mapsUrl?.let { add(tr("지도에서 경로 보기: $it", "Route on the map: $it")) }
+        add(tr("부지런으로 기록했어요", "Recorded with Bujirun"))
     }.joinToString("\n")
 }

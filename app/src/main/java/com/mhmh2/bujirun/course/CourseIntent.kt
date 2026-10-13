@@ -1,12 +1,22 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.tracking.Activity
 import kotlin.math.roundToInt
 
 /** Loop back to the start, go somewhere and come back the same way, or end somewhere else. */
-enum class CourseShape(val label: String) { LOOP("순환"), OUT_AND_BACK("왕복"), ONE_WAY("편도") }
+enum class CourseShape(private val ko: String, private val en: String) {
+    LOOP("순환", "Loop"), OUT_AND_BACK("왕복", "Out and back"), ONE_WAY("편도", "One way");
 
-enum class CourseTheme(val label: String) { RIVER("강변"), PARK("공원"), LAKE("호수"), COAST("바닷가"), SIGHTS("명소") }
+    val label: String get() = tr(ko, en)
+}
+
+enum class CourseTheme(private val ko: String, private val en: String) {
+    RIVER("강변", "Riverside"), PARK("공원", "Park"), LAKE("호수", "Lake"), COAST("바닷가", "Seaside"), SIGHTS("명소", "Sights");
+
+    val label: String get() = tr(ko, en)
+}
 
 /** How a named place is used: where to start, where to go, or what to run in/around/along. */
 enum class PlaceRole { START, DEST, AROUND }

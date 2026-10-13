@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -100,7 +102,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         located = granted
-        if (!granted) error = "내 주변 코스를 짜려면 위치 권한이 필요해요."
+        if (!granted) error = tr("내 주변 코스를 짜려면 위치 권한이 필요해요.", "Location permission is needed to plan a course around you.")
     }
     LaunchedEffect(Unit) {
         pace = WorkoutStore.typicalRunPace()
@@ -115,7 +117,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
         loading = true
         error = null
         try {
-            val here = CourseStart.resolve(context) ?: throw ApiException("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.")
+            val here = CourseStart.resolve(context) ?: throw ApiException(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on."))
             // "세 바퀴" alone: whole laps of the place, however long they are - no default distance.
             val lapsOnly = intent.laps != null && intent.distanceM == null && intent.durationMin == null
             plan = RouteApi.plan(here, intent, if (lapsOnly) null else intent.targetDistanceM(pace))
@@ -139,10 +141,10 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
             Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(6.dp))
-            Text("AI 코스 추천", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(tr("AI 코스 추천", "AI course"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         // Everything below the title in one list, so it all scrolls together.
         LazyColumn(Modifier.weight(1f)) {
@@ -151,11 +153,11 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                     OutlinedTextField(
                         value = text,
                         onValueChange = ::edit,
-                        placeholder = { Text("예: 보라매공원 뺑뺑이 5km") },
+                        placeholder = { Text(tr("예: 보라매공원 뺑뺑이 5km", "e.g. 보라매공원 뺑뺑이 5km (Korean for now)")) },
                         maxLines = 3,
                         shape = RoundedCornerShape(16.dp),
                         trailingIcon = if (text.isNotEmpty()) {
-                            { IconButton(onClick = { edit("") }) { Icon(Icons.Filled.Close, "지우기") } }
+                            { IconButton(onClick = { edit("") }) { Icon(Icons.Filled.Close, tr("지우기", "Clear")) } }
                         } else null,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -163,14 +165,14 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                     StartChip()
                     Spacer(Modifier.height(4.dp))
                     if (text.isBlank()) {
-                        Text("이렇게 말해 보세요", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("이렇게 말해 보세요", "Try saying"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(4.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             EXAMPLES.forEach { SuggestionChip(onClick = { edit(it) }, label = { Text(it) }) }
                         }
                         Text(
-                            "거리나 시간, 가고 싶은 곳을 말하듯 적으면 출발점 주변 공원·강변·호수로 코스를 짜 드려요. " +
-                                "출발점에서 오가는 길도 거리에 포함돼요. 알아들은 내용은 칩으로 보여드리고, 탭해서 고칠 수 있어요.",
+                            tr("거리나 시간, 가고 싶은 곳을 말하듯 적으면 출발점 주변 공원·강변·호수로 코스를 짜 드려요. ", "Write a distance or time and where you'd like to go, as you'd say it, and a course is planned through parks, riversides and lakes near the start. ") +
+                                tr("출발점에서 오가는 길도 거리에 포함돼요. 알아들은 내용은 칩으로 보여드리고, 탭해서 고칠 수 있어요.", "The way to and from the start counts in the distance. What was understood shows as chips you can tap to change. (Requests are understood in Korean for now.)"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 24.dp)
@@ -181,7 +183,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                             Row(Modifier.height(32.dp), verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(8.dp))
-                                Text("코스를 짜는 중…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(tr("코스를 짜는 중…", "Planning the course…"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -190,7 +192,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                     }
                     error?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-                        if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("위치 권한 허용") }
+                        if (!located) TextButton(onClick = { permission.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text(tr("위치 권한 허용", "Allow location")) }
                     }
                 }
             }
@@ -200,7 +202,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
             plan?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
                 item {
                     Text(
-                        "장소 정보: " + sources.joinToString(", "),
+                        tr("장소 정보: ", "Place data: ") + sources.joinToString(", "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -221,7 +223,7 @@ private fun IntentChips(intent: CourseIntent, pace: Int?, autoShade: Boolean, on
         // On when asked for in words, or when the server chose shade for a high sun; tapping
         // makes it explicit either way.
         val shadeOn = intent.shade ?: autoShade
-        FilterChip(selected = shadeOn, onClick = { onChange(intent.copy(shade = !shadeOn)) }, label = { Text("🌳 그늘 우선") })
+        FilterChip(selected = shadeOn, onClick = { onChange(intent.copy(shade = !shadeOn)) }, label = { Text(tr("🌳 그늘 우선", "🌳 Prefer shade")) })
         Box {
             AssistChip(onClick = { pickDistance = true }, label = { Text(distanceLabel(intent, pace)) })
             DropdownMenu(expanded = pickDistance, onDismissRequest = { pickDistance = false }) {
@@ -234,14 +236,14 @@ private fun IntentChips(intent: CourseIntent, pace: Int?, autoShade: Boolean, on
             }
         }
         AssistChip(onClick = { onChange(intent.copy(shape = nextShape(intent))) }, label = { Text(intent.shape.label) })
-        intent.laps?.let { RemovableChip("${it}바퀴") { onChange(intent.copy(laps = null)) } }
-        if (intent.repeat && intent.laps == null) RemovableChip("뺑뺑이") { onChange(intent.copy(repeat = false)) }
+        intent.laps?.let { RemovableChip(tr("${it}바퀴", "$it laps")) { onChange(intent.copy(laps = null)) } }
+        if (intent.repeat && intent.laps == null) RemovableChip(tr("뺑뺑이", "Laps")) { onChange(intent.copy(repeat = false)) }
         intent.activity?.let { a ->
-            RemovableChip(if (a == Activity.WALK) "걷기" else "달리기") { onChange(intent.copy(activity = null)) }
+            RemovableChip(if (a == Activity.WALK) tr("걷기", "Walk") else tr("달리기", "Run")) { onChange(intent.copy(activity = null)) }
         }
         intent.themes.forEach { t -> RemovableChip(t.label) { onChange(intent.copy(themes = intent.themes - t)) } }
         intent.places.forEach { p -> RemovableChip(placeLabel(p, intent.shape)) { onChange(intent.copy(places = intent.places - p)) } }
-        if (intent.flat) RemovableChip("평지 위주") { onChange(intent.copy(flat = false)) }
+        if (intent.flat) RemovableChip(tr("평지 위주", "Mostly flat")) { onChange(intent.copy(flat = false)) }
     }
 }
 
@@ -251,7 +253,7 @@ private fun RemovableChip(label: String, onRemove: () -> Unit) {
         selected = true,
         onClick = onRemove,
         label = { Text(label) },
-        trailingIcon = { Icon(Icons.Filled.Close, "빼기", Modifier.size(16.dp)) },
+        trailingIcon = { Icon(Icons.Filled.Close, tr("빼기", "Remove"), Modifier.size(16.dp)) },
     )
 }
 
@@ -259,16 +261,16 @@ private fun distanceLabel(intent: CourseIntent, pace: Int?): String {
     val target = intent.targetDistanceM(pace)
     return when {
         intent.distanceM != null -> "${km(intent.distanceM)}km"
-        intent.durationMin != null && target != null -> "${intent.durationMin}분 · 약 ${km(target)}km"
-        target == null -> "목적지까지"
-        intent.laps != null -> "거리 자동"
+        intent.durationMin != null && target != null -> tr("${intent.durationMin}분 · 약 ${km(target)}km", "${intent.durationMin} min · about ${km(target)}km")
+        target == null -> tr("목적지까지", "To the destination")
+        intent.laps != null -> tr("거리 자동", "Distance: auto")
         else -> "${km(target)}km"
     }
 }
 
 private fun placeLabel(p: PlaceMention, shape: CourseShape) = when (p.role) {
-    PlaceRole.START -> "출발 ${p.name}"
-    PlaceRole.DEST -> if (shape == CourseShape.OUT_AND_BACK) "반환점 ${p.name}" else "도착 ${p.name}"
+    PlaceRole.START -> tr("출발 ${p.name}", "Start ${p.name}")
+    PlaceRole.DEST -> if (shape == CourseShape.OUT_AND_BACK) tr("반환점 ${p.name}", "Turn at ${p.name}") else tr("도착 ${p.name}", "Finish ${p.name}")
     PlaceRole.AROUND -> p.name
 }
 

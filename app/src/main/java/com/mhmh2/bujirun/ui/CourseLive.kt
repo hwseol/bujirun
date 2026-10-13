@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import androidx.compose.foundation.background
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.Arrangement
@@ -123,10 +125,10 @@ fun CourseLiveMap(
                     val pts = route.map { LatLng(it.lat, it.lon) } + listOfNotNull(position?.let { LatLng(it.lat, it.lon) })
                     map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(pts), (48 * density).toInt()))
                 }
-            }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = "코스 전체 보기") }
+            }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = tr("코스 전체 보기", "Whole course")) }
             if (!following) {
                 SmallFloatingActionButton(onClick = { following = true }) {
-                    Icon(Icons.Filled.MyLocation, contentDescription = "내 위치로")
+                    Icon(Icons.Filled.MyLocation, contentDescription = tr("내 위치로", "To my location"))
                 }
             }
             Row {
@@ -136,7 +138,7 @@ fun CourseLiveMap(
                         if (rerouting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         else Icon(Icons.Filled.Refresh, contentDescription = null)
                     },
-                    text = { Text(if (rerouting) "경로 찾는 중" else "경로 다시 찾기") },
+                    text = { Text(if (rerouting) tr("경로 찾는 중", "Finding route") else tr("경로 다시 찾기", "Find route again")) },
                     containerColor = if (!progress.onCourse && progress.started) MaterialTheme.colorScheme.errorContainer
                     else MaterialTheme.colorScheme.secondaryContainer,
                 )
@@ -186,7 +188,7 @@ fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier =
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
         if (position == null) {
             Text(
-                "현재 위치를 찾는 중...", style = MaterialTheme.typography.bodyMedium,
+                tr("현재 위치를 찾는 중...", "Finding your location..."), style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.align(Alignment.Center).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(50))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )
@@ -199,11 +201,11 @@ fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier =
                         val pts = trail.map { LatLng(it.lat, it.lon) } + listOfNotNull(position?.let { LatLng(it.lat, it.lon) })
                         map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(pts), (48 * density).toInt()))
                     }
-                }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = "달려온 길 전체 보기") }
+                }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = tr("달려온 길 전체 보기", "Whole way so far")) }
             }
             if (!following) {
                 SmallFloatingActionButton(onClick = { following = true }) {
-                    Icon(Icons.Filled.MyLocation, contentDescription = "내 위치로")
+                    Icon(Icons.Filled.MyLocation, contentDescription = tr("내 위치로", "To my location"))
                 }
             }
         }
@@ -213,16 +215,16 @@ fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier =
 @Composable
 private fun TurnBanner(p: CourseProgress, modifier: Modifier = Modifier) {
     val (text, warn) = when {
-        !p.started -> "출발점까지 ${p.offCourseM.roundToInt()}m" to false
-        !p.onCourse -> "코스를 벗어났어요 · ${p.offCourseM.roundToInt()}m" to true
-        p.finished -> "코스 완주" to false
+        !p.started -> tr("출발점까지 ${p.offCourseM.roundToInt()}m", "${p.offCourseM.roundToInt()}m to the start") to false
+        !p.onCourse -> tr("코스를 벗어났어요 · ${p.offCourseM.roundToInt()}m", "Off course · ${p.offCourseM.roundToInt()}m") to true
+        p.finished -> tr("코스 완주", "Course complete") to false
         else -> {
             val turn = p.nextTurn
             val toTurn = p.toNextTurnM
             if (turn != null && toTurn != null && toTurn <= 300) {
-                "${turn.direction.arrow}  ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m 앞 ${turn.direction.spoken}" to false
+                tr("${turn.direction.arrow}  ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m 앞 ${turn.direction.spoken}", "${turn.direction.arrow}  ${turn.direction.spoken} in ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m") to false
             } else {
-                "↑  직진 · 남은 ${formatKm(p.remainingM)}km" to false
+                tr("↑  직진 · 남은 ${formatKm(p.remainingM)}km", "↑  Straight on · ${formatKm(p.remainingM)}km left") to false
             }
         }
     }

@@ -55,6 +55,12 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
   server (BJ_DATA_DIR set, as for the service); also `list` / `remove <id>`. The app polls
   GET /notices on launch (dialog) and every 6 h via WorkManager (phone notification).
 
+## Languages
+- Korean (default) and English, picked in Settings: every text is `tr("한국어", "English")`
+  (Lang.kt); enums with labels keep both and expose a `label`/`spoken` getter, top-level lists
+  of texts must be getters. CueText speaks English with an English TTS voice. Course requests
+  (IntentParser, NLU model) and server texts stay Korean.
+
 ## Natural-language courses
 - Design in docs/NL_COURSES.md. The phone reads the request (course/IntentParser rules for numbers
   + course/NluModel, a 94 KB char BiGRU in assets/nlu.bin); the server plans the course

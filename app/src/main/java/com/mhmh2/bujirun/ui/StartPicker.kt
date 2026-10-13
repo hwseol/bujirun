@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.content.Context
 import androidx.compose.foundation.background
 import kotlinx.coroutines.delay
@@ -78,13 +80,13 @@ fun StartChip() {
     var picking by remember { mutableStateOf(false) }
     AssistChip(
         onClick = { picking = true },
-        label = { Text(if (CourseStart.picked == null) "출발: 내 위치" else "출발: 지도에서 고른 곳") },
+        label = { Text(if (CourseStart.picked == null) tr("출발: 내 위치", "Start: my location") else tr("출발: 지도에서 고른 곳", "Start: picked on the map")) },
         leadingIcon = { Icon(Icons.Filled.Place, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
     )
     if (picking) StartPickerDialog(onDismiss = { picking = false })
 }
 
-/** A map with a pin fixed at its centre: move the map under the pin, then "여기서 출발". */
+/** A map with a pin fixed at its centre: move the map under the pin, then tr("여기서 출발", "Start here"). */
 @Composable
 private fun StartPickerDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -110,7 +112,7 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                         .zoomControlEnabled(true).scaleBarEnabled(true).compassEnabled(false)
                 )
                 // Search by name or address; a result moves the map there (the pin then marks it,
-                // and the map can still be nudged before "여기서 출발").
+                // and the map can still be nudged before tr("여기서 출발", "Start here")).
                 var query by remember { mutableStateOf("") }
                 var results by remember { mutableStateOf<List<RouteApi.FoundPlace>>(emptyList()) }
                 var searching by remember { mutableStateOf(false) }
@@ -131,11 +133,11 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("장소·주소 검색 (예: 금정역, 산본로 323)") },
+                    placeholder = { Text(tr("장소·주소 검색 (예: 금정역, 산본로 323)", "Search a place or address")) },
                     leadingIcon = { Icon(Icons.Filled.Search, null) },
                     trailingIcon = {
                         if (searching) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "지우기") }
+                        else if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, tr("지우기", "Clear")) }
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
@@ -145,7 +147,7 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                     AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
                     // The pin's tip marks the centre of the map.
                     Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.Place, "출발점", Modifier.size(44.dp), tint = Color(0xFFE8541E))
+                        Icon(Icons.Filled.Place, tr("출발점", "Start point"), Modifier.size(44.dp), tint = Color(0xFFE8541E))
                         Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE8541E)))
                         Box(Modifier.height(44.dp))
                     }
@@ -177,20 +179,20 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                         }
                     } else if (nothingFound) {
                         Text(
-                            "검색 결과가 없어요",
+                            tr("검색 결과가 없어요", "No results"),
                             modifier = Modifier.padding(16.dp).background(MaterialTheme.colorScheme.surface).padding(8.dp)
                         )
                     }
                 }
                 Text(
-                    "지도를 움직여 핀을 출발점에 맞출 수도 있어요",
+                    tr("지도를 움직여 핀을 출발점에 맞출 수도 있어요", "Or move the map to put the pin on the start"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, top = 8.dp)
                 )
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { CourseStart.picked = null; onDismiss() }, modifier = Modifier.weight(1f).height(52.dp)) {
-                        Text("내 위치에서 출발")
+                        Text(tr("내 위치에서 출발", "Start from my location"))
                     }
                     Button(onClick = {
                         mapView.getMapAsync { map ->
@@ -198,7 +200,7 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                             CourseStart.picked = GeoPoint(c.latitude, c.longitude)
                             onDismiss()
                         }
-                    }, modifier = Modifier.weight(1f).height(52.dp)) { Text("여기서 출발") }
+                    }, modifier = Modifier.weight(1f).height(52.dp)) { Text(tr("여기서 출발", "Start here")) }
                 }
             }
         }

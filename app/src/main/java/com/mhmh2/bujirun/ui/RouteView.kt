@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.graphics.Color as AndroidColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -29,7 +31,7 @@ fun RouteView(points: List<TrackPoint>, modifier: Modifier = Modifier, photos: L
     val runColor = MaterialTheme.colorScheme.primary.toArgb()
     val walkColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f).compositeOver(Color.White).toArgb()
     val fit = remember(points) { points.map { LatLng(it.sample.lat, it.sample.lon) } }
-    LiteMap(fit, modifier, emptyText = "경로를 그릴 위치 기록이 없어요") { map, density ->
+    LiteMap(fit, modifier, emptyText = tr("경로를 그릴 위치 기록이 없어요", "No location points to draw a route")) { map, density ->
         drawWorkout(map, points, runColor, walkColor, density) + photos.map { (place, bmp) ->
             // Each photo on the spot it was taken: the picture itself, round, as the pin.
             Marker().apply {
@@ -60,9 +62,9 @@ fun CourseLineView(points: List<GeoPoint>, modifier: Modifier = Modifier) {
             this.map = map
         }
         result += directionMarkers(map, points, density, color)
-        result += endpointMarker(map, fit.first(), "출발", START_GREEN, density)
+        result += endpointMarker(map, fit.first(), tr("출발", "Start"), START_GREEN, density)
         val loop = com.mhmh2.bujirun.course.CourseGeometry.isLoop(points)
-        if (!loop) result += endpointMarker(map, fit.last(), "도착", END_DARK, density)
+        if (!loop) result += endpointMarker(map, fit.last(), tr("도착", "Finish"), END_DARK, density)
         result
     }
 }
@@ -103,8 +105,8 @@ private fun drawWorkout(map: NaverMap, points: List<TrackPoint>, runColor: Int, 
     }
     val first = points.first().sample
     val last = points.last().sample
-    result += endpointMarker(map, LatLng(first.lat, first.lon), "출발", START_GREEN, density)
-    result += endpointMarker(map, LatLng(last.lat, last.lon), "도착", END_DARK, density)
+    result += endpointMarker(map, LatLng(first.lat, first.lon), tr("출발", "Start"), START_GREEN, density)
+    result += endpointMarker(map, LatLng(last.lat, last.lon), tr("도착", "Finish"), END_DARK, density)
     return result
 }
 

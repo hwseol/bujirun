@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -91,21 +93,21 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         val w = workout ?: return
         scope.launch {
             runCatching { HealthExport.write(context, w, pointRows) }
-                .onSuccess { Prefs.markExported("health", w.id); toast("Health Connect에 저장했어요") }
-                .onFailure { toast("저장하지 못했어요: ${it.message}") }
+                .onSuccess { Prefs.markExported("health", w.id); toast(tr("Health Connect에 저장했어요", "Saved to Health Connect")) }
+                .onFailure { toast(tr("저장하지 못했어요: ${it.message}", "Couldn't save: ${it.message}")) }
         }
     }
     val healthPermissionLauncher = rememberLauncherForActivityResult(
         PermissionController.createRequestPermissionResultContract()
     ) { granted ->
         if (granted.containsAll(HealthExport.required)) writeToHealth()
-        else toast("권한을 허용해야 삼성헬스에 저장할 수 있어요")
+        else toast(tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Permission is needed to save to Samsung Health"))
     }
     fun saveToHealth() {
         when (HealthExport.availability(context)) {
-            HealthExport.Availability.UNAVAILABLE -> toast("이 폰에서는 Health Connect를 쓸 수 없어요")
+            HealthExport.Availability.UNAVAILABLE -> toast(tr("이 폰에서는 Health Connect를 쓸 수 없어요", "Health Connect isn't available on this phone"))
             HealthExport.Availability.NEEDS_UPDATE -> {
-                toast("Health Connect를 먼저 설치하거나 업데이트해 주세요")
+                toast(tr("Health Connect를 먼저 설치하거나 업데이트해 주세요", "Please install or update Health Connect first"))
                 context.startActivity(
                     Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata"))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -159,11 +161,11 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         val ok = runCatching { CalendarExport.write(context, w, WorkoutReport.title(w), report(w)) }.getOrDefault(false)
         if (ok) {
             Prefs.markExported("calendar", w.id)
-            toast("캘린더에 기록했어요")
-        } else if (!quiet) toast("기록할 캘린더가 없어요. 폰에 구글 계정 캘린더가 있는지 확인해 주세요")
+            toast(tr("캘린더에 기록했어요", "Added to the calendar"))
+        } else if (!quiet) toast(tr("기록할 캘린더가 없어요. 폰에 구글 계정 캘린더가 있는지 확인해 주세요", "No calendar to write to. Check that the phone has a Google account calendar"))
     }
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        if (granted.values.all { it }) writeToCalendar() else toast("캘린더 권한을 허용해야 기록할 수 있어요")
+        if (granted.values.all { it }) writeToCalendar() else toast(tr("캘린더 권한을 허용해야 기록할 수 있어요", "Calendar permission is needed to record there"))
     }
     fun saveToCalendar() {
         if (CalendarExport.hasPermission(context)) writeToCalendar() else calendarPermission.launch(CalendarExport.permissions)
@@ -171,11 +173,11 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     // Turned on from the card on this screen: from now on, and this workout right away.
     val autoCalendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.all { it }) { Prefs.setAutoCalendar(true); writeToCalendar() }
-        else toast("캘린더 권한을 허용해야 기록할 수 있어요")
+        else toast(tr("캘린더 권한을 허용해야 기록할 수 있어요", "Calendar permission is needed to record there"))
     }
     val autoHealthPermission = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
         if (granted.containsAll(HealthExport.required)) { Prefs.setAutoHealth(true); writeToHealth() }
-        else toast("권한을 허용해야 삼성헬스에 저장할 수 있어요")
+        else toast(tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Permission is needed to save to Samsung Health"))
     }
     fun setAutoCalendar(on: Boolean) {
         val w = workout ?: return
@@ -192,7 +194,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         val w = workout ?: return
         if (!on) { Prefs.setAutoHealth(false); return }
         if (HealthExport.availability(context) != HealthExport.Availability.AVAILABLE) {
-            toast("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요")
+            toast(tr("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", "Health Connect needs installing or updating on this phone first"))
             return
         }
         scope.launch {
@@ -207,7 +209,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, WorkoutReport.title(w))
             .putExtra(Intent.EXTRA_TEXT, report(w))
-        context.startActivity(Intent.createChooser(send, "운동 결과 보내기"))
+        context.startActivity(Intent.createChooser(send, tr("운동 결과 보내기", "Share the workout")))
     }
 
     // Just finished: what the settings say to do without a tap (AutoExport, which the service
@@ -217,18 +219,18 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         if (!justFinished || w.simulated || w.status != WorkoutEntity.DONE || pointRows.isEmpty()) return@LaunchedEffect
         AutoExport.runPending(context)
         val places = listOfNotNull(
-            "캘린더".takeIf { Prefs.autoCalendar.value && Prefs.exported("calendar", w.id) },
-            "삼성헬스(Health Connect)".takeIf { Prefs.autoHealth.value && Prefs.exported("health", w.id) },
+            tr("캘린더", "the calendar").takeIf { Prefs.autoCalendar.value && Prefs.exported("calendar", w.id) },
+            tr("삼성헬스(Health Connect)", "Samsung Health (Health Connect)").takeIf { Prefs.autoHealth.value && Prefs.exported("health", w.id) },
         )
-        if (places.isNotEmpty()) toast(places.joinToString("와 ") + "에 기록했어요")
+        if (places.isNotEmpty()) toast(tr(places.joinToString("와 ") + "에 기록했어요", "Recorded in " + places.joinToString(" and ")))
     }
 
     val w = workout
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!justFinished) IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+            if (!justFinished) IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { confirmDelete = true }) { Text("삭제") }
+            TextButton(onClick = { confirmDelete = true }) { Text(tr("삭제", "Delete")) }
         }
         if (w == null) return@Column
         Column(
@@ -238,7 +240,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             Text(workoutDate(w), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             w.courseId?.let { cid ->
                 val course by remember(cid) { CourseStore.observe(cid) }.collectAsState(initial = null)
-                course?.let { Text("코스: ${it.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+                course?.let { Text(tr("코스: ${it.name}", "Course: ${it.name}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
             }
             Spacer(Modifier.height(16.dp))
             RouteView(points, photos = photos.indices.mapNotNull { i ->
@@ -255,24 +257,24 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
 
             val avgPace = if (w.distanceM >= 20) w.durationMs / 1000.0 / (w.distanceM / 1000.0) else null
             StatRow(
-                "거리" to "${formatKm(w.distanceM)}km",
-                "시간" to formatDuration(w.durationMs),
+                tr("거리", "Distance") to "${formatKm(w.distanceM)}km",
+                tr("시간", "Time") to formatDuration(w.durationMs),
             )
             Spacer(Modifier.height(12.dp))
             StatRow(
-                "평균 페이스" to "${formatPace(avgPace)}/km",
-                "칼로리" to "약 ${w.calories.roundToInt()}kcal",
+                tr("평균 페이스", "Avg pace") to "${formatPace(avgPace)}/km",
+                tr("칼로리", "Calories") to tr("약 ${w.calories.roundToInt()}kcal", "about ${w.calories.roundToInt()} kcal"),
             )
             Spacer(Modifier.height(12.dp))
             val moving = w.runMs + w.walkMs
             val runPct = if (moving > 0) (w.runMs * 100.0 / moving).roundToInt() else null
             StatRow(
-                "오르막" to "${w.ascentM.roundToInt()}m",
-                "달리기 · 걷기" to (runPct?.let { "$it% · ${100 - it}%" } ?: "-"),
+                tr("오르막", "Climb") to "${w.ascentM.roundToInt()}m",
+                tr("달리기 · 걷기", "Run · walk") to (runPct?.let { "$it% · ${100 - it}%" } ?: "-"),
             )
 
             // Most people never open the settings: offer the automatic records where the result is.
-            // Shown while either is off (kept for this visit once shown), until "다시 보지 않기".
+            // Shown while either is off (kept for this visit once shown), until tr("다시 보지 않기", "Don't show again").
             val autoCalendarOn by Prefs.autoCalendar.collectAsState()
             val autoHealthOn by Prefs.autoHealth.collectAsState()
             var offerAuto by remember {
@@ -282,15 +284,15 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 Spacer(Modifier.height(20.dp))
                 Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("운동이 끝날 때마다 자동으로 기록할까요?", style = MaterialTheme.typography.titleMedium)
-                        ToggleRow("구글 캘린더", "운동 시간·거리·페이스가 일정으로 남아요", autoCalendarOn, ::setAutoCalendar)
-                        ToggleRow("삼성헬스", "Health Connect를 거쳐 운동과 경로가 들어가요", autoHealthOn, ::setAutoHealth)
+                        Text(tr("운동이 끝날 때마다 자동으로 기록할까요?", "Record every workout automatically?"), style = MaterialTheme.typography.titleMedium)
+                        ToggleRow(tr("구글 캘린더", "Google Calendar"), tr("운동 시간·거리·페이스가 일정으로 남아요", "Time, distance and pace as an event"), autoCalendarOn, ::setAutoCalendar)
+                        ToggleRow(tr("삼성헬스", "Samsung Health"), tr("Health Connect를 거쳐 운동과 경로가 들어가요", "The workout and route through Health Connect"), autoHealthOn, ::setAutoHealth)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "설정에서도 바꿀 수 있어요", style = MaterialTheme.typography.bodySmall,
+                                tr("설정에서도 바꿀 수 있어요", "You can change this in Settings too"), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f)
                             )
-                            TextButton(onClick = { Prefs.autoExportOfferHidden = true; offerAuto = false }) { Text("다시 보지 않기") }
+                            TextButton(onClick = { Prefs.autoExportOfferHidden = true; offerAuto = false }) { Text(tr("다시 보지 않기", "Don't show again")) }
                         }
                     }
                 }
@@ -299,47 +301,47 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             val splits = remember(points, w.distanceM, w.durationMs) { Splits.compute(points, w.distanceM, w.durationMs) }
             if (splits.isNotEmpty()) {
                 Spacer(Modifier.height(28.dp))
-                Text("구간", style = MaterialTheme.typography.titleMedium)
+                Text(tr("구간", "Splits"), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 SplitsTable(splits)
             }
 
             Spacer(Modifier.height(28.dp))
-            Text("내보내기", style = MaterialTheme.typography.titleMedium)
+            Text(tr("내보내기", "Export"), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
                     onClick = { GpxShare.share(context, workoutTitle(w), w, pointRows) },
                     enabled = pointRows.isNotEmpty(),
                     modifier = Modifier.weight(1f)
-                ) { Text("GPX 파일") }
+                ) { Text(tr("GPX 파일", "GPX file")) }
                 // Fake test runs stay out of the user's real health records.
                 OutlinedButton(onClick = ::saveToHealth, enabled = !w.simulated, modifier = Modifier.weight(1f)) {
-                    Text("삼성헬스에 저장")
+                    Text(tr("삼성헬스에 저장", "Save to Samsung Health"))
                 }
             }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = ::saveToCalendar, modifier = Modifier.weight(1f)) { Text("캘린더에 기록") }
-                OutlinedButton(onClick = ::shareReport, modifier = Modifier.weight(1f)) { Text("결과 공유") }
+                OutlinedButton(onClick = ::saveToCalendar, modifier = Modifier.weight(1f)) { Text(tr("캘린더에 기록", "Add to calendar")) }
+                OutlinedButton(onClick = ::shareReport, modifier = Modifier.weight(1f)) { Text(tr("결과 공유", "Share")) }
             }
             mapsUrl?.let { url ->
                 OutlinedButton(
                     onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                ) { Text("구글 지도에서 경로 보기") }
+                ) { Text(tr("구글 지도에서 경로 보기", "Route in Google Maps")) }
             }
             OutlinedButton(
                 onClick = { savingCourse = true },
                 enabled = points.size >= 2,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) { Text("이 경로를 코스로 저장") }
+            ) { Text(tr("이 경로를 코스로 저장", "Save this route as a course")) }
             Text(
-                if (w.simulated) "테스트 기록은 삼성헬스에 저장하지 않아요."
-                else "캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 일정과 공유한 글에는 구글 지도 " +
-                    "경로 링크가 들어가요 (지도는 그 지점들을 잇는 걷기 길을 보여줘요). 결과 공유는 카카오톡·메모 등 " +
-                    "어떤 앱으로든 보낼 수 있어요. GPX는 Strava, Garmin 등에 올릴 수 있고, 삼성헬스는 Health Connect를 " +
-                    "거쳐 저장돼요 (삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요). " +
-                    "설정에서 운동이 끝나면 자동으로 기록되게 할 수 있어요.",
+                if (w.simulated) tr("테스트 기록은 삼성헬스에 저장하지 않아요.", "Test runs aren't saved to Samsung Health.")
+                else tr("캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 일정과 공유한 글에는 구글 지도 ", "The calendar event goes into your Google account's calendar and syncs to Google Calendar. The event and shared text carry a Google Maps ") +
+                    tr("경로 링크가 들어가요 (지도는 그 지점들을 잇는 걷기 길을 보여줘요). 결과 공유는 카카오톡·메모 등 ", "route link (it shows walking paths joining points of the route). Share sends it to any app, KakaoTalk, notes and the rest. ") +
+                    tr("어떤 앱으로든 보낼 수 있어요. GPX는 Strava, Garmin 등에 올릴 수 있고, 삼성헬스는 Health Connect를 ", "GPX can go to Strava, Garmin and others; Samsung Health gets it through Health Connect ") +
+                    tr("거쳐 저장돼요 (삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요). ", "(sync must be on in Samsung Health settings > Health Connect). ") +
+                    tr("설정에서 운동이 끝나면 자동으로 기록되게 할 수 있어요.", "Settings can make all this happen automatically when a workout ends."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
@@ -347,7 +349,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             Spacer(Modifier.height(24.dp))
         }
         if (justFinished) {
-            Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp)) { Text("확인") }
+            Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp)) { Text(tr("확인", "OK")) }
         }
     }
 
@@ -359,11 +361,11 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     }
 
     if (savingCourse) {
-        NameDialog("코스 이름", w?.let { workoutTitle(it).removeSuffix(" (테스트)") }.orEmpty(), onDismiss = { savingCourse = false }) { name ->
+        NameDialog(tr("코스 이름", "Course name"), w?.let { workoutTitle(it).withoutTestMark() }.orEmpty(), onDismiss = { savingCourse = false }) { name ->
             savingCourse = false
             scope.launch {
                 CourseStore.save(name, CourseSource.WORKOUT, points.map { GeoPoint(it.sample.lat, it.sample.lon, it.sample.altitudeM) })
-                toast("코스에 저장했어요. 코스 탭에서 볼 수 있어요.")
+                toast(tr("코스에 저장했어요. 코스 탭에서 볼 수 있어요.", "Saved as a course. Find it on the Courses tab."))
             }
         }
     }
@@ -371,16 +373,16 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("이 기록을 삭제할까요?") },
-            text = { Text("삭제한 기록은 되돌릴 수 없어요.") },
+            title = { Text(tr("이 기록을 삭제할까요?", "Delete this workout?")) },
+            text = { Text(tr("삭제한 기록은 되돌릴 수 없어요.", "A deleted workout can't be brought back.")) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     WorkoutStore.delete(workoutId)
                     onClose()
-                }) { Text("삭제") }
+                }) { Text(tr("삭제", "Delete")) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } }
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(tr("취소", "Cancel")) } }
         )
     }
 }
@@ -424,7 +426,7 @@ private fun SplitsTable(splits: List<Split>) {
         }
         if (splits.last().distanceM < 999) {
             Text(
-                "마지막 구간은 남은 거리 기준 페이스예요",
+                tr("마지막 구간은 남은 거리 기준 페이스예요", "The last split's pace is for its shorter distance"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Start

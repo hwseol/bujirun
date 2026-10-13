@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.net
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,7 +29,7 @@ object Api {
 
     private suspend fun request(method: String, path: String, body: JSONObject?, token: String?, readTimeoutMs: Int): JSONObject =
         withContext(Dispatchers.IO) {
-            val offline = "서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요."
+            val offline = tr("서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.", "Couldn't reach the server. Please check your internet connection.")
             val conn = try {
                 (URL(base + path).openConnection() as HttpURLConnection).apply {
                     requestMethod = method
@@ -52,9 +54,9 @@ object Api {
                 val detail = runCatching { JSONObject(text).optString("detail") }.getOrNull()
                 throw ApiException(
                     when {
-                        code == 429 -> "시도가 너무 많아요. 잠시 후 다시 해 주세요."
+                        code == 429 -> tr("시도가 너무 많아요. 잠시 후 다시 해 주세요.", "Too many attempts. Please try again in a moment.")
                         !detail.isNullOrBlank() -> detail
-                        else -> "요청을 처리하지 못했어요. ($code)"
+                        else -> tr("요청을 처리하지 못했어요. ($code)", "The request failed. ($code)")
                     },
                     code,
                 )

@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -135,7 +137,9 @@ object CourseOutline {
     /** "북동쪽": which way from a to b, in eight. */
     fun compass(a: Pair<Double, Double>, b: Pair<Double, Double>): String {
         val deg = (Math.toDegrees(atan2(b.first - a.first, b.second - a.second)) + 360) % 360
-        return listOf("북쪽", "북동쪽", "동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽")[((deg + 22.5) / 45).toInt() % 8]
+        val k = ((deg + 22.5) / 45).toInt() % 8
+        return tr(listOf("북쪽", "북동쪽", "동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽")[k],
+            listOf("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest")[k])
     }
 
     private fun segDist(p: Pair<Double, Double>, a: Pair<Double, Double>, b: Pair<Double, Double>): Double {

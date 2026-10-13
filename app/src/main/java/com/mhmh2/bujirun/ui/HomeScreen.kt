@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
@@ -57,7 +59,11 @@ import com.mhmh2.bujirun.coach.Goal
 import com.mhmh2.bujirun.tracking.formatPace
 import java.util.Locale
 
-private enum class GoalKind(val label: String) { FREE("자유"), DISTANCE("거리"), TIME("시간"), PACE("페이스") }
+private enum class GoalKind(private val ko: String, private val en: String) {
+    FREE("자유", "Free"), DISTANCE("거리", "Distance"), TIME("시간", "Time"), PACE("페이스", "Pace");
+
+    val label: String get() = tr(ko, en)
+}
 
 /** One adjustable goal value: its range, step, presets, and how to show it. */
 private class GoalDial(
@@ -70,7 +76,7 @@ private class GoalDial(
 private val dials = mapOf(
     GoalKind.DISTANCE to GoalDial(5, 422, 5, listOf(30, 50, 100),
         { String.format(Locale.US, "%skm", (it / 10.0).toString().removeSuffix(".0")) }, { Goal.Distance(it * 100.0) }),
-    GoalKind.TIME to GoalDial(5, 180, 5, listOf(20, 30, 60), { "${it}분" }, { Goal.Time(it * 60_000L) }),
+    GoalKind.TIME to GoalDial(5, 180, 5, listOf(20, 30, 60), { tr("${it}분", "$it min") }, { Goal.Time(it * 60_000L) }),
     GoalKind.PACE to GoalDial(180, 900, 10, listOf(330, 420, 600), { formatPace(it.toDouble()) }, { Goal.Pace(it) }),
 )
 
@@ -113,10 +119,10 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
-            Text("부지런", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(tr("부지런", "Bujirun"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(8.dp))
             nickname?.let {
-                Text("${it}님, 오늘도 가볍게", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(tr("${it}님, 오늘도 가볍게", "Hi $it, an easy one today?"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp))
             }
         }
@@ -127,7 +133,7 @@ fun HomeScreen(
         WeekCard(weekSummary)
         Spacer(Modifier.height(20.dp))
 
-        Text("목표", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("목표", "Goal"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GoalKind.entries.forEach { k ->
@@ -140,21 +146,21 @@ fun HomeScreen(
             val value = values.getValue(kind)
             fun set(v: Int) { values = values + (kind to v.coerceIn(dial.min, dial.max)) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedIconButton(onClick = { set(value - dial.step) }) { Icon(Icons.Filled.Remove, "줄이기") }
+                OutlinedIconButton(onClick = { set(value - dial.step) }) { Icon(Icons.Filled.Remove, tr("줄이기", "Less")) }
                 Text(
                     dial.label(value),
                     fontSize = 36.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(min = 160.dp)
                 )
-                OutlinedIconButton(onClick = { set(value + dial.step) }) { Icon(Icons.Filled.Add, "늘리기") }
+                OutlinedIconButton(onClick = { set(value + dial.step) }) { Icon(Icons.Filled.Add, tr("늘리기", "More")) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 dial.presets.forEach { p -> SuggestionChip(onClick = { set(p) }, label = { Text(dial.label(p)) }) }
             }
         } else {
             Text(
-                "목표 없이 자유롭게 기록해요",
+                tr("목표 없이 자유롭게 기록해요", "Just record, no goal"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 24.dp)
@@ -163,11 +169,11 @@ fun HomeScreen(
 
         Spacer(Modifier.weight(1f))
         Button(onClick = { onStart(goal) }, shape = CircleShape, modifier = Modifier.size(128.dp)) {
-            Text("시작", fontSize = 28.sp)
+            Text(tr("시작", "Start"), fontSize = 28.sp)
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            if (permissionDenied) "기록하려면 위치 권한이 필요해요" else "걷기와 달리기는 자동으로 구분해요",
+            if (permissionDenied) tr("기록하려면 위치 권한이 필요해요", "Location permission is needed to record") else tr("걷기와 달리기는 자동으로 구분해요", "Walking and running are told apart on their own"),
             style = MaterialTheme.typography.bodySmall,
             color = if (permissionDenied) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
@@ -177,20 +183,20 @@ fun HomeScreen(
     }
 }
 
-/** "이번 주" in three numbers: runs, distance, time. */
+/** tr("이번 주", "This week") in three numbers: runs, distance, time. */
 @Composable
 private fun WeekCard(w: WeekStats) {
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text("이번 주", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("이번 주", "This week"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             if (w.count == 0) {
-                Text("아직 기록이 없어요. 짧게라도 시작해 볼까요?", style = MaterialTheme.typography.bodyMedium)
+                Text(tr("아직 기록이 없어요. 짧게라도 시작해 볼까요?", "Nothing yet. How about a short one?"), style = MaterialTheme.typography.bodyMedium)
             } else {
                 Row(Modifier.fillMaxWidth()) {
-                    WeekStat("${w.count}", "회", Modifier.weight(1f))
+                    WeekStat("${w.count}", tr("회", "runs"), Modifier.weight(1f))
                     WeekStat(formatKm(w.distanceM), "km", Modifier.weight(1f))
-                    WeekStat(formatDuration(w.durationMs), "시간", Modifier.weight(1f))
+                    WeekStat(formatDuration(w.durationMs), tr("시간", "Time"), Modifier.weight(1f))
                     WeekStat("${w.calories.roundToInt()}", "kcal", Modifier.weight(1f))
                 }
             }
@@ -214,7 +220,7 @@ private fun HereMap(modifier: Modifier) {
     val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     if (!granted) {
         Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-            Text("시작을 누르면 위치 권한을 물어요.\n허용하면 여기에 지금 있는 곳이 보여요.", textAlign = TextAlign.Center,
+            Text(tr("시작을 누르면 위치 권한을 물어요.\n허용하면 여기에 지금 있는 곳이 보여요.", "Press Start and you'll be asked for location.\nAllow it and this shows where you are."), textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return

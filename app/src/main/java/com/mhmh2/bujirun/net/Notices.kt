@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.net
 
+import com.mhmh2.bujirun.tr
+
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -84,8 +86,8 @@ object Notices {
             return
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "공지", NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { description = "부지런에서 보내는 소식" }
+            NotificationChannel(CHANNEL_ID, tr("공지", "Notices"), NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = tr("부지런에서 보내는 소식", "News from Bujirun") }
         )
         val open = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE

@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.tr
+
 import com.mhmh2.bujirun.data.CourseEntity
 import com.mhmh2.bujirun.data.CoursePointEntity
 import com.mhmh2.bujirun.data.WorkoutStore
@@ -20,7 +22,7 @@ object CourseStore {
         require(points.size >= 2) { "a course needs a line" }
         val line = CourseGeometry.simplify(points)
         val course = CourseEntity(
-            name = name.trim().ifEmpty { "이름 없는 코스" },
+            name = name.trim().ifEmpty { tr("이름 없는 코스", "Untitled course") },
             source = source.name,
             distanceM = CourseGeometry.distanceM(line),
             ascentM = CourseGeometry.ascentM(points),
@@ -40,7 +42,7 @@ object CourseStore {
         return if (pts.size >= 2) c.name to pts else null
     }
 
-    fun rename(id: Long, name: String) { scope.launch { dao.rename(id, name.trim().ifEmpty { "이름 없는 코스" }) } }
+    fun rename(id: Long, name: String) { scope.launch { dao.rename(id, name.trim().ifEmpty { tr("이름 없는 코스", "Untitled course") }) } }
     fun delete(id: Long) { scope.launch { dao.delete(id) } }
 
     fun observeAll(): Flow<List<CourseEntity>> = dao.observeAll()

@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -109,20 +111,20 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         item {
-            Text("기록", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
+            Text(tr("기록", "History"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { monthKey = month.minusMonths(1).toString() }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "이전 달")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("이전 달", "Previous month"))
                 }
-                Text("${month.year}년 ${month.monthValue}월", style = MaterialTheme.typography.titleMedium)
+                Text(tr("${month.year}년 ${month.monthValue}월", "${month.month.getDisplayName(TextStyle.FULL, Locale.US)} ${month.year}"), style = MaterialTheme.typography.titleMedium)
                 IconButton(onClick = { monthKey = month.plusMonths(1).toString() }, enabled = month < YearMonth.now()) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "다음 달")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("다음 달", "Next month"))
                 }
                 Spacer(Modifier.weight(1f))
                 val inMonth = real(byDay.filterKeys { YearMonth.from(it) == month }.values.flatten())
                 val autoInMonth = autoByDay.filterKeys { YearMonth.from(it) == month }.values.flatten()
                 Text(
-                    "${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · " +
+                    tr("${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ", "${inMonth.size + autoInMonth.size} · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ") +
                         "${(inMonth.sumOf { it.calories } + autoInMonth.sumOf { it.calories }).roundToInt()}kcal",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -146,7 +148,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
         if (ofDay.isEmpty() && autoOfDay.isEmpty()) {
             item {
                 Text(
-                    if (list.isEmpty()) "첫 기록을 남겨보세요.\n홈에서 시작을 누르면 여기에 쌓여요." else "이 날은 운동 기록이 없어요.",
+                    if (list.isEmpty()) tr("첫 기록을 남겨보세요.\n홈에서 시작을 누르면 여기에 쌓여요.", "Record your first workout.\nPress Start on Home and it shows up here.") else tr("이 날은 운동 기록이 없어요.", "No workouts on this day."),
                     textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                 )
@@ -161,25 +163,25 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
     if (askAutoRecord) {
         AlertDialog(
             onDismissRequest = { askAutoRecord = false },
-            title = { Text("자동 기록을 켤까요?") },
+            title = { Text(tr("자동 기록을 켤까요?", "Turn on auto recording?")) },
             text = {
                 Text(
-                    "앱을 켜지 않아도 하루 걸음 수를 세고, 15분 넘게 걷거나 5분 넘게 달리면 기록에 남겨요.\n\n" +
-                        "GPS는 쓰지 않아 배터리를 거의 쓰지 않아요. '신체 활동' 권한이 필요하고, 설정에서 언제든 끌 수 있어요."
+                    tr("앱을 켜지 않아도 하루 걸음 수를 세고, 15분 넘게 걷거나 5분 넘게 달리면 기록에 남겨요.\n\n", "Counts your daily steps without opening the app, and records walks over 15 minutes and runs over 5.\n\n") +
+                        tr("GPS는 쓰지 않아 배터리를 거의 쓰지 않아요. '신체 활동' 권한이 필요하고, 설정에서 언제든 끌 수 있어요.", "No GPS, so it barely uses battery. It needs the Physical activity permission, and you can turn it off any time in Settings.")
                 )
             },
-            confirmButton = { TextButton(onClick = { askAutoRecord = false; setAutoRecord(true) }) { Text("켜기") } },
-            dismissButton = { TextButton(onClick = { askAutoRecord = false }) { Text("나중에") } },
+            confirmButton = { TextButton(onClick = { askAutoRecord = false; setAutoRecord(true) }) { Text(tr("켜기", "Turn on")) } },
+            dismissButton = { TextButton(onClick = { askAutoRecord = false }) { Text(tr("나중에", "Later")) } },
         )
     }
 
     deletingAuto?.let { a ->
         AlertDialog(
             onDismissRequest = { deletingAuto = null },
-            title = { Text("자동 기록") },
-            text = { Text("앱 없이 알아서 남긴 기록이에요. 걸음 수로 거리를 어림했고, 경로는 없어요.\n잘못 남은 기록이면 지울 수 있어요.") },
-            confirmButton = { TextButton(onClick = { WorkoutStore.deleteAuto(a.id); deletingAuto = null }) { Text("지우기") } },
-            dismissButton = { TextButton(onClick = { deletingAuto = null }) { Text("닫기") } },
+            title = { Text(tr("자동 기록", "Auto record")) },
+            text = { Text(tr("앱 없이 알아서 남긴 기록이에요. 걸음 수로 거리를 어림했고, 경로는 없어요.\n잘못 남은 기록이면 지울 수 있어요.", "Recorded on its own, without the app. The distance is estimated from steps, and there's no route.\nIf it shouldn't be here, you can delete it.")) },
+            confirmButton = { TextButton(onClick = { WorkoutStore.deleteAuto(a.id); deletingAuto = null }) { Text(tr("지우기", "Clear")) } },
+            dismissButton = { TextButton(onClick = { deletingAuto = null }) { Text(tr("닫기", "Close")) } },
         )
     }
 }
@@ -189,7 +191,7 @@ private fun MonthGrid(month: YearMonth, selected: LocalDate, kmByDay: Map<LocalD
     val colors = MaterialTheme.colorScheme
     val today = LocalDate.now()
     Row(Modifier.fillMaxWidth()) {
-        listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
+        (if (com.mhmh2.bujirun.Lang.english) listOf("S", "M", "T", "W", "T", "F", "S") else listOf("일", "월", "화", "수", "목", "금", "토")).forEachIndexed { i, d ->
             Text(
                 d, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
@@ -251,32 +253,33 @@ private fun DayCard(
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                "${day.monthValue}월 ${day.dayOfMonth}일 (${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)})" +
+                tr("${day.monthValue}월 ${day.dayOfMonth}일 (${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)})",
+                    "${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US)}, ${day.month.getDisplayName(TextStyle.SHORT, Locale.US)} ${day.dayOfMonth}") +
                     listOfNotNull(
-                        ws.size.takeIf { it > 0 }?.let { "운동 ${it}회" },
-                        autos.size.takeIf { it > 0 }?.let { "자동 ${it}회" },
+                        ws.size.takeIf { it > 0 }?.let { tr("운동 ${it}회", "$it workouts") },
+                        autos.size.takeIf { it > 0 }?.let { tr("자동 ${it}회", "$it auto") },
                     ).joinToString(" · ").let { if (it.isEmpty()) "" else " · $it" },
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth()) {
-                DayStat("거리", "${formatKm(ws.sumOf { it.distanceM } + autos.sumOf { it.distanceM })}km", Modifier.weight(1f))
-                DayStat("시간", formatDuration(ws.sumOf { it.durationMs } + autos.sumOf { it.movingMs }), Modifier.weight(1f))
-                DayStat("칼로리", "${(ws.sumOf { it.calories } + autos.sumOf { it.calories }).roundToInt()}kcal", Modifier.weight(1f))
+                DayStat(tr("거리", "Distance"), "${formatKm(ws.sumOf { it.distanceM } + autos.sumOf { it.distanceM })}km", Modifier.weight(1f))
+                DayStat(tr("시간", "Time"), formatDuration(ws.sumOf { it.durationMs } + autos.sumOf { it.movingMs }), Modifier.weight(1f))
+                DayStat(tr("칼로리", "Calories"), "${(ws.sumOf { it.calories } + autos.sumOf { it.calories }).roundToInt()}kcal", Modifier.weight(1f))
                 DayStat(
-                    if (daySteps != null) "하루 걸음" else "걸음",
+                    if (daySteps != null) tr("하루 걸음", "Steps today") else tr("걸음", "Steps"),
                     n.format(daySteps ?: (ws.sumOf { it.steps }.toLong() + autos.sumOf { it.steps })),
                     Modifier.weight(1f)
                 )
             }
             if (!autoRecord) {
                 TextButton(onClick = onAutoRecord, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                    Text("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", style = MaterialTheme.typography.bodySmall)
+                    Text(tr("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", "Turn on auto recording · steps, walks and runs without opening the app"), style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (!canReadSteps) {
                 TextButton(onClick = onAllowSteps, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                    Text("삼성헬스의 하루 전체 걸음 수도 보기", style = MaterialTheme.typography.bodySmall)
+                    Text(tr("삼성헬스의 하루 전체 걸음 수도 보기", "Also show the day's steps from Samsung Health"), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -299,7 +302,7 @@ private fun WorkoutRow(w: WorkoutEntity, onClick: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             listOfNotNull(
                 "${formatKm(w.distanceM)}km", formatDuration(w.durationMs), "${formatPace(pace)}/km",
-                "${w.calories.roundToInt()}kcal", w.steps.takeIf { it > 0 }?.let { "${it}걸음" },
+                "${w.calories.roundToInt()}kcal", w.steps.takeIf { it > 0 }?.let { tr("${it}걸음", "$it steps") },
             ).forEach {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -311,14 +314,13 @@ private fun WorkoutRow(w: WorkoutEntity, onClick: () -> Unit) {
 /** A walk or run recorded in the background: no route to open, so a tap explains (and can delete). */
 @Composable
 private fun AutoRow(a: AutoActivityEntity, onClick: () -> Unit) {
-    val at = Instant.ofEpochMilli(a.startedAt).atZone(ZoneId.systemDefault())
-    val time = "${if (at.hour < 12) "오전" else "오후"} ${(at.hour + 11) % 12 + 1}:${"%02d".format(at.minute)}"
+    val time = clockTime(a.startedAt)
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp)) {
-        Text("${if (a.isRun) "🏃 달리기" else "🚶 걷기"} · $time", style = MaterialTheme.typography.titleMedium)
+        Text("${if (a.isRun) tr("🏃 달리기", "🏃 Run") else tr("🚶 걷기", "🚶 Walk")} · $time", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             listOf(
-                "약 ${formatKm(a.distanceM)}km", formatDuration(a.movingMs), "${a.calories.roundToInt()}kcal",
-                "${NumberFormat.getIntegerInstance(Locale.KOREA).format(a.steps)}걸음", "자동 기록",
+                tr("약 ${formatKm(a.distanceM)}km", "about ${formatKm(a.distanceM)}km"), formatDuration(a.movingMs), "${a.calories.roundToInt()}kcal",
+                tr("${NumberFormat.getIntegerInstance(Locale.KOREA).format(a.steps)}걸음", "${NumberFormat.getIntegerInstance(Locale.US).format(a.steps)} steps"), tr("자동 기록", "Auto record"),
             ).forEach {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

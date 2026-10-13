@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.tr
+
 import android.graphics.Color as AndroidColor
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -145,7 +147,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
 
     // One-time setup: the camera on Banpo until the user's position comes in. A point goes where
     // the map is tapped (once - a tap waits a moment so a double-tap zoom doesn't drop two), where
-    // it's long-pressed, or where the + in the middle is ("여기 추가").
+    // it's long-pressed, or where the + in the middle is (tr("여기 추가", "Add here")).
     var naverMap by remember { mutableStateOf<NaverMap?>(null) }
     var pendingTap by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(mapView) {
@@ -219,7 +221,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     iconTintColor = if (i == 0) START_GREEN else lineColor
                     width = (18 * density).toInt()
                     height = (25 * density).toInt()
-                    if (i == 0) captionText = if (startIsHere) "출발 · 내 위치" else "출발"
+                    if (i == 0) captionText = if (startIsHere) tr("출발 · 내 위치", "Start · my location") else tr("출발", "Start")
                     this.map = map
                 }
             }
@@ -228,7 +230,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
-        // Where "여기 추가" puts the next point: the middle of the map.
+        // Where tr("여기 추가", "Add here") puts the next point: the middle of the map.
         Icon(
             Icons.Filled.Add, contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
@@ -239,7 +241,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 onClick = { naverMap?.moveCamera(CameraUpdate.scrollTo(LatLng(me.lat, me.lon)).animate(CameraAnimation.Easing)) },
                 // Right, under the search bar and clear of the map's own zoom buttons (middle right).
                 modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 84.dp, end = 12.dp)
-            ) { Icon(Icons.Filled.MyLocation, contentDescription = "내 위치로") }
+            ) { Icon(Icons.Filled.MyLocation, contentDescription = tr("내 위치로", "To my location")) }
         }
 
         // Back, and a search for a place to go through: picking one moves the map there and adds
@@ -248,14 +250,14 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
         Column(Modifier.zIndex(1f).safeDrawingPadding().padding(12.dp).fillMaxWidth()) {
             Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 2.dp, shadowElevation = 2.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
+                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
                     TextField(
                         value = query,
                         onValueChange = { query = it },
-                        placeholder = { Text("장소 검색해서 추가 (예: 금정역)") },
+                        placeholder = { Text(tr("장소 검색해서 추가 (예: 금정역)", "Search a place to add")) },
                         trailingIcon = {
                             if (searching) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                            else if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "지우기") }
+                            else if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, tr("지우기", "Clear")) }
                             else Icon(Icons.Filled.Search, null)
                         },
                         singleLine = true,
@@ -270,7 +272,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
             if (results.isNotEmpty() || nothingFound) {
                 Surface(shape = RoundedCornerShape(16.dp), shadowElevation = 6.dp, modifier = Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(max = 300.dp)) {
                     if (nothingFound) {
-                        Text("검색 결과가 없어요", modifier = Modifier.padding(16.dp))
+                        Text(tr("검색 결과가 없어요", "No results"), modifier = Modifier.padding(16.dp))
                     } else {
                         LazyColumn {
                             items(results) { r ->
@@ -312,9 +314,9 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Text(
                         when (waypoints.size) {
-                            0 -> "지도를 눌러 출발점을 찍거나, 위에서 장소를 검색하세요"
-                            1 -> if (startIsHere) "내 위치에서 출발해요. 지도를 눌러 다음 지점을 찍으세요" else "지도를 눌러 다음 지점을 찍으세요"
-                            else -> "지점 ${waypoints.size}개"
+                            0 -> tr("지도를 눌러 출발점을 찍거나, 위에서 장소를 검색하세요", "Tap the map to set the start, or search a place above")
+                            1 -> if (startIsHere) tr("내 위치에서 출발해요. 지도를 눌러 다음 지점을 찍으세요", "Starting from your location. Tap the map for the next point") else tr("지도를 눌러 다음 지점을 찍으세요", "Tap the map for the next point")
+                            else -> tr("지점 ${waypoints.size}개", "${waypoints.size} points")
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -323,14 +325,14 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 }
                 // Changing the start: only before the course goes anywhere (undo gets back there).
                 if (waypoints.size == 1 && startIsHere) {
-                    TextButton(onClick = { waypoints = emptyList(); startIsHere = false }) { Text("다른 곳에서 출발하기") }
+                    TextButton(onClick = { waypoints = emptyList(); startIsHere = false }) { Text(tr("다른 곳에서 출발하기", "Start somewhere else")) }
                 } else if (waypoints.isEmpty() && here != null) {
-                    TextButton(onClick = { here?.let { waypoints = listOf(it); startIsHere = true } }) { Text("내 위치에서 출발하기") }
+                    TextButton(onClick = { here?.let { waypoints = listOf(it); startIsHere = true } }) { Text(tr("내 위치에서 출발하기", "Start from my location")) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("길 따라 잇기", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(tr("길 따라 잇기", "Follow paths"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Text(
-                        if (followPaths) "걷는 길로 연결" else "직선으로 연결",
+                        if (followPaths) tr("걷는 길로 연결", "Along walkways") else tr("직선으로 연결", "Straight lines"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -341,7 +343,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 Button(onClick = ::addAtCentre, enabled = !busy && naverMap != null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                     Icon(Icons.Filled.Add, null)
                     Spacer(Modifier.width(6.dp))
-                    Text(if (waypoints.isEmpty()) "여기를 출발점으로" else "여기 추가")
+                    Text(if (waypoints.isEmpty()) tr("여기를 출발점으로", "Start here") else tr("여기 추가", "Add here"))
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -352,15 +354,15 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                         onClick = { waypoints.firstOrNull()?.let(::addPoint) },
                         enabled = waypoints.size >= 2 && !busy && !CourseGeometry.isLoop(line),
                         modifier = Modifier.weight(1f)
-                    ) { Text("출발점으로") }
-                    OutlinedButton(onClick = { naming = true }, enabled = line.size >= 2 && !busy, modifier = Modifier.weight(1f)) { Text("저장") }
+                    ) { Text(tr("출발점으로", "Back to start")) }
+                    OutlinedButton(onClick = { naming = true }, enabled = line.size >= 2 && !busy, modifier = Modifier.weight(1f)) { Text(tr("저장", "Save")) }
                 }
             }
         }
     }
 
     if (naming) {
-        NameDialog("코스 이름", "내 코스 ${formatKm(distance)}km", onDismiss = { naming = false }) { name ->
+        NameDialog(tr("코스 이름", "Course name"), tr("내 코스 ${formatKm(distance)}km", "My course ${formatKm(distance)}km"), onDismiss = { naming = false }) { name ->
             naming = false
             scope.launch { onSaved(CourseStore.save(name, CourseSource.DRAWN, line)) }
         }
