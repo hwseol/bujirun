@@ -46,11 +46,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.mhmh2.bujirun.course.CourseGpx
 import com.mhmh2.bujirun.course.CourseRoute
-import com.mhmh2.bujirun.course.CourseSection
+import com.mhmh2.bujirun.course.CourseOutline
 import com.mhmh2.bujirun.course.Landmark
 import com.mhmh2.bujirun.course.RouteApi
 import com.mhmh2.bujirun.course.isOutAndBack
-import com.mhmh2.bujirun.course.sections
 import com.mhmh2.bujirun.course.slice
 import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.GeoPoint
@@ -67,16 +66,15 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
     val points by remember(courseId) { CourseStore.observePoints(courseId) }.collectAsState(initial = emptyList())
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    // The course piece by piece, turn to turn; the tapped one is shown on its own on the map.
+    // The course in a few big strokes (CourseOutline); the tapped one is shown on the map.
     val route = remember(points) { points.takeIf { it.size >= 2 }?.let(::CourseRoute) }
-    val sections = remember(route) { route?.sections().orEmpty() }
+    val outline = remember(route) { route?.let { CourseOutline.of(it) }.orEmpty() }
     var picked by remember(points) { mutableStateOf<Int?>(null) }
-    // What's at each turn ("GS25 앞에서"), from the server when it knows; the list works without.
+    // What's at each of those points ("역삼사거리에서"), from the server when it knows.
     var landmarks by remember(points) { mutableStateOf<List<Landmark?>>(emptyList()) }
     LaunchedEffect(route) {
         val r = route ?: return@LaunchedEffect
-        val turns = sections.mapNotNull { it.turn }.take(40)
-        if (turns.isNotEmpty()) landmarks = runCatching { RouteApi.landmarks(turns.map { r.pointAt(it.atM) }) }.getOrDefault(emptyList())
+        if (outline.isNotEmpty()) landmarks = runCatching { RouteApi.landmarks(outline.map { r.pointAt(it.atM) }) }.getOrDefault(emptyList())
     }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -94,7 +92,8 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
             // A real map: pinch or +/- to zoom, drag to look around.
             if (points.size >= 2) {
                 Box(Modifier.fillMaxWidth().height(360.dp).clip(RoundedCornerShape(16.dp))) {
-                    val highlight = picked?.let { i -> sections.getOrNull(i) }?.let { s -> route?.slice(s.fromM, s.toM) }
+                    val highlight = picked?.let { i -> outline.getOrNull(i) }?.takeIf { it.legM > 0 }
+                        ?.let { st -> route?.slice(st.atM, st.atM + st.legM) }
                     CourseMap(points, highlight)
                 }
             }
@@ -115,19 +114,17 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
                     Modifier.weight(1f), small = true,
                 )
             }
-            if (sections.isNotEmpty()) {
+            if (outline.size > 1) {
                 Spacer(Modifier.height(24.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("코스 안내", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.width(8.dp))
-                    Text("누르면 지도에서 보여줘요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("큰 흐름만 · 누르면 지도에서 보여줘요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(4.dp))
-                var turnNo = 0
-                sections.forEachIndexed { i, s ->
-                    val landmark = s.turn?.let { landmarks.getOrNull(turnNo++) }
-                    SectionRow(i, s, landmark, last = i == sections.lastIndex, loop = c.isLoop, selected = picked == i) {
-                        picked = if (picked == i) null else i
+                outline.forEachIndexed { i, st ->
+                    OutlineRow(st, landmarks.getOrNull(i), loop = c.isLoop, selected = picked == i) {
+                        picked = if (picked == i || st.legM <= 0) null else i
                     }
                 }
             }
@@ -167,28 +164,35 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
     }
 }
 
-/** "3  0.42 → 0.71km · 290m" and what to do at its end: "→ 오른쪽 · GS25 앞에서". */
+/**
+ * One big stroke: "출발 · 반포한강공원 근처" / "북동쪽으로 0.8km", "역삼사거리에서 오른쪽" / "동쪽으로
+ * 1.2km · 여기서 돌아와요", "잠수교에서 되돌아와요", "출발점으로 돌아와 끝".
+ */
 @Composable
-private fun SectionRow(index: Int, s: CourseSection, landmark: Landmark?, last: Boolean, loop: Boolean, selected: Boolean, onClick: () -> Unit) {
+private fun OutlineRow(st: CourseOutline.Step, landmark: Landmark?, loop: Boolean, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
+    val where = landmark?.at ?: "${formatKm(st.atM)}km 지점에서"
+    val (mark, title) = when (st.kind) {
+        CourseOutline.Kind.START -> "●" to ("출발" + (landmark?.let { " · ${it.name} 근처" } ?: ""))
+        CourseOutline.Kind.TURN -> st.direction!!.arrow to "$where ${st.direction.spoken}"
+        CourseOutline.Kind.U_TURN -> "↶" to "$where 되돌아와요"
+        CourseOutline.Kind.FINISH -> "■" to (if (loop) "출발점으로 돌아와 끝" else "도착" + (landmark?.let { " · ${it.name} 근처" } ?: ""))
+    }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .background(if (selected) colors.tertiaryContainer else Color.Transparent)
             .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("${index + 1}", color = colors.primary, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp))
+        Text(mark, color = colors.primary, fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.width(36.dp))
         Column(Modifier.weight(1f)) {
-            val then = when {
-                s.turn != null -> "${s.turn.direction.arrow} ${s.turn.direction.spoken}" + (landmark?.let { " · ${it.at}" } ?: "")
-                last && loop -> "출발점으로 돌아와 끝"
-                else -> "도착"
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            if (st.heading != null) {
+                Text(
+                    "${st.heading}으로 ${formatKm(st.legM)}km" + if (st.farthest) " · 여기서부터 돌아오는 길" else "",
+                    style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
+                )
             }
-            Text(then, style = MaterialTheme.typography.titleSmall)
-            Text(
-                "${formatKm(s.fromM)} → ${formatKm(s.toM)}km · ${s.lengthM.roundToInt()}m 가서",
-                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
-            )
         }
     }
 }
