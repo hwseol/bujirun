@@ -44,7 +44,10 @@ object WorkoutPhotos {
             context.contentResolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_TAKEN),
-                "${MediaStore.Images.Media.DATE_TAKEN} BETWEEN ? AND ?",
+                // Screenshots (of the course, a message) aren't photos of the run.
+                "${MediaStore.Images.Media.DATE_TAKEN} BETWEEN ? AND ? AND " +
+                    "(${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} IS NULL OR " +
+                    "${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} NOT IN ('Screenshots', 'Screenshot', '스크린샷'))",
                 arrayOf(from.toString(), to.toString()),
                 "${MediaStore.Images.Media.DATE_TAKEN} ASC",
             )?.use { c ->

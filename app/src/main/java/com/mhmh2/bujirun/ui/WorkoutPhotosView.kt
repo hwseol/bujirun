@@ -56,8 +56,8 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * "이 운동 중 찍은 사진": thumbnails, numbered like their pins on the map; a tap opens them full
- * screen. Asks for the photo permission first; "+" adds photos from the picker (cloud too).
+ * "운동하며 찍은 사진": thumbnails (each also sits on the map where it was taken); a tap opens
+ * them full screen. Asks for the photo permission first; "+" adds photos from the picker (cloud too).
  */
 @Composable
 fun PhotoStrip(
@@ -69,14 +69,7 @@ fun PhotoStrip(
     onOpen: (Int) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("사진", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.size(8.dp))
-        Text(
-            if (photos.isEmpty()) "운동하는 동안 찍은 사진이 여기 모여요" else "누르면 크게 봐요 · 지도에 찍은 곳이 번호로 보여요",
-            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
-        )
-    }
+    Text("운동하며 찍은 사진", style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
     if (!canRead) {
         TextButton(onClick = onAllow, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
@@ -87,12 +80,6 @@ fun PhotoStrip(
         itemsIndexed(photos, key = { _, p -> p.uri.toString() }) { i, p ->
             Box(Modifier.size(88.dp).clip(RoundedCornerShape(12.dp)).background(colors.surfaceVariant).clickable { onOpen(i) }) {
                 Thumbnail(p.uri, 256, Modifier.fillMaxSize())
-                if (places.getOrNull(i) != null) {
-                    Text(
-                        "${i + 1}", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(50)).background(PHOTO_BLUE_C).padding(horizontal = 6.dp, vertical = 1.dp),
-                    )
-                }
             }
         }
         item {

@@ -25,23 +25,21 @@ import com.naver.maps.map.overlay.PathOverlay
  * line part per pause segment, so a pause spent somewhere else doesn't draw a straight jump.
  */
 @Composable
-fun RouteView(points: List<TrackPoint>, modifier: Modifier = Modifier, photos: List<PhotoPlace?> = emptyList()) {
+fun RouteView(points: List<TrackPoint>, modifier: Modifier = Modifier, photos: List<Pair<PhotoPlace, android.graphics.Bitmap?>> = emptyList()) {
     val runColor = MaterialTheme.colorScheme.primary.toArgb()
     val walkColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f).compositeOver(Color.White).toArgb()
     val fit = remember(points) { points.map { LatLng(it.sample.lat, it.sample.lon) } }
     LiteMap(fit, modifier, emptyText = "경로를 그릴 위치 기록이 없어요") { map, density ->
-        drawWorkout(map, points, runColor, walkColor, density) + photos.mapIndexedNotNull { i, p ->
-            // Where each photo was taken, numbered like its thumbnail.
-            p?.let {
-                Marker().apply {
-                    position = LatLng(it.lat, it.lon)
-                    icon = MarkerIcons.BLACK
-                    iconTintColor = PHOTO_BLUE
-                    captionText = "${i + 1}"
-                    width = (20 * density).toInt()
-                    height = (26 * density).toInt()
-                    this.map = map
-                }
+        drawWorkout(map, points, runColor, walkColor, density) + photos.map { (place, bmp) ->
+            // Each photo on the spot it was taken: the picture itself, round, as the pin.
+            Marker().apply {
+                position = LatLng(place.lat, place.lon)
+                icon = photoPin(bmp, density)
+                width = (36 * density).toInt()
+                height = (36 * density).toInt()
+                anchor = android.graphics.PointF(0.5f, 0.5f)
+                isHideCollidedSymbols = false
+                this.map = map
             }
         }
     }
@@ -108,4 +106,31 @@ private fun drawWorkout(map: NaverMap, points: List<TrackPoint>, runColor: Int, 
     result += endpointMarker(map, LatLng(first.lat, first.lon), "출발", START_GREEN, density)
     result += endpointMarker(map, LatLng(last.lat, last.lon), "도착", END_DARK, density)
     return result
+}
+
+/** A photo as a round map pin with a white ring (a plain camera-blue dot while it loads). */
+private fun photoPin(bmp: android.graphics.Bitmap?, density: Float): com.naver.maps.map.overlay.OverlayImage {
+    val size = (36 * density).toInt()
+    val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(out)
+    val r = size / 2f
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    paint.color = AndroidColor.WHITE
+    c.drawCircle(r, r, r, paint)
+    val inner = r - 2.5f * density
+    if (bmp != null) {
+        val side = minOf(bmp.width, bmp.height)
+        val src = android.graphics.Rect((bmp.width - side) / 2, (bmp.height - side) / 2, (bmp.width + side) / 2, (bmp.height + side) / 2)
+        val dst = android.graphics.RectF(r - inner, r - inner, r + inner, r + inner)
+        val layer = c.saveLayer(dst, null)
+        c.drawCircle(r, r, inner, paint)
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        c.drawBitmap(bmp, src, dst, paint)
+        paint.xfermode = null
+        c.restoreToCount(layer)
+    } else {
+        paint.color = PHOTO_BLUE
+        c.drawCircle(r, r, inner, paint)
+    }
+    return com.naver.maps.map.overlay.OverlayImage.fromBitmap(out)
 }

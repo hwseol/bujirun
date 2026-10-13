@@ -20,6 +20,14 @@ object CalendarExport {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun exists(context: Context, start: Long, title: String): Boolean = runCatching {
+        context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI, arrayOf(CalendarContract.Events._ID),
+            "${CalendarContract.Events.DTSTART} = ? AND ${CalendarContract.Events.TITLE} = ? AND ${CalendarContract.Events.DELETED} = 0",
+            arrayOf(start.toString(), title), null,
+        )?.use { it.count > 0 } ?: false
+    }.getOrDefault(false)
+
     /** The calendar to write to: a Google account's primary one first, else any writable one. */
     private fun calendarId(context: Context): Long? {
         val projection = arrayOf(
@@ -43,8 +51,14 @@ object CalendarExport {
         return found.sortedWith(compareByDescending<Cal> { it.google && it.primary }.thenByDescending { it.google }).firstOrNull()?.id
     }
 
-    /** Writes the event; returns false if there's no calendar to write to. */
+    /**
+     * Writes the event; returns false if there's no calendar to write to. Never twice: the
+     * same workout can be written from several places (on save, on app open, the result
+     * screen's switch and button), so an event already there with its title and start counts.
+     */
+    @Synchronized
     fun write(context: Context, w: WorkoutEntity, title: String, notes: String): Boolean {
+        if (exists(context, w.startedAt, title)) return true
         val calendar = calendarId(context) ?: return false
         val end = w.startedAt + maxOf(w.durationMs, w.endedAt - w.startedAt)
         val values = ContentValues().apply {

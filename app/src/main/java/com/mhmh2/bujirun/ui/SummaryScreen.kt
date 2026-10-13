@@ -145,6 +145,10 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             .sortedBy { it.takenAt ?: Long.MAX_VALUE }
     }
     val photoPlaces = remember(photos, points) { photos.map { p -> p.takenAt?.let { PhotoPlaces.at(points, it) } } }
+    // Small copies for the map, where each photo sits on the spot it was taken.
+    val photoThumbs by produceState(emptyMap<Uri, android.graphics.Bitmap>(), photos) {
+        value = photos.mapNotNull { p -> WorkoutPhotos.load(context, p.uri, 160)?.let { p.uri to it } }.toMap()
+    }
     var viewingPhoto by remember { mutableStateOf<Int?>(null) }
     val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
         if (uris.isNotEmpty()) scope.launch { WorkoutPhotos.add(context, workoutId, uris) }
@@ -237,7 +241,9 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 course?.let { Text("코스: ${it.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
             }
             Spacer(Modifier.height(16.dp))
-            RouteView(points, photos = photoPlaces)
+            RouteView(points, photos = photos.indices.mapNotNull { i ->
+                photoPlaces.getOrNull(i)?.let { it to photoThumbs[photos[i].uri] }
+            })
             Spacer(Modifier.height(16.dp))
             PhotoStrip(
                 photos, photoPlaces, canReadPhotos,
