@@ -97,7 +97,7 @@ fun LiveWorkoutScreen(
             Spacer(Modifier.height(8.dp))
             CourseLiveMap(
                 route, course, state.position, state.rerouting, onReroute,
-                Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)), trail = state.trail,
             )
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {

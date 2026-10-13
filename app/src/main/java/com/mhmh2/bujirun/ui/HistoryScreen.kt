@@ -124,7 +124,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
                 val inMonth = real(byDay.filterKeys { YearMonth.from(it) == month }.values.flatten())
                 val autoInMonth = autoByDay.filterKeys { YearMonth.from(it) == month }.values.flatten()
                 Text(
-                    tr("${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ", "${inMonth.size + autoInMonth.size} · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ") +
+                    tr("${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ", "${inMonth.size + autoInMonth.size} runs · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ") +
                         "${(inMonth.sumOf { it.calories } + autoInMonth.sumOf { it.calories }).roundToInt()}kcal",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -205,7 +205,7 @@ private fun MonthGrid(month: YearMonth, selected: LocalDate, kmByDay: Map<LocalD
     cells.chunked(7).forEach { week ->
         Row(Modifier.fillMaxWidth()) {
             (week + List(7 - week.size) { null }).forEach { date ->
-                Box(Modifier.weight(1f).aspectRatio(0.9f).padding(2.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.weight(1f).height(58.dp).padding(2.dp), contentAlignment = Alignment.Center) {
                     if (date != null) {
                         val km = kmByDay[date]
                         val isSel = date == selected
@@ -256,7 +256,7 @@ private fun DayCard(
                 tr("${day.monthValue}월 ${day.dayOfMonth}일 (${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)})",
                     "${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US)}, ${day.month.getDisplayName(TextStyle.SHORT, Locale.US)} ${day.dayOfMonth}") +
                     listOfNotNull(
-                        ws.size.takeIf { it > 0 }?.let { tr("운동 ${it}회", "$it workouts") },
+                        ws.size.takeIf { it > 0 }?.let { tr("운동 ${it}회", "$it workout" + if (it == 1) "" else "s") },
                         autos.size.takeIf { it > 0 }?.let { tr("자동 ${it}회", "$it auto") },
                     ).joinToString(" · ").let { if (it.isEmpty()) "" else " · $it" },
                 style = MaterialTheme.typography.titleMedium
@@ -273,14 +273,19 @@ private fun DayCard(
                 )
             }
             if (!autoRecord) {
-                TextButton(onClick = onAutoRecord, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                    Text(tr("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", "Turn on auto recording · steps, walks and runs without opening the app"), style = MaterialTheme.typography.bodySmall)
-                }
+                // Plain clickable text: a TextButton clips a line that wraps.
+                Text(
+                    tr("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", "Turn on auto recording · steps, walks and runs without opening the app"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onAutoRecord).padding(vertical = 10.dp),
+                )
             }
             if (!canReadSteps) {
-                TextButton(onClick = onAllowSteps, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                    Text(tr("삼성헬스의 하루 전체 걸음 수도 보기", "Also show the day's steps from Samsung Health"), style = MaterialTheme.typography.bodySmall)
-                }
+                Text(
+                    tr("삼성헬스의 하루 전체 걸음 수도 보기", "Also show the day's steps from Samsung Health"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onAllowSteps).padding(vertical = 10.dp),
+                )
             }
         }
     }

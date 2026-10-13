@@ -23,6 +23,9 @@ import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.CameraUpdate
 import com.naver.maps.map.NaverMapOptions
 import kotlin.math.roundToInt
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -115,29 +118,26 @@ fun HomeScreen(
     val goal = dial?.toGoal(values.getValue(kind)) ?: Goal.Free
 
     Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+        // Scrolls: with a large system font the goal and the start button still fit, just lower.
+        modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Text(tr("부지런", "Bujirun"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(8.dp))
             nickname?.let {
-                Text(tr("${it}님, 오늘도 가볍게", "Hi $it, an easy one today?"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp))
+                Text(tr("${it}님, 오늘도 가볍게", "Hi $it, an easy one today?"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Spacer(Modifier.height(12.dp))
-        // Where you are now: the start of whatever you run next.
-        HereMap(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         WeekCard(weekSummary)
         Spacer(Modifier.height(20.dp))
 
         Text(tr("목표", "Goal"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // One line whatever the font size: slides sideways rather than breaking words apart.
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GoalKind.entries.forEach { k ->
-                FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label) })
+                FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label, maxLines = 1, softWrap = false) })
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -155,8 +155,8 @@ fun HomeScreen(
                 )
                 OutlinedIconButton(onClick = { set(value + dial.step) }) { Icon(Icons.Filled.Add, tr("늘리기", "More")) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                dial.presets.forEach { p -> SuggestionChip(onClick = { set(p) }, label = { Text(dial.label(p)) }) }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                dial.presets.forEach { p -> SuggestionChip(onClick = { set(p) }, label = { Text(dial.label(p), maxLines = 1, softWrap = false) }) }
             }
         } else {
             Text(
@@ -167,7 +167,7 @@ fun HomeScreen(
             )
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(32.dp))
         Button(onClick = { onStart(goal) }, shape = CircleShape, modifier = Modifier.size(128.dp)) {
             Text(tr("시작", "Start"), fontSize = 28.sp)
         }
@@ -179,7 +179,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.weight(0.5f))
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -194,10 +194,10 @@ private fun WeekCard(w: WeekStats) {
                 Text(tr("아직 기록이 없어요. 짧게라도 시작해 볼까요?", "Nothing yet. How about a short one?"), style = MaterialTheme.typography.bodyMedium)
             } else {
                 Row(Modifier.fillMaxWidth()) {
-                    WeekStat("${w.count}", tr("회", "runs"), Modifier.weight(1f))
-                    WeekStat(formatKm(w.distanceM), "km", Modifier.weight(1f))
-                    WeekStat(formatDuration(w.durationMs), tr("시간", "Time"), Modifier.weight(1f))
-                    WeekStat("${w.calories.roundToInt()}", "kcal", Modifier.weight(1f))
+                    WeekStat(tr("횟수", "Runs"), "${w.count}", Modifier.weight(1f))
+                    WeekStat(tr("거리", "Distance"), "${formatKm(w.distanceM)}km", Modifier.weight(1.2f))
+                    WeekStat(tr("시간", "Time"), formatDuration(w.durationMs), Modifier.weight(1.2f))
+                    WeekStat(tr("칼로리", "Calories"), "${w.calories.roundToInt()}kcal", Modifier.weight(1f))
                 }
             }
         }
@@ -205,40 +205,10 @@ private fun WeekCard(w: WeekStats) {
 }
 
 @Composable
-private fun WeekStat(value: String, unit: String, modifier: Modifier) {
-    Row(modifier, verticalAlignment = Alignment.Bottom) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(2.dp))
-        Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+private fun WeekStat(label: String, value: String, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
-/** A map at the phone's last known position (with location permission), else a note. */
-@Composable
-private fun HereMap(modifier: Modifier) {
-    val context = LocalContext.current
-    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    if (!granted) {
-        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-            Text(tr("시작을 누르면 위치 권한을 물어요.\n허용하면 여기에 지금 있는 곳이 보여요.", "Press Start and you'll be asked for location.\nAllow it and this shows where you are."), textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        return
-    }
-    val mapView = rememberMapView(
-        NaverMapOptions().zoomControlEnabled(false).scaleBarEnabled(false).compassEnabled(false).locationButtonEnabled(false)
-    )
-    LaunchedEffect(mapView) {
-        @SuppressLint("MissingPermission")
-        val task = LocationServices.getFusedLocationProviderClient(context).lastLocation
-        task.addOnSuccessListener { loc ->
-            loc ?: return@addOnSuccessListener
-            mapView.getMapAsync { map ->
-                val here = LatLng(loc.latitude, loc.longitude)
-                map.locationOverlay.apply { isVisible = true; position = here }
-                map.moveCamera(CameraUpdate.scrollAndZoomTo(here, 15.5))
-            }
-        }
-    }
-    Box(modifier) { AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize()) }
-}

@@ -64,6 +64,7 @@ fun CourseLiveMap(
     rerouting: Boolean,
     onReroute: () -> Unit,
     modifier: Modifier = Modifier,
+    trail: List<GeoPoint> = emptyList(),
 ) {
     val density = LocalDensity.current.density
     val color = MaterialTheme.colorScheme.primary.toArgb()
@@ -71,6 +72,25 @@ fun CourseLiveMap(
         NaverMapOptions().zoomControlEnabled(false).scaleBarEnabled(false).compassEnabled(false).locationButtonEnabled(false)
     )
     val path = remember { PathOverlay() }
+    // The way actually run, over the course: dark and thin, with where it began.
+    val ran = remember { PathOverlay() }
+    val ranStart = remember { mutableStateOf<com.naver.maps.map.overlay.Marker?>(null) }
+    LaunchedEffect(trail.size) {
+        if (trail.isEmpty()) return@LaunchedEffect
+        mapView.getMapAsync { map ->
+            if (ranStart.value == null) {
+                ranStart.value = endpointMarker(map, LatLng(trail.first().lat, trail.first().lon), tr("출발", "Start"), START_GREEN, density)
+            }
+            if (trail.size >= 2) {
+                ran.coords = trail.map { LatLng(it.lat, it.lon) }
+                ran.color = 0xFF37474F.toInt()
+                ran.outlineWidth = 0
+                ran.width = (3 * density).toInt()
+                ran.zIndex = 200001
+                ran.map = map
+            }
+        }
+    }
     val arrows = remember { mutableListOf<com.naver.maps.map.overlay.Marker>() }
     var following by remember { mutableStateOf(true) }
 
@@ -159,6 +179,7 @@ fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier =
         NaverMapOptions().zoomControlEnabled(false).scaleBarEnabled(false).compassEnabled(false).locationButtonEnabled(false)
     )
     val path = remember { PathOverlay() }
+    val startPin = remember { mutableStateOf<com.naver.maps.map.overlay.Marker?>(null) }
     var following by remember { mutableStateOf(true) }
     DisposableEffect(mapView) {
         var map: NaverMap? = null
@@ -170,6 +191,10 @@ fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier =
     }
     LaunchedEffect(trail.size, position, following) {
         mapView.getMapAsync { map ->
+            // Where the run began, pinned once.
+            if (startPin.value == null && trail.isNotEmpty()) {
+                startPin.value = endpointMarker(map, LatLng(trail.first().lat, trail.first().lon), tr("출발", "Start"), START_GREEN, density)
+            }
             if (trail.size >= 2) {
                 path.coords = trail.map { LatLng(it.lat, it.lon) }
                 path.color = color
