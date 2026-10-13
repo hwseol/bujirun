@@ -233,8 +233,9 @@ fun BujirunApp() {
                 when (tab) {
                     Tab.HOME -> {
                         val workouts by remember { WorkoutStore.observeDone() }.collectAsState(initial = emptyList())
+                        val autos by remember { WorkoutStore.observeAuto() }.collectAsState(initial = emptyList())
                         HomeScreen(
-                            remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts),
+                            remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts, autos),
                             nickname = signedIn?.nickname,
                             onStart = { goal -> requestStart(goal) },
                         )
@@ -284,11 +285,17 @@ private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismis
     )
 }
 
-/** This week's real workouts (test runs left out), from Monday. */
-private fun weekSummary(workouts: List<WorkoutEntity>): WeekStats {
+/** This week from Monday: workouts (test runs left out) and the walks and runs 자동 기록 found. */
+private fun weekSummary(workouts: List<WorkoutEntity>, autos: List<com.mhmh2.bujirun.data.AutoActivityEntity>): WeekStats {
     val zone = ZoneId.systemDefault()
     val monday = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         .atStartOfDay(zone).toInstant().toEpochMilli()
     val week = workouts.filter { it.startedAt >= monday && !it.simulated }
-    return WeekStats(week.size, week.sumOf { it.distanceM }, week.sumOf { it.durationMs }, week.sumOf { it.calories })
+    val auto = autos.filter { it.startedAt >= monday }
+    return WeekStats(
+        week.size + auto.size,
+        week.sumOf { it.distanceM } + auto.sumOf { it.distanceM },
+        week.sumOf { it.durationMs } + auto.sumOf { it.movingMs },
+        week.sumOf { it.calories } + auto.sumOf { it.calories },
+    )
 }
