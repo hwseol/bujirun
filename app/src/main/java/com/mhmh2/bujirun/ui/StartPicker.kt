@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import android.content.Context
@@ -166,7 +168,7 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                                             keyboard?.hide()
                                         }.padding(horizontal = 16.dp, vertical = 10.dp)
                                     ) {
-                                        Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                                        Text(srv(r.name), style = MaterialTheme.typography.bodyLarge)
                                         Text(
                                             listOf(r.address, "${formatKm(r.awayM.toDouble())}km").filter { it.isNotBlank() }.joinToString(" · "),
                                             style = MaterialTheme.typography.bodySmall,
@@ -185,7 +187,7 @@ private fun StartPickerDialog(onDismiss: () -> Unit) {
                     }
                 }
                 Text(
-                    tr("지도를 움직여 핀을 출발점에 맞출 수도 있어요", "Or move the map to put the pin on the start"),
+                    tr("지도를 움직여 핀을 출발점에 맞출 수도 있어요", "Or move the map to place the pin on your start"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, top = 8.dp)

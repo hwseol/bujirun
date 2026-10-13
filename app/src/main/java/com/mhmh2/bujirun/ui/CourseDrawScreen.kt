@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import android.graphics.Color as AndroidColor
@@ -286,7 +288,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                                         addPoint(r.point)
                                     }.padding(horizontal = 16.dp, vertical = 10.dp)
                                 ) {
-                                    Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(srv(r.name), style = MaterialTheme.typography.bodyLarge)
                                     Text(
                                         listOf(r.address, "${formatKm(r.awayM.toDouble())}km").filter { it.isNotBlank() }.joinToString(" · "),
                                         style = MaterialTheme.typography.bodySmall,
@@ -330,9 +332,9 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     TextButton(onClick = { here?.let { waypoints = listOf(it); startIsHere = true } }) { Text(tr("내 위치에서 출발하기", "Start from my location")) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr("길 따라 잇기", "Follow paths"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(tr("길 따라 잇기", "Snap to paths"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Text(
-                        if (followPaths) tr("걷는 길로 연결", "Along walkways") else tr("직선으로 연결", "Straight lines"),
+                        if (followPaths) tr("걷는 길로 연결", "Along walking paths") else tr("직선으로 연결", "Straight lines"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

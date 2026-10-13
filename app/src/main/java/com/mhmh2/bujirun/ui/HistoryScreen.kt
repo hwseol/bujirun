@@ -148,7 +148,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
         if (ofDay.isEmpty() && autoOfDay.isEmpty()) {
             item {
                 Text(
-                    if (list.isEmpty()) tr("첫 기록을 남겨보세요.\n홈에서 시작을 누르면 여기에 쌓여요.", "Record your first workout.\nPress Start on Home and it shows up here.") else tr("이 날은 운동 기록이 없어요.", "No workouts on this day."),
+                    if (list.isEmpty()) tr("첫 기록을 남겨보세요.\n홈에서 시작을 누르면 여기에 쌓여요.", "Record your first workout.\nPress Start on Home and it'll show up here.") else tr("이 날은 운동 기록이 없어요.", "No workouts on this day."),
                     textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                 )
@@ -179,7 +179,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
         AlertDialog(
             onDismissRequest = { deletingAuto = null },
             title = { Text(tr("자동 기록", "Auto record")) },
-            text = { Text(tr("앱 없이 알아서 남긴 기록이에요. 걸음 수로 거리를 어림했고, 경로는 없어요.\n잘못 남은 기록이면 지울 수 있어요.", "Recorded on its own, without the app. The distance is estimated from steps, and there's no route.\nIf it shouldn't be here, you can delete it.")) },
+            text = { Text(tr("앱 없이 알아서 남긴 기록이에요. 걸음 수로 거리를 어림했고, 경로는 없어요.\n잘못 남은 기록이면 지울 수 있어요.", "Recorded automatically, without the app. The distance is estimated from steps, and there's no route.\nYou can delete it if it's wrong.")) },
             confirmButton = { TextButton(onClick = { WorkoutStore.deleteAuto(a.id); deletingAuto = null }) { Text(tr("지우기", "Clear")) } },
             dismissButton = { TextButton(onClick = { deletingAuto = null }) { Text(tr("닫기", "Close")) } },
         )
@@ -257,7 +257,7 @@ private fun DayCard(
                     "${day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US)}, ${day.month.getDisplayName(TextStyle.SHORT, Locale.US)} ${day.dayOfMonth}") +
                     listOfNotNull(
                         ws.size.takeIf { it > 0 }?.let { tr("운동 ${it}회", "$it workout" + if (it == 1) "" else "s") },
-                        autos.size.takeIf { it > 0 }?.let { tr("자동 ${it}회", "$it auto") },
+                        autos.size.takeIf { it > 0 }?.let { tr("자동 ${it}회", "$it auto-recorded") },
                     ).joinToString(" · ").let { if (it.isEmpty()) "" else " · $it" },
                 style = MaterialTheme.typography.titleMedium
             )
@@ -275,7 +275,7 @@ private fun DayCard(
             if (!autoRecord) {
                 // Plain clickable text: a TextButton clips a line that wraps.
                 Text(
-                    tr("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", "Turn on auto recording · steps, walks and runs without opening the app"),
+                    tr("자동 기록 켜기 · 앱을 안 켜도 걸음과 걷기·달리기를 기록해요", "Turn on auto recording · track steps, walks and runs without opening the app"),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable(onClick = onAutoRecord).padding(vertical = 10.dp),
                 )

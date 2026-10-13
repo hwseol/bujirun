@@ -1,6 +1,7 @@
 package com.mhmh2.bujirun.ui
 
 import com.mhmh2.bujirun.Lang
+import com.mhmh2.bujirun.course.sourceEnum
 import java.time.format.DateTimeFormatter
 
 import com.mhmh2.bujirun.data.WorkoutEntity
@@ -66,3 +67,12 @@ fun clockTime(ms: Long): String {
     if (Lang.english) return t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
     return "${if (t.hour < 12) "오전" else "오후"} ${(t.hour + 11) % 12 + 1}:${"%02d".format(t.minute)}"
 }
+
+/**
+ * A course's name as shown: names the app or server made (suggested courses, "내 코스 1.45km")
+ * follow the language; a name the user typed is theirs and stays as written.
+ */
+fun courseTitle(c: com.mhmh2.bujirun.data.CourseEntity): String =
+    if (c.sourceEnum == com.mhmh2.bujirun.course.CourseSource.RECOMMENDED || AUTO_NAME.matches(c.name)) com.mhmh2.bujirun.net.srv(c.name) else c.name
+
+private val AUTO_NAME = Regex("(내 코스|추천 순환|순환) [0-9.]+km")

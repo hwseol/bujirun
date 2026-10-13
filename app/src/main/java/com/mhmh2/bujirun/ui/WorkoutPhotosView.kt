@@ -75,7 +75,7 @@ fun PhotoStrip(
     Spacer(Modifier.height(8.dp))
     if (!canRead) {
         TextButton(onClick = onAllow, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            Text(tr("폰에 있는 사진 중 이 운동 시간에 찍은 사진 보기", "Show photos on the phone taken during this workout"))
+            Text(tr("폰에 있는 사진 중 이 운동 시간에 찍은 사진 보기", "Show photos taken on this phone during the workout"))
         }
     }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,7 +91,7 @@ fun PhotoStrip(
             ) {
                 Icon(Icons.Filled.AddPhotoAlternate, null, tint = colors.primary)
                 Text(tr("사진 추가", "Add photos"), style = MaterialTheme.typography.labelSmall, color = colors.primary)
-                Text(tr("클라우드 포함", "Cloud too"), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                Text(tr("클라우드 포함", "Incl. cloud"), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
             }
         }
     }

@@ -1,5 +1,8 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+import com.mhmh2.bujirun.net.srvPlace
+
 import com.mhmh2.bujirun.tr
 
 import android.Manifest
@@ -121,14 +124,14 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
 
     fun save(course: RouteApi.PlannedCourse, then: (Long) -> Unit) {
-        scope.launch { then(CourseStore.save(course.title, CourseSource.RECOMMENDED, course.points)) }
+        scope.launch { then(CourseStore.save(srv(course.title), CourseSource.RECOMMENDED, course.points)) }
     }
 
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Text(
-                tr("가까운 천·강을 골라 거리만 정하면, 물 바로 옆 길로 갔다가 건너편 둑길로 돌아오는 코스를 짜 드려요. ", "Pick a stream or river nearby and a distance: the course goes out on the path by the water and back on the far bank. ") +
-                    tr("건너편 길이 지도에 없으면 같은 물가 길로 돌아와요.", "Where the far bank has no mapped path, it comes back the same way."),
+                tr("가까운 천·강을 골라 거리만 정하면, 물 바로 옆 길로 갔다가 건너편 둑길로 돌아오는 코스를 짜 드려요. ", "Pick a stream or river and a distance: go out on the waterside path and come back along the far bank. ") +
+                    tr("건너편 길이 지도에 없으면 같은 물가 길로 돌아와요.", "If the far bank has no mapped path, you'll come back the same way."),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp)
@@ -159,7 +162,7 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     }
                 }
                 plan?.notes?.forEach {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(srv(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
@@ -168,13 +171,13 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             }
         }
         items(plan?.courses.orEmpty()) { c ->
-            LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
+            LoopCard(c.points, "${srv(c.title)} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
         }
         val credits = (sources + plan?.sources.orEmpty()).distinct()
         if (credits.isNotEmpty()) {
             item {
                 Text(
-                    tr("장소 정보: ", "Place data: ") + credits.joinToString(", "),
+                    tr("장소 정보: ", "Place data: ") + credits.joinToString(", ") { srv(it) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -196,7 +199,7 @@ private fun RiverCard(r: RouteApi.NearbyRiver, selected: Boolean, onClick: () ->
         modifier = Modifier.widthIn(min = 140.dp, max = 220.dp),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(r.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(srvPlace(r.name), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 if (r.awayM < 50) tr("바로 여기", "Right here") else tr("${formatKm(r.awayM.toDouble())}km 거리", "${formatKm(r.awayM.toDouble())}km away"),
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant

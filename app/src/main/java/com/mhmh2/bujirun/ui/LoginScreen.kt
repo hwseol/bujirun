@@ -80,7 +80,7 @@ fun LoginScreen() {
         Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp)
     ) {
         Spacer(Modifier.height(40.dp))
-        Text(tr("부지런", "Bujirun"), style = MaterialTheme.typography.headlineLarge)
+        Text(tr("부지런", "Buji Run"), style = MaterialTheme.typography.headlineLarge)
         Text(
             if (signUp) tr("계정을 만들어요", "Create your account") else tr("다시 오셨네요", "Welcome back"),
             style = MaterialTheme.typography.bodyMedium,
@@ -171,7 +171,7 @@ fun LoginScreen() {
         }
         if (!signUp) {
             Text(
-                tr("비밀번호를 잊으셨다면 운영자에게 문의해 주세요.", "Forgot your password? Please contact the operator."),
+                tr("비밀번호를 잊으셨다면 운영자에게 문의해 주세요.", "Forgot your password? Contact the admin."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

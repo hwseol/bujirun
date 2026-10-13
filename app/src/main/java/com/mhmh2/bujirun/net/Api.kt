@@ -55,7 +55,7 @@ object Api {
                 throw ApiException(
                     when {
                         code == 429 -> tr("시도가 너무 많아요. 잠시 후 다시 해 주세요.", "Too many attempts. Please try again in a moment.")
-                        !detail.isNullOrBlank() -> detail
+                        !detail.isNullOrBlank() -> ServerText.show(detail)
                         else -> tr("요청을 처리하지 못했어요. ($code)", "The request failed. ($code)")
                     },
                     code,

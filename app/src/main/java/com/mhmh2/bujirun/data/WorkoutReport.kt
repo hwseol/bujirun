@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
  */
 object WorkoutReport {
     fun title(w: WorkoutEntity): String =
-        (if (w.isRun) tr("🏃 부지런 러닝", "🏃 Bujirun run") else tr("🚶 부지런 걷기", "🚶 Bujirun walk")) + " ${formatKm(w.distanceM)}km · ${formatDuration(w.durationMs)}"
+        (if (w.isRun) tr("🏃 부지런 러닝", "🏃 Buji Run · Run") else tr("🚶 부지런 걷기", "🚶 Buji Run · Walk")) + " ${formatKm(w.distanceM)}km · ${formatDuration(w.durationMs)}"
 
     /**
      * The route in Google Maps (a directions link through points of it): opens in the Maps app
@@ -43,6 +43,6 @@ object WorkoutReport {
             })
         }
         mapsUrl?.let { add(tr("지도에서 경로 보기: $it", "Route on the map: $it")) }
-        add(tr("부지런으로 기록했어요", "Recorded with Bujirun"))
+        add(tr("부지런으로 기록했어요", "Recorded with Buji Run"))
     }.joinToString("\n")
 }

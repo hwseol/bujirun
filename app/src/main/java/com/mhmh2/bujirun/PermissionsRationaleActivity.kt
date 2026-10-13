@@ -31,12 +31,12 @@ class PermissionsRationaleActivity : ComponentActivity() {
             BujirunTheme {
                 Surface(Modifier.fillMaxSize()) {
                     Column(Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)) {
-                        Text(tr("부지런의 건강 데이터 사용", "How Bujirun uses health data"), style = MaterialTheme.typography.headlineSmall)
+                        Text(tr("부지런의 건강 데이터 사용", "How Buji Run uses health data"), style = MaterialTheme.typography.headlineSmall)
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            tr("부지런은 사용자가 '삼성헬스에 저장'을 누른 운동 기록만 Health Connect에 씁니다. ", "Bujirun writes to Health Connect only the workouts you choose to save there. ") +
+                            tr("부지런은 사용자가 '삼성헬스에 저장'을 누른 운동 기록만 Health Connect에 씁니다. ", "Buji Run writes to Health Connect only the workouts you choose to save there. ") +
                                 tr("운동 종류(러닝/걷기), 시작·종료 시각, 거리, 소모 칼로리, 이동 경로가 저장됩니다.\n\n", "It saves the type (run/walk), start and end time, distance, calories burned and the route.\n\n") +
-                                tr("Health Connect의 데이터를 읽지 않으며, 어떤 건강 데이터도 서버로 보내지 않습니다. ", "Apart from step counts you allow, it doesn't read Health Connect data, and sends no health data to any server. ") +
+                                tr("Health Connect의 데이터를 읽지 않으며, 어떤 건강 데이터도 서버로 보내지 않습니다. ", "It reads only the step counts you allow, and never sends health data to any server. ") +
                                 tr("모든 운동 기록은 이 폰에만 저장됩니다.\n\n", "All workouts are stored only on this phone.\n\n") +
                                 tr("권한은 언제든 Health Connect 설정에서 끌 수 있습니다.", "You can turn the permissions off at any time in Health Connect settings."),
                             style = MaterialTheme.typography.bodyLarge

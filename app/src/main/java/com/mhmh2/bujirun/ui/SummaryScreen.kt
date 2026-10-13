@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import android.content.Intent
@@ -101,7 +103,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         PermissionController.createRequestPermissionResultContract()
     ) { granted ->
         if (granted.containsAll(HealthExport.required)) writeToHealth()
-        else toast(tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Permission is needed to save to Samsung Health"))
+        else toast(tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Allow access to save to Samsung Health"))
     }
     fun saveToHealth() {
         when (HealthExport.availability(context)) {
@@ -129,7 +131,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     }
     // The route in Google Maps: in the calendar event and the shared text, and a button below.
     val mapsUrl = remember(pointRows) { WorkoutReport.mapsUrl(pointRows.map { it.lat to it.lon }) }
-    fun report(w: WorkoutEntity) = WorkoutReport.text(w, courseName?.name, reportSplits, mapsUrl)
+    fun report(w: WorkoutEntity) = WorkoutReport.text(w, courseName?.let { courseTitle(it) }, reportSplits, mapsUrl)
 
     // Photos taken during the workout: on the phone by time, plus ones picked (cloud) for it.
     var photoPermissionAsked by remember { mutableStateOf(0) }
@@ -162,10 +164,10 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         if (ok) {
             Prefs.markExported("calendar", w.id)
             toast(tr("캘린더에 기록했어요", "Added to the calendar"))
-        } else if (!quiet) toast(tr("기록할 캘린더가 없어요. 폰에 구글 계정 캘린더가 있는지 확인해 주세요", "No calendar to write to. Check that the phone has a Google account calendar"))
+        } else if (!quiet) toast(tr("기록할 캘린더가 없어요. 폰에 구글 계정 캘린더가 있는지 확인해 주세요", "No calendar found. Check that this phone has a Google account calendar"))
     }
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        if (granted.values.all { it }) writeToCalendar() else toast(tr("캘린더 권한을 허용해야 기록할 수 있어요", "Calendar permission is needed to record there"))
+        if (granted.values.all { it }) writeToCalendar() else toast(tr("캘린더 권한을 허용해야 기록할 수 있어요", "Allow calendar access to add workouts there"))
     }
     fun saveToCalendar() {
         if (CalendarExport.hasPermission(context)) writeToCalendar() else calendarPermission.launch(CalendarExport.permissions)
@@ -173,11 +175,11 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
     // Turned on from the card on this screen: from now on, and this workout right away.
     val autoCalendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.all { it }) { Prefs.setAutoCalendar(true); writeToCalendar() }
-        else toast(tr("캘린더 권한을 허용해야 기록할 수 있어요", "Calendar permission is needed to record there"))
+        else toast(tr("캘린더 권한을 허용해야 기록할 수 있어요", "Allow calendar access to add workouts there"))
     }
     val autoHealthPermission = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
         if (granted.containsAll(HealthExport.required)) { Prefs.setAutoHealth(true); writeToHealth() }
-        else toast(tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Permission is needed to save to Samsung Health"))
+        else toast(tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Allow access to save to Samsung Health"))
     }
     fun setAutoCalendar(on: Boolean) {
         val w = workout ?: return
@@ -194,7 +196,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         val w = workout ?: return
         if (!on) { Prefs.setAutoHealth(false); return }
         if (HealthExport.availability(context) != HealthExport.Availability.AVAILABLE) {
-            toast(tr("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", "Health Connect needs installing or updating on this phone first"))
+            toast(tr("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", "Install or update Health Connect on this phone first"))
             return
         }
         scope.launch {
@@ -219,7 +221,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         if (!justFinished || w.simulated || w.status != WorkoutEntity.DONE || pointRows.isEmpty()) return@LaunchedEffect
         AutoExport.runPending(context)
         val places = listOfNotNull(
-            tr("캘린더", "the calendar").takeIf { Prefs.autoCalendar.value && Prefs.exported("calendar", w.id) },
+            tr("캘린더", "Google Calendar").takeIf { Prefs.autoCalendar.value && Prefs.exported("calendar", w.id) },
             tr("삼성헬스(Health Connect)", "Samsung Health (Health Connect)").takeIf { Prefs.autoHealth.value && Prefs.exported("health", w.id) },
         )
         if (places.isNotEmpty()) toast(tr(places.joinToString("와 ") + "에 기록했어요", "Recorded in " + places.joinToString(" and ")))
@@ -240,7 +242,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             Text(workoutDate(w), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             w.courseId?.let { cid ->
                 val course by remember(cid) { CourseStore.observe(cid) }.collectAsState(initial = null)
-                course?.let { Text(tr("코스: ${it.name}", "Course: ${it.name}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+                course?.let { Text(tr("코스: ${it.name}", "Course: ${courseTitle(it)}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
             }
             Spacer(Modifier.height(16.dp))
             RouteView(points, photos = photos.indices.mapNotNull { i ->
@@ -270,7 +272,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             val runPct = if (moving > 0) (w.runMs * 100.0 / moving).roundToInt() else null
             StatRow(
                 tr("오르막", "Climb") to "${w.ascentM.roundToInt()}m",
-                tr("달리기 · 걷기", "Run · walk") to (runPct?.let { "$it% · ${100 - it}%" } ?: "-"),
+                tr("달리기 · 걷기", "Run / walk") to (runPct?.let { "$it% · ${100 - it}%" } ?: "-"),
             )
 
             // Most people never open the settings: offer the automatic records where the result is.
@@ -285,8 +287,8 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(tr("운동이 끝날 때마다 자동으로 기록할까요?", "Record every workout automatically?"), style = MaterialTheme.typography.titleMedium)
-                        ToggleRow(tr("구글 캘린더", "Google Calendar"), tr("운동 시간·거리·페이스가 일정으로 남아요", "Time, distance and pace as an event"), autoCalendarOn, ::setAutoCalendar)
-                        ToggleRow(tr("삼성헬스", "Samsung Health"), tr("Health Connect를 거쳐 운동과 경로가 들어가요", "The workout and route through Health Connect"), autoHealthOn, ::setAutoHealth)
+                        ToggleRow(tr("구글 캘린더", "Google Calendar"), tr("운동 시간·거리·페이스가 일정으로 남아요", "Adds time, distance and pace as an event"), autoCalendarOn, ::setAutoCalendar)
+                        ToggleRow(tr("삼성헬스", "Samsung Health"), tr("Health Connect를 거쳐 운동과 경로가 들어가요", "Adds the workout and route via Health Connect"), autoHealthOn, ::setAutoHealth)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 tr("설정에서도 바꿀 수 있어요", "You can change this in Settings too"), style = MaterialTheme.typography.bodySmall,
@@ -337,11 +339,11 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
             ) { Text(tr("이 경로를 코스로 저장", "Save this route as a course")) }
             Text(
                 if (w.simulated) tr("테스트 기록은 삼성헬스에 저장하지 않아요.", "Test runs aren't saved to Samsung Health.")
-                else tr("캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 일정과 공유한 글에는 구글 지도 ", "The calendar event goes into your Google account's calendar and syncs to Google Calendar. The event and shared text carry a Google Maps ") +
-                    tr("경로 링크가 들어가요 (지도는 그 지점들을 잇는 걷기 길을 보여줘요). 결과 공유는 카카오톡·메모 등 ", "route link (it shows walking paths joining points of the route). Share sends it to any app, KakaoTalk, notes and the rest. ") +
-                    tr("어떤 앱으로든 보낼 수 있어요. GPX는 Strava, Garmin 등에 올릴 수 있고, 삼성헬스는 Health Connect를 ", "GPX can go to Strava, Garmin and others; Samsung Health gets it through Health Connect ") +
-                    tr("거쳐 저장돼요 (삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요). ", "(sync must be on in Samsung Health settings > Health Connect). ") +
-                    tr("설정에서 운동이 끝나면 자동으로 기록되게 할 수 있어요.", "Settings can make all this happen automatically when a workout ends."),
+                else tr("캘린더는 폰의 구글 계정 캘린더에 기록돼 구글 캘린더로 동기화돼요. 일정과 공유한 글에는 구글 지도 ", "The event is added to your Google account's calendar and syncs to Google Calendar. Events and shared text include a Google Maps ") +
+                    tr("경로 링크가 들어가요 (지도는 그 지점들을 잇는 걷기 길을 보여줘요). 결과 공유는 카카오톡·메모 등 ", "route link (Maps shows walking paths through points on your route). Share sends results to any app, like KakaoTalk or notes. ") +
+                    tr("어떤 앱으로든 보낼 수 있어요. GPX는 Strava, Garmin 등에 올릴 수 있고, 삼성헬스는 Health Connect를 ", "Upload GPX to Strava, Garmin and more; Samsung Health gets workouts through Health Connect ") +
+                    tr("거쳐 저장돼요 (삼성헬스 설정 > Health Connect에서 동기화가 켜져 있어야 해요). ", "(turn on sync in Samsung Health settings > Health Connect). ") +
+                    tr("설정에서 운동이 끝나면 자동으로 기록되게 할 수 있어요.", "In Settings you can have all of this happen automatically when a workout ends."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
@@ -374,7 +376,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(tr("이 기록을 삭제할까요?", "Delete this workout?")) },
-            text = { Text(tr("삭제한 기록은 되돌릴 수 없어요.", "A deleted workout can't be brought back.")) },
+            text = { Text(tr("삭제한 기록은 되돌릴 수 없어요.", "Deleted workouts can't be restored.")) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
@@ -426,7 +428,7 @@ private fun SplitsTable(splits: List<Split>) {
         }
         if (splits.last().distanceM < 999) {
             Text(
-                tr("마지막 구간은 남은 거리 기준 페이스예요", "The last split's pace is for its shorter distance"),
+                tr("마지막 구간은 남은 거리 기준 페이스예요", "The last split's pace is based on its shorter distance"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Start

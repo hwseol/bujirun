@@ -123,9 +123,9 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Text(tr("부지런", "Bujirun"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(tr("부지런", "Buji Run"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             nickname?.let {
-                Text(tr("${it}님, 오늘도 가볍게", "Hi $it, an easy one today?"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("${it}님, 오늘도 가볍게", "Hi $it! Ready for an easy one today?"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -164,7 +164,7 @@ fun HomeScreen(
             }
         } else {
             Text(
-                tr("목표 없이 자유롭게 기록해요", "Just record, no goal"),
+                tr("목표 없이 자유롭게 기록해요", "No goal - just record"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 24.dp)
@@ -177,7 +177,7 @@ fun HomeScreen(
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            if (permissionDenied) tr("기록하려면 위치 권한이 필요해요", "Location permission is needed to record") else tr("걷기와 달리기는 자동으로 구분해요", "Walking and running are told apart on their own"),
+            if (permissionDenied) tr("기록하려면 위치 권한이 필요해요", "Location permission is needed to record") else tr("걷기와 달리기는 자동으로 구분해요", "Walking and running are detected automatically"),
             style = MaterialTheme.typography.bodySmall,
             color = if (permissionDenied) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
@@ -191,10 +191,10 @@ fun HomeScreen(
 private fun cheer(w: WeekStats): String {
     val km = formatKm(w.distanceM)
     return when {
-        w.count == 0 -> tr("이번 주 첫 걸음, 오늘 시작해 볼까요?", "Your first one this week - today?")
-        w.count == 1 -> tr("이번 주 한 번, ${km}km. 좋은 출발이에요!", "Once this week, ${km}km. A good start!")
-        w.count < 4 -> tr("이번 주 ${w.count}번, ${km}km. 잘하고 있어요!", "${w.count} times this week, ${km}km. Going well!")
-        else -> tr("이번 주 벌써 ${w.count}번! 꾸준함이 최고예요.", "${w.count} times already this week! Keep it up.")
+        w.count == 0 -> tr("이번 주 첫 걸음, 오늘 시작해 볼까요?", "No workouts yet this week. Start one today?")
+        w.count == 1 -> tr("이번 주 한 번, ${km}km. 좋은 출발이에요!", "1 workout this week, ${km}km. Great start!")
+        w.count < 4 -> tr("이번 주 ${w.count}번, ${km}km. 잘하고 있어요!", "${w.count} workouts this week, ${km}km. Nice work!")
+        else -> tr("이번 주 벌써 ${w.count}번! 꾸준함이 최고예요.", "${w.count} workouts already this week! Keep it up.")
     }
 }
 

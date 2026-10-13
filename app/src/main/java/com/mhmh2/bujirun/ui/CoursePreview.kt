@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import android.graphics.Color as AndroidColor
@@ -89,7 +91,7 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
             Column(Modifier.fillMaxSize().padding(bars)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("닫기", "Close")) }
-                    Text(info.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(srv(info.title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
                 // Tapping a part of the course shows just that part on the map (tap again: all of it).
                 var selected by remember(info) { mutableStateOf<Int?>(null) }
@@ -121,7 +123,7 @@ fun CoursePreviewDialog(info: CourseInfo, onDismiss: () -> Unit, onRun: () -> Un
                             ) {
                                 Text("${i + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 10.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(leg.label, style = MaterialTheme.typography.bodyLarge)
+                                    Text(srv(leg.label), style = MaterialTheme.typography.bodyLarge)
                                     Text(
                                         "${formatKm(leg.distanceM.toDouble())}km" + (leg.shade?.let { tr(" · 나무 그늘 $it%", " · tree shade $it%") } ?: "") +
                                             (leg.ascentM?.let { tr(" · 오르막 ${it}m", " · climb ${it}m") } ?: ""),

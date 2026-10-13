@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import android.content.Context
@@ -88,7 +90,7 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
         }
         val c = course ?: return@Column
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-            Text(c.name, style = MaterialTheme.typography.headlineSmall)
+            Text(courseTitle(c), style = MaterialTheme.typography.headlineSmall)
             Text(c.sourceEnum.label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
             // A real map: pinch or +/- to zoom, drag to look around.
@@ -121,7 +123,7 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(tr("코스 안내", "The course"), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.width(8.dp))
-                    Text(tr("큰 흐름만 · 누르면 지도에서 보여줘요", "The big picture · tap to see it on the map"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("큰 흐름만 · 누르면 지도에서 보여줘요", "Overview · tap a step to see it on the map"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(4.dp))
                 outline.forEachIndexed { i, st ->
@@ -137,7 +139,7 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) { Text(tr("이 코스로 달리기", "Run this course")) }
             Text(
-                tr("갈림길 100m 전과 직전에 방향을 알려주고, 코스를 벗어나면 알려줘요.", "You'll hear each turn 100 m before and as you reach it, and when you leave the course."),
+                tr("갈림길 100m 전과 직전에 방향을 알려주고, 코스를 벗어나면 알려줘요.", "Turns are announced 100 m ahead and again as you reach them, and you'll hear if you leave the course."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
@@ -168,17 +170,17 @@ fun CourseDetailScreen(courseId: Long, onClose: () -> Unit, onRun: (distanceM: D
 
 /**
  * One big stroke: "출발 · 반포한강공원 근처" / "북동쪽으로 0.8km", "역삼사거리에서 오른쪽" / "동쪽으로
- * 1.2km · 여기서 돌아와요", "잠수교에서 되돌아와요", tr("출발점으로 돌아와 끝", "Back to the start, done").
+ * 1.2km · 여기서 돌아와요", "잠수교에서 되돌아와요", tr("출발점으로 돌아와 끝", "Finish back at the start").
  */
 @Composable
 private fun OutlineRow(st: CourseOutline.Step, landmark: Landmark?, loop: Boolean, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val where = landmark?.at ?: tr("${formatKm(st.atM)}km 지점에서", "at ${formatKm(st.atM)}km")
     val (mark, title) = when (st.kind) {
-        CourseOutline.Kind.START -> "●" to (tr("출발", "Start") + (landmark?.let { tr(" · ${it.name} 근처", " · near ${it.name}") } ?: ""))
+        CourseOutline.Kind.START -> "●" to (tr("출발", "Start") + (landmark?.let { tr(" · ${it.name} 근처", " · near ${srv(it.name)}") } ?: ""))
         CourseOutline.Kind.TURN -> st.direction!!.arrow to tr("$where ${st.direction.spoken}", "${st.direction.spoken.replaceFirstChar { it.uppercase() }} $where")
         CourseOutline.Kind.U_TURN -> "↶" to tr("$where 되돌아와요", "Turn back $where")
-        CourseOutline.Kind.FINISH -> "■" to (if (loop) tr("출발점으로 돌아와 끝", "Back to the start, done") else tr("도착", "Finish") + (landmark?.let { tr(" · ${it.name} 근처", " · near ${it.name}") } ?: ""))
+        CourseOutline.Kind.FINISH -> "■" to (if (loop) tr("출발점으로 돌아와 끝", "Finish back at the start") else tr("도착", "Finish") + (landmark?.let { tr(" · ${it.name} 근처", " · near ${srv(it.name)}") } ?: ""))
     }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
@@ -191,7 +193,7 @@ private fun OutlineRow(st: CourseOutline.Step, landmark: Landmark?, loop: Boolea
             Text(title, style = MaterialTheme.typography.titleSmall)
             if (st.heading != null) {
                 Text(
-                    tr("${st.heading}으로 ${formatKm(st.legM)}km", "${st.heading} for ${formatKm(st.legM)}km") + if (st.farthest) tr(" · 여기서부터 돌아오는 길", " · heading home from here") else "",
+                    tr("${st.heading}으로 ${formatKm(st.legM)}km", "Head ${st.heading} for ${formatKm(st.legM)}km") + if (st.farthest) tr(" · 여기서부터 돌아오는 길", " · turn for home here") else "",
                     style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
                 )
             }

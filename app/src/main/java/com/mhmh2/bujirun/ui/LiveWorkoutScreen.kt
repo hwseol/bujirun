@@ -105,7 +105,7 @@ fun LiveWorkoutScreen(
                 SmallStat(tr("거리", "Distance"), "${formatKm(state.distanceM)}km")
                 SmallStat(tr("페이스", "Pace"), formatPace(state.currentPaceSecPerKm))
                 if (course.lap != null) SmallStat(tr("바퀴", "Lap"), course.laps?.let { "${course.lap}/$it" } ?: tr("${course.lap}바퀴째", "Lap ${course.lap}"))
-                else SmallStat(tr("코스 남은", "Course left"), "${formatKm(course.remainingM)}km")
+                else SmallStat(tr("코스 남은", "Remaining"), "${formatKm(course.remainingM)}km")
             }
             Spacer(Modifier.height(16.dp))
         } else {

@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import kotlin.math.abs
@@ -22,9 +24,9 @@ data class Turn(val atM: Double, val direction: TurnDirection)
 data class Landmark(val name: String, val kind: String) {
     /** "역삼역사거리에서", "강남역 근처에서", "양재천공원 앞에서". */
     val at: String get() = when (kind) {
-        "junction", "bridge" -> tr("${name}에서", "at $name")
-        "station" -> tr("$name 근처에서", "near $name")
-        else -> tr("$name 앞에서", "by $name")
+        "junction", "bridge" -> tr("${name}에서", "at ${srv(name)}")
+        "station" -> tr("$name 근처에서", "near ${srv(name)}")
+        else -> tr("$name 앞에서", "by ${srv(name)}")
     }
 }
 

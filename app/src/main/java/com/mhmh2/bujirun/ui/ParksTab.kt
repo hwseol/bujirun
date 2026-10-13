@@ -1,5 +1,8 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+import com.mhmh2.bujirun.net.srvPlace
+
 import com.mhmh2.bujirun.tr
 
 import android.Manifest
@@ -94,7 +97,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             parks = found
             sources = credit
             if (chosen == null || found.none { it.id == chosen }) chosen = found.firstOrNull()?.id
-            error = if (found.isEmpty()) tr("2km 안에 돌 만한 공원이 없어요. 순환 코스를 이용해 보세요.", "No park to go round within 2 km. Try a loop instead.") else null
+            error = if (found.isEmpty()) tr("2km 안에 돌 만한 공원이 없어요. 순환 코스를 이용해 보세요.", "No park to run around within 2 km. Try a loop instead.") else null
         } catch (e: ApiException) {
             error = e.message
         }
@@ -122,7 +125,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
 
     fun save(course: RouteApi.PlannedCourse, then: (Long) -> Unit) {
-        scope.launch { then(CourseStore.save(course.title, CourseSource.RECOMMENDED, course.points)) }
+        scope.launch { then(CourseStore.save(srv(course.title), CourseSource.RECOMMENDED, course.points)) }
     }
 
     // One list for the whole tab, so everything scrolls together.
@@ -130,7 +133,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
         item {
             Column(Modifier.padding(horizontal = 24.dp)) {
                 Text(
-                    tr("가까운 공원 산책로나 러닝트랙(대학교·천변·공원)을 도는 코스예요. 가고 오는 길도 거리에 포함돼요.", "Courses round nearby park paths or running tracks (universities, riversides, parks). The way there and back counts too."),
+                    tr("가까운 공원 산책로나 러닝트랙(대학교·천변·공원)을 도는 코스예요. 가고 오는 길도 거리에 포함돼요.", "Laps around nearby park paths or running tracks (universities, riversides, parks). The trip there and back is included."),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -161,7 +164,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
                     }
                 }
                 plan?.notes?.forEach {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(srv(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
@@ -170,13 +173,13 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
             }
         }
         items(plan?.courses.orEmpty()) { c ->
-            LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
+            LoopCard(c.points, "${srv(c.title)} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
         }
         val credits = (sources + plan?.sources.orEmpty()).distinct()
         if (credits.isNotEmpty()) {
             item {
                 Text(
-                    tr("장소 정보: ", "Place data: ") + credits.joinToString(", "),
+                    tr("장소 정보: ", "Place data: ") + credits.joinToString(", ") { srv(it) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -198,10 +201,10 @@ private fun ParkCard(p: RouteApi.LapPark, selected: Boolean, onClick: () -> Unit
         modifier = Modifier.widthIn(min = 150.dp, max = 220.dp),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(p.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(srvPlace(p.name), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 (if (p.awayM < 50) tr("바로 여기", "Right here") else "${formatKm(p.awayM.toDouble())}km") +
-                    (if (p.kind == "track") tr(" · 한 바퀴 ", " · lap ") else tr(" · 둘레 ", " · round ")) + "${formatKm(p.lapM.toDouble())}km",
+                    (if (p.kind == "track") tr(" · 한 바퀴 ", " · lap: ") else tr(" · 둘레 ", " · loop: ")) + "${formatKm(p.lapM.toDouble())}km",
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 2
             )
             Text(
@@ -210,9 +213,9 @@ private fun ParkCard(p: RouteApi.LapPark, selected: Boolean, onClick: () -> Unit
                     p.kind == "track" && p.subtype == "school" -> tr("학교 운동장 트랙 · 개방 시간 확인", "School track · check opening hours")
                     p.kind == "track" -> tr("러닝트랙", "Running track")
                     p.kind == "lake" -> tr("호숫가 산책로", "Lakeside path")
-                    p.paths -> tr("공원 산책로 따라", "Along park paths")
-                    else -> tr("공원 둘레", "Round the park")
-                } + (p.shade?.let { tr(" · 숲 $it%", " · trees $it%") } ?: ""),
+                    p.paths -> tr("공원 산책로 따라", "Park paths")
+                    else -> tr("공원 둘레", "Park perimeter")
+                } + (p.shade?.let { tr(" · 숲 $it%", " · $it% tree cover") } ?: ""),
                 style = MaterialTheme.typography.labelSmall, color = colors.primary, maxLines = 2
             )
         }

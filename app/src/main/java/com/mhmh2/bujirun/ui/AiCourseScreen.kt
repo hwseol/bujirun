@@ -1,5 +1,8 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+import com.mhmh2.bujirun.net.srvPlace
+
 import com.mhmh2.bujirun.tr
 
 import android.Manifest
@@ -136,7 +139,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
     }
 
     fun save(course: RouteApi.PlannedCourse, then: (Long) -> Unit) {
-        scope.launch { then(CourseStore.save(course.title, CourseSource.RECOMMENDED, course.points)) }
+        scope.launch { then(CourseStore.save(srv(course.title), CourseSource.RECOMMENDED, course.points)) }
     }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -153,7 +156,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                     OutlinedTextField(
                         value = text,
                         onValueChange = ::edit,
-                        placeholder = { Text(tr("예: 보라매공원 뺑뺑이 5km", "e.g. 보라매공원 뺑뺑이 5km (Korean for now)")) },
+                        placeholder = { Text(tr("예: 보라매공원 뺑뺑이 5km", "e.g. 보라매공원 뺑뺑이 5km (Korean only for now)")) },
                         maxLines = 3,
                         shape = RoundedCornerShape(16.dp),
                         trailingIcon = if (text.isNotEmpty()) {
@@ -171,8 +174,8 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                             EXAMPLES.forEach { SuggestionChip(onClick = { edit(it) }, label = { Text(it) }) }
                         }
                         Text(
-                            tr("거리나 시간, 가고 싶은 곳을 말하듯 적으면 출발점 주변 공원·강변·호수로 코스를 짜 드려요. ", "Write a distance or time and where you'd like to go, as you'd say it, and a course is planned through parks, riversides and lakes near the start. ") +
-                                tr("출발점에서 오가는 길도 거리에 포함돼요. 알아들은 내용은 칩으로 보여드리고, 탭해서 고칠 수 있어요.", "The way to and from the start counts in the distance. What was understood shows as chips you can tap to change. (Requests are understood in Korean for now.)"),
+                            tr("거리나 시간, 가고 싶은 곳을 말하듯 적으면 출발점 주변 공원·강변·호수로 코스를 짜 드려요. ", "Describe a distance or time and where you'd like to go, and get a course through parks, riversides and lakes near your start. ") +
+                                tr("출발점에서 오가는 길도 거리에 포함돼요. 알아들은 내용은 칩으로 보여드리고, 탭해서 고칠 수 있어요.", "The trip to and from the start counts toward the distance. What was understood appears as chips you can tap to edit. (Requests work in Korean only for now.)"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 24.dp)
@@ -188,7 +191,7 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                         }
                     }
                     plan?.notes?.forEach {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                        Text(srv(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                     }
                     error?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
@@ -197,12 +200,12 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
                 }
             }
             items(plan?.courses.orEmpty()) { c ->
-                LoopCard(c.points, "${c.title} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
+                LoopCard(c.points, "${srv(c.title)} · ${formatKm(c.distanceM.toDouble())}km", onRun = { save(c, onRun) }, onSave = { save(c, onOpen) }, shade = c.shade, legs = c.legs, hills = c.hills)
             }
             plan?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
                 item {
                     Text(
-                        tr("장소 정보: ", "Place data: ") + sources.joinToString(", "),
+                        tr("장소 정보: ", "Place data: ") + sources.joinToString(", ") { srv(it) },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -269,9 +272,9 @@ private fun distanceLabel(intent: CourseIntent, pace: Int?): String {
 }
 
 private fun placeLabel(p: PlaceMention, shape: CourseShape) = when (p.role) {
-    PlaceRole.START -> tr("출발 ${p.name}", "Start ${p.name}")
-    PlaceRole.DEST -> if (shape == CourseShape.OUT_AND_BACK) tr("반환점 ${p.name}", "Turn at ${p.name}") else tr("도착 ${p.name}", "Finish ${p.name}")
-    PlaceRole.AROUND -> p.name
+    PlaceRole.START -> tr("출발 ${p.name}", "Start ${srvPlace(p.name)}")
+    PlaceRole.DEST -> if (shape == CourseShape.OUT_AND_BACK) tr("반환점 ${p.name}", "Turn around at ${srvPlace(p.name)}") else tr("도착 ${p.name}", "Finish ${srvPlace(p.name)}")
+    PlaceRole.AROUND -> srvPlace(p.name)
 }
 
 /** Tapping the shape chip cycles through the shapes; one-way only makes sense with a destination. */

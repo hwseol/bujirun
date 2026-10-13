@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.data
 
+import com.mhmh2.bujirun.net.srv
+
 import android.content.Context
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.tracking.Splits
@@ -46,7 +48,7 @@ object AutoExport {
             val points = WorkoutStore.points(w.id)
             if (points.isEmpty()) continue
             if (toCalendar) {
-                val course = w.courseId?.let { WorkoutStore.database.courses().get(it)?.name }
+                val course = w.courseId?.let { WorkoutStore.database.courses().get(it)?.let { c -> com.mhmh2.bujirun.ui.courseTitle(c) } }
                 val splits = Splits.compute(points.map { it.toTrackPoint() }, w.distanceM, w.durationMs)
                 val ok = runCatching {
                     CalendarExport.write(

@@ -87,7 +87,7 @@ object Notices {
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL_ID, tr("공지", "Notices"), NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { description = tr("부지런에서 보내는 소식", "News from Bujirun") }
+                .apply { description = tr("부지런에서 보내는 소식", "News from Buji Run") }
         )
         val open = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE

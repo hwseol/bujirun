@@ -145,7 +145,7 @@ fun CourseLiveMap(
                     val pts = route.map { LatLng(it.lat, it.lon) } + listOfNotNull(position?.let { LatLng(it.lat, it.lon) })
                     map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(pts), (48 * density).toInt()))
                 }
-            }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = tr("코스 전체 보기", "Whole course")) }
+            }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = tr("코스 전체 보기", "Show the whole course")) }
             if (!following) {
                 SmallFloatingActionButton(onClick = { following = true }) {
                     Icon(Icons.Filled.MyLocation, contentDescription = tr("내 위치로", "To my location"))
@@ -226,7 +226,7 @@ fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier =
                         val pts = trail.map { LatLng(it.lat, it.lon) } + listOfNotNull(position?.let { LatLng(it.lat, it.lon) })
                         map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(pts), (48 * density).toInt()))
                     }
-                }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = tr("달려온 길 전체 보기", "Whole way so far")) }
+                }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = tr("달려온 길 전체 보기", "Show the whole route")) }
             }
             if (!following) {
                 SmallFloatingActionButton(onClick = { following = true }) {
@@ -247,9 +247,9 @@ private fun TurnBanner(p: CourseProgress, modifier: Modifier = Modifier) {
             val turn = p.nextTurn
             val toTurn = p.toNextTurnM
             if (turn != null && toTurn != null && toTurn <= 300) {
-                tr("${turn.direction.arrow}  ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m 앞 ${turn.direction.spoken}", "${turn.direction.arrow}  ${turn.direction.spoken} in ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m") to false
+                tr("${turn.direction.arrow}  ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m 앞 ${turn.direction.spoken}", "${turn.direction.arrow}  ${turn.direction.spoken.replaceFirstChar { it.uppercase() }} in ${((toTurn / 10).roundToInt() * 10).coerceAtLeast(0)}m") to false
             } else {
-                tr("↑  직진 · 남은 ${formatKm(p.remainingM)}km", "↑  Straight on · ${formatKm(p.remainingM)}km left") to false
+                tr("↑  직진 · 남은 ${formatKm(p.remainingM)}km", "↑  Go straight · ${formatKm(p.remainingM)}km left") to false
             }
         }
     }

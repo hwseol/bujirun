@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import com.mhmh2.bujirun.net.srv
+
 import com.mhmh2.bujirun.tr
 
 import android.content.Context
@@ -87,7 +89,7 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
                 }
             }
             result.onSuccess { parsed = it }
-                .onFailure { Toast.makeText(context, tr("코스로 읽을 수 있는 GPX 파일이 아니에요", "That isn't a GPX file with a course in it"), Toast.LENGTH_LONG).show() }
+                .onFailure { Toast.makeText(context, tr("코스로 읽을 수 있는 GPX 파일이 아니에요", "This GPX file doesn't contain a course"), Toast.LENGTH_LONG).show() }
         }
     }
 
@@ -104,7 +106,7 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MakeCard(Icons.Filled.Draw, tr("DIY 코스 만들기", "Draw a course"), tr("지도에 점을 찍어\n나만의 코스", "Tap points on the map for your own course"), onDraw, Modifier.weight(1f))
-            MakeCard(Icons.Filled.AutoAwesome, tr("AI 코스 추천", "AI course"), tr("말하듯 적으면\n코스를 짜 드려요", "Say what you want, get a course"), onAi, Modifier.weight(1f), ai = true)
+            MakeCard(Icons.Filled.AutoAwesome, tr("AI 코스 추천", "AI course"), tr("말하듯 적으면\n코스를 짜 드려요", "Describe it, get a course"), onAi, Modifier.weight(1f), ai = true)
         }
         // GPX has no reliable MIME type across apps and file managers; accept anything and let
         // the parser decide.
@@ -116,7 +118,7 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
         if (list.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    tr("아직 저장한 코스가 없어요.\nAI 추천이나 DIY로 만들거나, Strava 등에서 받은 GPX를 불러오세요.\n", "No saved courses yet.\nMake one with AI or by drawing, or import a GPX from Strava and the like.\n") +
+                    tr("아직 저장한 코스가 없어요.\nAI 추천이나 DIY로 만들거나, Strava 등에서 받은 GPX를 불러오세요.\n", "No saved courses yet.\nMake one with AI or by drawing, or import a GPX from Strava or other apps.\n") +
                         tr("운동 기록 요약 화면에서 '코스로 저장'도 할 수 있어요.", "You can also save a workout's route as a course from its summary."),
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -158,7 +160,7 @@ private fun NearbyHeroCard(onOpen: (tab: Int) -> Unit) {
                 Text(tr("AI 주변 코스", "AI courses nearby"), color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(6.dp))
-            Text(tr("지금 있는 곳에서 바로 달릴 코스를 AI가 짜 드려요", "AI plans a course to run right from where you are"), color = Color.White.copy(alpha = 0.92f),
+            Text(tr("지금 있는 곳에서 바로 달릴 코스를 AI가 짜 드려요", "AI plans a course right from where you are"), color = Color.White.copy(alpha = 0.92f),
                 style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(12.dp))
             // The tabs of the nearby screen, in its order.
@@ -206,7 +208,7 @@ private fun MakeCard(icon: ImageVector, title: String, subtitle: String, onClick
 @Composable
 private fun CourseRow(c: CourseEntity, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp)) {
-        Text(c.name, style = MaterialTheme.typography.titleMedium)
+        Text(courseTitle(c), style = MaterialTheme.typography.titleMedium)
         Text(
             listOf("${formatKm(c.distanceM)}km", if (c.isLoop) tr("순환", "Loop") else tr("편도", "One way"), c.sourceEnum.label).joinToString(" · "),
             style = MaterialTheme.typography.bodyMedium,
@@ -223,7 +225,7 @@ fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm:
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(value = name, onValueChange = { name = it.take(30) }, singleLine = true, placeholder = { Text(tr("한강 아침 5km", "Morning river 5km")) })
+            OutlinedTextField(value = name, onValueChange = { name = it.take(30) }, singleLine = true, placeholder = { Text(tr("한강 아침 5km", "Morning 5K by the river")) })
         },
         confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) { Text(tr("저장", "Save")) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("취소", "Cancel")) } }
