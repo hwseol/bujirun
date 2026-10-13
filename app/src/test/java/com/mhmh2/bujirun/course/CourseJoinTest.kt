@@ -46,6 +46,19 @@ class CourseJoinTest {
         assertTrue(at >= 450.0)
     }
 
+    @Test fun rejoinKeepsTheLoopRatherThanHeadingStraightHome() {
+        // 1.6 km square loop from (0,0): north, east, south, west home. 50 m done, then the
+        // runner wandered to just south of the start - beside the last stretch home.
+        val loop = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 400.0), at(400.0, 400.0), at(400.0, 0.0), at(0.0, 0.0)))
+        val (at, d) = CourseJoin.rejoinPoint(loop, 50.0, at(60.0, -20.0))
+        // Back onto the first side, not onto the last 60 m before the finish.
+        assertTrue("rejoined at $at", at < 200)
+        assertTrue(d < 100)
+        // But someone just beside the course ahead isn't sent back to where they left it.
+        val (ahead, _) = CourseJoin.rejoinPoint(loop, 100.0, at(-20.0, 400.0))
+        assertTrue("rejoined at $ahead", ahead > 350)
+    }
+
     @Test fun lineStartsAtTheRunnerEvenWhenTheWalkingRouteStartsOnAPathAway() {
         val line = listOf(at(0.0, 0.0), at(0.0, 500.0))
         val here = at(-300.0, 0.0)

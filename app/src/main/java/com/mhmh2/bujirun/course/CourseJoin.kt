@@ -39,14 +39,32 @@ object CourseJoin {
     }
 
     /**
-     * Where a lost runner at [here] rejoins [route]: the closest point on the part not yet run
-     * (from [progressM] on) - distance along and how far away.
+     * Where a lost runner at [here] rejoins [route], on the part not yet run (from [progressM]
+     * on): distance along and how far away. Not simply the closest point: on a loop the closest
+     * can be the last stretch home (the runner is near the start, or went round the other way),
+     * which would end the course there. So each pass of the course near the runner is weighed
+     * by how far it is plus a part of the course it would skip, and the one that keeps the most
+     * course for a fair walk wins.
      */
     fun rejoinPoint(route: CourseRoute, progressM: Double, here: GeoPoint): Pair<Double, Double> {
-        // locate() takes whole segments that reach past progressM, so clamp onto the part ahead.
-        val at = maxOf(route.locate(here, progressM, route.lengthM).first, progressM.coerceAtMost(route.lengthM))
+        val from = progressM.coerceIn(0.0, route.lengthM)
+        val step = 5.0
+        val n = ((route.lengthM - from) / step).toInt()
+        if (n < 1) return from to distance(here, route.pointAt(from))
+        val along = (0..n).map { from + it * step } + route.lengthM
+        val d = along.map { distance(here, route.pointAt(it)) }
+        // Each pass: a local minimum of the distance (the ends count, with their one neighbour).
+        val passes = d.indices.filter { k ->
+            (k == 0 || d[k] <= d[k - 1]) && (k == d.lastIndex || d[k] <= d[k + 1])
+        }
+        val best = passes.minBy { k -> d[k] + SKIP_WEIGHT * (along[k] - from) }
+        // Fine-tune within the pass.
+        val at = route.locate(here, (along[best] - step).coerceAtLeast(from), along[best] + step).first.coerceAtLeast(from)
         return at to distance(here, route.pointAt(at))
     }
+
+    /** Metres of walking worth one metre of course kept: skip 100 m of course to save 20 m of walk. */
+    private const val SKIP_WEIGHT = 0.2
 
     /**
      * The rest of the course as run from [here] after getting lost: [approach] (the walking route
