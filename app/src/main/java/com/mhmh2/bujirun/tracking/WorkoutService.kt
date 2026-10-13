@@ -106,6 +106,9 @@ class WorkoutService : LifecycleService() {
     private var navigator: CourseNavigator? = null
     private var courseName = ""
     private var position: GeoPoint? = null
+    // The live map's line of the way run: a point whenever the runner has moved 8 m.
+    private val trail = mutableListOf<GeoPoint>()
+    private var trailFrom = 0
     private var rerouting = false
 
     private fun onSample(sample: LocationSample) {
@@ -229,6 +232,8 @@ class WorkoutService : LifecycleService() {
         speedMeter = SpeedMeter()
         learner = LoopLearner()
         steps = 0
+        trail.clear()
+        trailFrom = 0
         autoReroutes = 0
         cadenceMeter = CadenceMeter()
         classifier = ActivityClassifier()
@@ -501,7 +506,17 @@ class WorkoutService : LifecycleService() {
 
     private fun publish(): WorkoutSnapshot? {
         val t = tracker ?: return null
+        val track = t.track
+        if (trailFrom > track.size) trailFrom = 0
+        for (k in trailFrom until track.size) {
+            val s = track[k].sample
+            val p = GeoPoint(s.lat, s.lon)
+            val last = trail.lastOrNull()
+            if (last == null || distanceMeters(last.lat, last.lon, p.lat, p.lon) >= 8) trail += p
+        }
+        trailFrom = track.size
         val snapshot = t.snapshot(now()).copy(
+            trail = trail.toList(),
             workoutId = workoutId, goal = goal, countdown = countdown,
             autoPaused = pausedBy == PausedBy.AUTO, simScale = simScale,
             courseId = courseId.takeIf { navigator != null }, course = navigator?.progress(), position = position,

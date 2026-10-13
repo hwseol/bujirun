@@ -1,5 +1,6 @@
 package com.mhmh2.bujirun.ui
 
+import androidx.compose.foundation.background
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -139,6 +140,71 @@ fun CourseLiveMap(
                     containerColor = if (!progress.onCourse && progress.started) MaterialTheme.colorScheme.errorContainer
                     else MaterialTheme.colorScheme.secondaryContainer,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * A run without a course: where the runner is and the way run so far. Follows them until the
+ * map is dragged or pinched; the button brings it back.
+ */
+@Composable
+fun FreeLiveMap(trail: List<GeoPoint>, position: GeoPoint?, modifier: Modifier = Modifier) {
+    val density = LocalDensity.current.density
+    val color = MaterialTheme.colorScheme.primary.toArgb()
+    val mapView = rememberMapView(
+        NaverMapOptions().zoomControlEnabled(false).scaleBarEnabled(false).compassEnabled(false).locationButtonEnabled(false)
+    )
+    val path = remember { PathOverlay() }
+    var following by remember { mutableStateOf(true) }
+    DisposableEffect(mapView) {
+        var map: NaverMap? = null
+        val listener = NaverMap.OnCameraChangeListener { reason, _ ->
+            if (reason == CameraUpdate.REASON_GESTURE) following = false
+        }
+        mapView.getMapAsync { it.addOnCameraChangeListener(listener); map = it }
+        onDispose { map?.removeOnCameraChangeListener(listener) }
+    }
+    LaunchedEffect(trail.size, position, following) {
+        mapView.getMapAsync { map ->
+            if (trail.size >= 2) {
+                path.coords = trail.map { LatLng(it.lat, it.lon) }
+                path.color = color
+                path.outlineColor = AndroidColor.WHITE
+                path.width = (7 * density).toInt()
+                path.outlineWidth = (1.5 * density).toInt()
+                path.map = map
+            }
+            val p = position ?: return@getMapAsync
+            val here = LatLng(p.lat, p.lon)
+            map.locationOverlay.apply { isVisible = true; this.position = here }
+            if (following) map.moveCamera(CameraUpdate.scrollAndZoomTo(here, maxOf(map.cameraPosition.zoom, 16.0)))
+        }
+    }
+    Box(modifier) {
+        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+        if (position == null) {
+            Text(
+                "현재 위치를 찾는 중...", style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.Center).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(50))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+        Column(Modifier.align(Alignment.BottomEnd).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (trail.size >= 2) {
+                SmallFloatingActionButton(onClick = {
+                    following = false
+                    mapView.getMapAsync { map ->
+                        val pts = trail.map { LatLng(it.lat, it.lon) } + listOfNotNull(position?.let { LatLng(it.lat, it.lon) })
+                        map.moveCamera(CameraUpdate.fitBounds(LatLngBounds.from(pts), (48 * density).toInt()))
+                    }
+                }) { Icon(Icons.Filled.ZoomOutMap, contentDescription = "달려온 길 전체 보기") }
+            }
+            if (!following) {
+                SmallFloatingActionButton(onClick = { following = true }) {
+                    Icon(Icons.Filled.MyLocation, contentDescription = "내 위치로")
+                }
             }
         }
     }

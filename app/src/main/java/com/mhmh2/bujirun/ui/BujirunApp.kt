@@ -280,12 +280,11 @@ private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismis
     )
 }
 
-/** "이번 주 3회 · 12.40km", or null before the first workout of the week. */
-private fun weekSummary(workouts: List<WorkoutEntity>): String? {
+/** This week's real workouts (test runs left out), from Monday. */
+private fun weekSummary(workouts: List<WorkoutEntity>): WeekStats {
     val zone = ZoneId.systemDefault()
     val monday = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         .atStartOfDay(zone).toInstant().toEpochMilli()
-    val week = workouts.filter { it.startedAt >= monday }
-    if (week.isEmpty()) return null
-    return "이번 주 ${week.size}회 · ${formatKm(week.sumOf { it.distanceM })}km"
+    val week = workouts.filter { it.startedAt >= monday && !it.simulated }
+    return WeekStats(week.size, week.sumOf { it.distanceM }, week.sumOf { it.durationMs }, week.sumOf { it.calories })
 }

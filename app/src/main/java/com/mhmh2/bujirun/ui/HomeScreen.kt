@@ -1,5 +1,26 @@
 package com.mhmh2.bujirun.ui
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.mhmh2.bujirun.tracking.formatDuration
+import com.mhmh2.bujirun.tracking.formatKm
+import com.naver.maps.geometry.LatLng
+import com.naver.maps.map.CameraUpdate
+import com.naver.maps.map.NaverMapOptions
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,11 +74,14 @@ private val dials = mapOf(
     GoalKind.PACE to GoalDial(180, 900, 10, listOf(330, 420, 600), { formatPace(it.toDouble()) }, { Goal.Pace(it) }),
 )
 
+/** This week so far, for the home card. */
+data class WeekStats(val count: Int, val distanceM: Double, val durationMs: Long, val calories: Double)
+
 @Composable
 fun HomeScreen(
     initialGoal: Goal,
     permissionDenied: Boolean,
-    weekSummary: String?,
+    weekSummary: WeekStats,
     nickname: String?,
     onStart: (Goal) -> Unit,
 ) {
@@ -85,16 +109,23 @@ fun HomeScreen(
     val goal = dial?.toGoal(values.getValue(kind)) ?: Goal.Free
 
     Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
+        modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("부지런", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(top = 24.dp))
-        Text(
-            listOfNotNull(nickname?.let { "${it}님" }, weekSummary ?: "짬 날 때, 이어폰과 폰만 들고").joinToString(" · "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(28.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
+            Text("부지런", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(8.dp))
+            nickname?.let {
+                Text("${it}님, 오늘도 가볍게", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp))
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        // Where you are now: the start of whatever you run next.
+        HereMap(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)))
+        Spacer(Modifier.height(12.dp))
+        WeekCard(weekSummary)
+        Spacer(Modifier.height(20.dp))
 
         Text("목표", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
@@ -131,7 +162,7 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.weight(1f))
-        Button(onClick = { onStart(goal) }, shape = CircleShape, modifier = Modifier.size(160.dp)) {
+        Button(onClick = { onStart(goal) }, shape = CircleShape, modifier = Modifier.size(128.dp)) {
             Text("시작", fontSize = 28.sp)
         }
         Spacer(Modifier.height(16.dp))
@@ -144,4 +175,64 @@ fun HomeScreen(
         )
         Spacer(Modifier.weight(0.5f))
     }
+}
+
+/** "이번 주" in three numbers: runs, distance, time. */
+@Composable
+private fun WeekCard(w: WeekStats) {
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text("이번 주", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            if (w.count == 0) {
+                Text("아직 기록이 없어요. 짧게라도 시작해 볼까요?", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Row(Modifier.fillMaxWidth()) {
+                    WeekStat("${w.count}", "회", Modifier.weight(1f))
+                    WeekStat(formatKm(w.distanceM), "km", Modifier.weight(1f))
+                    WeekStat(formatDuration(w.durationMs), "시간", Modifier.weight(1f))
+                    WeekStat("${w.calories.roundToInt()}", "kcal", Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekStat(value: String, unit: String, modifier: Modifier) {
+    Row(modifier, verticalAlignment = Alignment.Bottom) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(2.dp))
+        Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+    }
+}
+
+/** A map at the phone's last known position (with location permission), else a note. */
+@Composable
+private fun HereMap(modifier: Modifier) {
+    val context = LocalContext.current
+    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    if (!granted) {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            Text("시작을 누르면 위치 권한을 물어요.\n허용하면 여기에 지금 있는 곳이 보여요.", textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    val mapView = rememberMapView(
+        NaverMapOptions().zoomControlEnabled(false).scaleBarEnabled(false).compassEnabled(false).locationButtonEnabled(false)
+    )
+    LaunchedEffect(mapView) {
+        @SuppressLint("MissingPermission")
+        val task = LocationServices.getFusedLocationProviderClient(context).lastLocation
+        task.addOnSuccessListener { loc ->
+            loc ?: return@addOnSuccessListener
+            mapView.getMapAsync { map ->
+                val here = LatLng(loc.latitude, loc.longitude)
+                map.locationOverlay.apply { isVisible = true; position = here }
+                map.moveCamera(CameraUpdate.scrollAndZoomTo(here, 15.5))
+            }
+        }
+    }
+    Box(modifier) { AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize()) }
 }

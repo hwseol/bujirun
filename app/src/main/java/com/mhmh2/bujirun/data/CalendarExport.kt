@@ -37,7 +37,7 @@ object CalendarExport {
         )
         val where = "${CalendarContract.Calendars.VISIBLE} = 1 AND " +
             "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ${CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR}"
-        data class Cal(val id: Long, val google: Boolean, val primary: Boolean)
+        data class Cal(val id: Long, val google: Boolean, val primary: Boolean, val account: String?, val type: String?)
         val found = mutableListOf<Cal>()
         context.contentResolver.query(CalendarContract.Calendars.CONTENT_URI, projection, where, null, null)?.use { c ->
             while (c.moveToNext()) {
@@ -45,10 +45,29 @@ object CalendarExport {
                 // IS_PRIMARY is newer and not always filled in; the account's own calendar is
                 // also the one whose owner is the account.
                 val primary = c.getInt(2) == 1 || (c.getString(3) != null && c.getString(3) == c.getString(4))
-                found += Cal(c.getLong(0), google, primary)
+                found += Cal(c.getLong(0), google, primary, c.getString(3), c.getString(1))
             }
         }
-        return found.sortedWith(compareByDescending<Cal> { it.google && it.primary }.thenByDescending { it.google }).firstOrNull()?.id
+        val best = found.sortedWith(compareByDescending<Cal> { it.google && it.primary }.thenByDescending { it.google }).firstOrNull()
+        lastAccount = best?.let { b -> b.account?.let { a -> b.type?.let { t -> android.accounts.Account(a, t) } } }
+        return best?.id
+    }
+
+    private var lastAccount: android.accounts.Account? = null
+
+    /**
+     * Asks the calendar's account to sync now: the event is in the phone's calendar at once, but
+     * Google Calendar on the web and other devices would otherwise see it whenever the phone
+     * next syncs on its own (minutes, sometimes more).
+     */
+    private fun syncNow() {
+        val account = lastAccount ?: return
+        runCatching {
+            android.content.ContentResolver.requestSync(account, CalendarContract.AUTHORITY, android.os.Bundle().apply {
+                putBoolean(android.content.ContentResolver.SYNC_EXTRAS_MANUAL, true)
+                putBoolean(android.content.ContentResolver.SYNC_EXTRAS_EXPEDITED, true)
+            })
+        }
     }
 
     /**
@@ -71,6 +90,8 @@ object CalendarExport {
             // A record of what was done, not something to keep time free for.
             put(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_FREE)
         }
-        return context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values) != null
+        val ok = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values) != null
+        if (ok) syncNow()
+        return ok
     }
 }

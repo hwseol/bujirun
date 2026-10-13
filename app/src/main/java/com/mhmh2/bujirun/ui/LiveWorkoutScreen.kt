@@ -107,24 +107,21 @@ fun LiveWorkoutScreen(
             }
             Spacer(Modifier.height(16.dp))
         } else {
-            Spacer(Modifier.weight(1f))
-            Label("시간")
-            Text(formatDuration(state.elapsedMs), fontSize = 72.sp)
-            Spacer(Modifier.height(24.dp))
+            // No course: a map of where you are and the way run so far, the numbers below it.
+            Spacer(Modifier.height(8.dp))
+            FreeLiveMap(state.trail, state.position, Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)))
+            Spacer(Modifier.height(16.dp))
+            Text(formatDuration(state.elapsedMs), fontSize = 56.sp)
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 BigStat("거리", formatKm(state.distanceM), "km")
                 if (state.goal is Goal.Free) BigStat("평균 페이스", formatPace(state.averagePaceSecPerKm), "/km")
                 else BigStat("현재 페이스", formatPace(state.currentPaceSecPerKm), "/km")
+                BigStat("칼로리", "${state.calories.roundToInt()}", "kcal")
             }
             Spacer(Modifier.height(12.dp))
-            Text(
-                "약 ${state.calories.roundToInt()}kcal",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(24.dp))
             GoalPanel(state)
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(16.dp))
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -203,7 +200,7 @@ private fun SmallStat(label: String, value: String) {
 private fun BigStat(label: String, value: String, unit: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Label(label)
-        Text(value, fontSize = 40.sp)
+        Text(value, fontSize = 32.sp)
         Text(unit, style = MaterialTheme.typography.bodySmall, color = Color.Unspecified)
     }
 }

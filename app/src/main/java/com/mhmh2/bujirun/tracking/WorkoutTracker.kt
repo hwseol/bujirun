@@ -20,6 +20,8 @@ data class WorkoutSnapshot(
     val rerouting: Boolean = false,
     // Last precise position (for the live map).
     val position: com.mhmh2.bujirun.course.GeoPoint? = null,
+    // The way run so far, thinned to a point every few metres, for the live map.
+    val trail: List<com.mhmh2.bujirun.course.GeoPoint> = emptyList(),
     val goal: Goal = Goal.Free,
     // 3, 2, 1 before the clock starts (GPS is already warming up meanwhile); null otherwise.
     val countdown: Int? = null,
