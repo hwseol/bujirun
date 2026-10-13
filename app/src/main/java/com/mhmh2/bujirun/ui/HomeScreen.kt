@@ -129,8 +129,12 @@ fun HomeScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        WeekCard(weekSummary)
-        Spacer(Modifier.height(20.dp))
+        // The numbers are in the history; here just a word about the week.
+        Text(
+            cheer(weekSummary), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(28.dp))
 
         Text(tr("목표", "Goal"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
@@ -183,32 +187,14 @@ fun HomeScreen(
     }
 }
 
-/** tr("이번 주", "This week") in three numbers: runs, distance, time. */
-@Composable
-private fun WeekCard(w: WeekStats) {
-    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(tr("이번 주", "This week"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            if (w.count == 0) {
-                Text(tr("아직 기록이 없어요. 짧게라도 시작해 볼까요?", "Nothing yet. How about a short one?"), style = MaterialTheme.typography.bodyMedium)
-            } else {
-                Row(Modifier.fillMaxWidth()) {
-                    WeekStat(tr("횟수", "Runs"), "${w.count}", Modifier.weight(1f))
-                    WeekStat(tr("거리", "Distance"), "${formatKm(w.distanceM)}km", Modifier.weight(1.2f))
-                    WeekStat(tr("시간", "Time"), formatDuration(w.durationMs), Modifier.weight(1.2f))
-                    WeekStat(tr("칼로리", "Calories"), "${w.calories.roundToInt()}kcal", Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WeekStat(label: String, value: String, modifier: Modifier) {
-    Column(modifier) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+/** One line on how the week is going, kind whatever it says. */
+private fun cheer(w: WeekStats): String {
+    val km = formatKm(w.distanceM)
+    return when {
+        w.count == 0 -> tr("이번 주 첫 걸음, 오늘 시작해 볼까요?", "Your first one this week - today?")
+        w.count == 1 -> tr("이번 주 한 번, ${km}km. 좋은 출발이에요!", "Once this week, ${km}km. A good start!")
+        w.count < 4 -> tr("이번 주 ${w.count}번, ${km}km. 잘하고 있어요!", "${w.count} times this week, ${km}km. Going well!")
+        else -> tr("이번 주 벌써 ${w.count}번! 꾸준함이 최고예요.", "${w.count} times already this week! Keep it up.")
     }
 }
 
