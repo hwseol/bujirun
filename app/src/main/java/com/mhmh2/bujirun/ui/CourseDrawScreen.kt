@@ -3,6 +3,12 @@ package com.mhmh2.bujirun.ui
 import com.mhmh2.bujirun.net.srv
 
 import com.mhmh2.bujirun.tr
+import com.mhmh2.bujirun.course.DrawnCourse
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
 
 import android.graphics.Color as AndroidColor
 import android.widget.Toast
@@ -93,8 +99,9 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current.density
-    var waypoints by remember { mutableStateOf(listOf<GeoPoint>()) }
-    var segments by remember { mutableStateOf(listOf<List<GeoPoint>>()) } // segments[i]: point i -> i+1
+    // The points placed, the line between each pair, and what each point is called.
+    var course by remember { mutableStateOf(DrawnCourse.EMPTY) }
+    val waypoints = course.points
     var followPaths by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
@@ -103,29 +110,59 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     var here by remember { mutableStateOf<GeoPoint?>(null) }
     var startIsHere by remember { mutableStateOf(false) }
 
-    val line = remember(waypoints, segments) {
-        if (segments.isEmpty()) waypoints else segments.flatMapIndexed { i, s -> if (i == 0) s else s.drop(1) }
-    }
+    val line = remember(course) { course.line }
     val distance = CourseGeometry.distanceM(line)
+    val myLocation = tr("내 위치", "My location")
 
-    fun addPoint(p: GeoPoint) {
+    // A tapped point is called after what's there ("GS25", "역삼사거리"), when the server knows.
+    fun nameLater(p: GeoPoint) {
+        scope.launch {
+            val name = runCatching { RouteApi.landmarks(listOf(p)).firstOrNull()?.name }.getOrNull() ?: return@launch
+            val i = course.points.indexOf(p)
+            if (i >= 0 && course.names[i] == null) course = course.withName(i, name)
+        }
+    }
+
+    fun addPoint(p: GeoPoint, name: String? = null) {
         if (busy) return
         val last = waypoints.lastOrNull()
         if (last == null) {
-            waypoints = listOf(p)
+            course = DrawnCourse(listOf(p), emptyList(), listOf(name))
+            if (name == null) nameLater(p)
             return
         }
         if (!followPaths) {
-            waypoints = waypoints + p
-            segments = segments + listOf(listOf(last, p))
+            course = DrawnCourse(course.points + p, course.segments + listOf(listOf(last, p)), course.names + name)
+            if (name == null) nameLater(p)
             return
         }
         busy = true
         scope.launch {
             try {
                 val route = RouteApi.walk(last, p)
-                waypoints = waypoints + p
-                segments = segments + listOf(route)
+                course = DrawnCourse(course.points + p, course.segments + listOf(route), course.names + name)
+                if (name == null) nameLater(p)
+            } catch (e: ApiException) {
+                Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /** Takes out point [i]; its neighbours are joined again (along the paths, when that's on). */
+    fun removePoint(i: Int) {
+        if (busy || i !in waypoints.indices) return
+        val (edited, rejoin) = course.remove(i)
+        course = edited
+        if (edited.points.isEmpty()) startIsHere = false
+        else if (i == 0) startIsHere = false
+        if (rejoin == null || !followPaths) return
+        busy = true
+        scope.launch {
+            try {
+                val route = RouteApi.walk(edited.points[rejoin], edited.points[rejoin + 1])
+                if (course === edited) course = edited.withSegment(rejoin, route)
             } catch (e: ApiException) {
                 Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
             } finally {
@@ -135,13 +172,10 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     }
 
     fun undo() {
-        if (busy || waypoints.isEmpty()) return
-        waypoints = waypoints.dropLast(1)
-        if (waypoints.isEmpty()) startIsHere = false
-        segments = segments.take((waypoints.size - 1).coerceAtLeast(0))
+        if (waypoints.isNotEmpty()) removePoint(waypoints.lastIndex)
     }
 
-    val onTap by rememberUpdatedState<(GeoPoint) -> Unit>(::addPoint)
+    val onTap by rememberUpdatedState<(GeoPoint) -> Unit>({ p -> addPoint(p) })
     val mapView = rememberMapView(NaverMapOptions().zoomControlEnabled(true).scaleBarEnabled(true).compassEnabled(false))
     val path = remember { PathOverlay() }
     val markers = remember { mutableListOf<Marker>() }
@@ -198,10 +232,10 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
             map.locationOverlay.apply { isVisible = true; position = at }
             if (waypoints.isEmpty()) map.moveCamera(CameraUpdate.scrollAndZoomTo(at, 16.0))
         }
-        if (waypoints.isEmpty()) { waypoints = listOf(p); startIsHere = true }
+        if (waypoints.isEmpty()) { course = DrawnCourse(listOf(p), emptyList(), listOf(myLocation)); startIsHere = true }
     }
     // Redraw the line and point markers whenever they change.
-    LaunchedEffect(line, waypoints, startIsHere) {
+    LaunchedEffect(line, course, startIsHere) {
         mapView.getMapAsync { map ->
             if (line.size >= 2) {
                 path.coords = line.map { LatLng(it.lat, it.lon) }
@@ -220,10 +254,16 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 markers += Marker().apply {
                     position = LatLng(p.lat, p.lon)
                     icon = MarkerIcons.BLACK
-                    iconTintColor = if (i == 0) START_GREEN else lineColor
+                    val end = i == waypoints.lastIndex && i > 0
+                    iconTintColor = when { i == 0 -> START_GREEN; end -> END_DARK; else -> lineColor }
                     width = (18 * density).toInt()
                     height = (25 * density).toInt()
-                    if (i == 0) captionText = if (startIsHere) tr("출발 · 내 위치", "Start · my location") else tr("출발", "Start")
+                    // Numbered like the list below: 출발, 1, 2, ..., 도착.
+                    captionText = when {
+                        i == 0 -> if (startIsHere) tr("출발 · 내 위치", "Start · my location") else tr("출발", "Start")
+                        end -> tr("도착", "Finish")
+                        else -> "$i"
+                    }
                     this.map = map
                 }
             }
@@ -285,7 +325,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                                         justPicked = true
                                         query = r.name
                                         keyboard?.hide()
-                                        addPoint(r.point)
+                                        addPoint(r.point, r.name)
                                     }.padding(horizontal = 16.dp, vertical = 10.dp)
                                 ) {
                                     Text(srv(r.name), style = MaterialTheme.typography.bodyLarge)
@@ -327,9 +367,12 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 }
                 // Changing the start: only before the course goes anywhere (undo gets back there).
                 if (waypoints.size == 1 && startIsHere) {
-                    TextButton(onClick = { waypoints = emptyList(); startIsHere = false }) { Text(tr("다른 곳에서 출발하기", "Start somewhere else")) }
+                    TextButton(onClick = { course = DrawnCourse.EMPTY; startIsHere = false }) { Text(tr("다른 곳에서 출발하기", "Start somewhere else")) }
                 } else if (waypoints.isEmpty() && here != null) {
-                    TextButton(onClick = { here?.let { waypoints = listOf(it); startIsHere = true } }) { Text(tr("내 위치에서 출발하기", "Start from my location")) }
+                    TextButton(onClick = { here?.let { course = DrawnCourse(listOf(it), emptyList(), listOf(myLocation)); startIsHere = true } }) { Text(tr("내 위치에서 출발하기", "Start from my location")) }
+                }
+                if (waypoints.isNotEmpty()) {
+                    PointList(course, startIsHere, onRemove = ::removePoint, enabled = !busy)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(tr("길 따라 잇기", "Snap to paths"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
@@ -353,7 +396,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                         Icon(Icons.AutoMirrored.Filled.Undo, null)
                     }
                     OutlinedButton(
-                        onClick = { waypoints.firstOrNull()?.let(::addPoint) },
+                        onClick = { waypoints.firstOrNull()?.let { addPoint(it, course.names.firstOrNull()) } },
                         enabled = waypoints.size >= 2 && !busy && !CourseGeometry.isLoop(line),
                         modifier = Modifier.weight(1f)
                     ) { Text(tr("출발점으로", "Back to start")) }
@@ -369,4 +412,46 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
             scope.launch { onSaved(CourseStore.save(name, CourseSource.DRAWN, line)) }
         }
     }
+}
+
+/**
+ * The course point by point, as on NAVER Map's course maker: 출발, each stop, 도착, with how far
+ * along each is and an X to take it out (the points either side are joined again).
+ */
+@Composable
+private fun PointList(course: DrawnCourse, startIsHere: Boolean, onRemove: (Int) -> Unit, enabled: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val along = course.pointDistances()
+    val last = course.points.lastIndex
+    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 168.dp).padding(vertical = 4.dp)) {
+        items(course.points.size) { i ->
+            val end = i == last && i > 0
+            Row(Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(24.dp).clip(CircleShape).background(
+                        when { i == 0 -> Color(START_GREEN); end -> Color(END_DARK); else -> colors.primary }
+                    ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        when { i == 0 -> tr("출", "S"); end -> tr("도", "F"); else -> "$i" },
+                        color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    val name = course.names[i]?.let { srv(it) }
+                        ?: when { i == 0 -> tr("출발지", "Start"); end -> tr("도착지", "Finish"); else -> tr("경유지 $i", "Stop $i") }
+                    Text(name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (i > 0) {
+                        Text("${formatKm(along[i])}km", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                    }
+                }
+                IconButton(onClick = { onRemove(i) }, enabled = enabled && !(i == 0 && startIsHere && course.points.size > 1)) {
+                    Icon(Icons.Filled.Close, tr("이 지점 빼기", "Remove this point"), Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+    HorizontalDivider()
 }

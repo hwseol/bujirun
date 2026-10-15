@@ -1,6 +1,8 @@
 package com.mhmh2.bujirun.ui
 
 import com.mhmh2.bujirun.tr
+import com.mhmh2.bujirun.data.HealthExport
+import androidx.compose.runtime.produceState
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -84,6 +86,8 @@ private val dials = mapOf(
 )
 
 /** This week so far, for the home card. */
+data class TodayStats(val steps: Long = 0, val distanceM: Double = 0.0, val activeMs: Long = 0, val calories: Double = 0.0)
+
 data class WeekStats(val count: Int, val distanceM: Double, val durationMs: Long, val calories: Double)
 
 @Composable
@@ -91,6 +95,7 @@ fun HomeScreen(
     initialGoal: Goal,
     permissionDenied: Boolean,
     weekSummary: WeekStats,
+    today: TodayStats = TodayStats(),
     nickname: String?,
     onStart: (Goal) -> Unit,
 ) {
@@ -129,7 +134,10 @@ fun HomeScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        // The numbers are in the history; here just a word about the week.
+        // Today at a glance: what the phone counted on its own, steps first.
+        TodayCard(today)
+        Spacer(Modifier.height(12.dp))
+        // The week's numbers are in the history; here just a word about it.
         Text(
             cheer(weekSummary), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.fillMaxWidth(),
@@ -198,3 +206,35 @@ private fun cheer(w: WeekStats): String {
     }
 }
 
+/** Steps (Samsung Health's day count when it may be read, else the phone's own), distance, kcal. */
+@Composable
+private fun TodayCard(t: TodayStats) {
+    val context = LocalContext.current
+    // The whole day's steps from Health Connect beat a count that started when 자동 기록 was turned on.
+    val health by produceState<Long?>(null) {
+        value = runCatching {
+            if (HealthExport.canReadSteps(context)) {
+                val zone = java.time.ZoneId.systemDefault()
+                HealthExport.steps(context, java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant(), java.time.Instant.now())
+            } else null
+        }.getOrNull()
+    }
+    val steps = maxOf(health ?: 0L, t.steps)
+    val n = java.text.NumberFormat.getIntegerInstance(java.util.Locale.US)
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1.3f)) {
+                Text(tr("오늘 걸음", "Steps today"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(n.format(steps), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(tr("거리", "Distance"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${formatKm(t.distanceM)}km", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(tr("칼로리", "Calories"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${t.calories.roundToInt()}kcal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
+    }
+}

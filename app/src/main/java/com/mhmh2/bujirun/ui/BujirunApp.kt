@@ -234,8 +234,10 @@ fun BujirunApp() {
                     Tab.HOME -> {
                         val workouts by remember { WorkoutStore.observeDone() }.collectAsState(initial = emptyList())
                         val autos by remember { WorkoutStore.observeAuto() }.collectAsState(initial = emptyList())
+                        val daySteps by remember { WorkoutStore.observeDaySteps() }.collectAsState(initial = emptyList())
                         HomeScreen(
                             remember { Prefs.lastGoal }, permissionDenied, weekSummary(workouts, autos),
+                            today = todaySummary(workouts, autos, daySteps),
                             nickname = signedIn?.nickname,
                             onStart = { goal -> requestStart(goal) },
                         )
@@ -297,5 +299,25 @@ private fun weekSummary(workouts: List<WorkoutEntity>, autos: List<com.mhmh2.buj
         week.sumOf { it.distanceM } + auto.sumOf { it.distanceM },
         week.sumOf { it.durationMs } + auto.sumOf { it.movingMs },
         week.sumOf { it.calories } + auto.sumOf { it.calories },
+    )
+}
+
+/** Today so far: distance, active time and calories from workouts (no test runs) and 자동 기록,
+ * and the phone's own step count (the day's count when 자동 기록 is on, else workout steps). */
+private fun todaySummary(
+    workouts: List<WorkoutEntity>, autos: List<com.mhmh2.bujirun.data.AutoActivityEntity>,
+    daySteps: List<com.mhmh2.bujirun.data.DayStepsEntity>,
+): TodayStats {
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now(zone)
+    val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
+    val ws = workouts.filter { it.startedAt >= start && !it.simulated }
+    val au = autos.filter { it.startedAt >= start }
+    val counted = daySteps.firstOrNull { it.day == today.toString() }?.steps
+    return TodayStats(
+        steps = counted ?: (ws.sumOf { it.steps.toLong() } + au.sumOf { it.steps }),
+        distanceM = ws.sumOf { it.distanceM } + au.sumOf { it.distanceM },
+        activeMs = ws.sumOf { it.durationMs } + au.sumOf { it.movingMs },
+        calories = ws.sumOf { it.calories } + au.sumOf { it.calories },
     )
 }
