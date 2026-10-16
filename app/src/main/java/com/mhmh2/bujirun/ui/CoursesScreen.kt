@@ -3,6 +3,8 @@ package com.mhmh2.bujirun.ui
 import com.mhmh2.bujirun.net.srv
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Refresh
 
 import android.content.Context
 import android.net.Uri
@@ -181,7 +183,10 @@ private fun MakeCard(icon: ImageVector, title: String, subtitle: String, onClick
     Surface(onClick = onClick, shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp, modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+                // A white icon on a little gradient tile, like the app icon.
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Brand.gradient), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
                 if (ai) {
                     // Planned by the same AI as the hero card above: say so.
                     Spacer(Modifier.weight(1f))
@@ -207,15 +212,26 @@ private fun MakeCard(icon: ImageVector, title: String, subtitle: String, onClick
 
 @Composable
 private fun CourseRow(c: CourseEntity, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp)) {
-        Text(courseTitle(c), style = MaterialTheme.typography.titleMedium)
-        Text(
-            listOf("${formatKm(c.distanceM)}km", if (c.isLoop) tr("순환", "Loop") else tr("편도", "One way"), c.sourceEnum.label).joinToString(" · "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Card(Modifier.padding(vertical = 5.dp), onClick = onClick, padding = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Brand.gradient),
+                contentAlignment = Alignment.Center,
+            ) { Icon(if (c.isLoop) Icons.Filled.Refresh else Icons.Filled.NearMe, null, tint = Color.White) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(courseTitle(c), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(
+                    listOf(if (c.isLoop) tr("순환", "Loop") else tr("편도", "One way"), c.sourceEnum.label).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(formatKm(c.distanceM), style = Brand.number.copy(fontSize = 20.sp))
+                Text(" km", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+            }
+        }
     }
-    HorizontalDivider()
 }
 
 @Composable

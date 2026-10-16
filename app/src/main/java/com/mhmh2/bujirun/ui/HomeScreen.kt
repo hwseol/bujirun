@@ -1,6 +1,8 @@
 package com.mhmh2.bujirun.ui
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.FilledTonalIconButton
 import com.mhmh2.bujirun.data.HealthExport
 import androidx.compose.runtime.produceState
 
@@ -122,68 +124,73 @@ fun HomeScreen(
     val dial = dials[kind]
     val goal = dial?.toGoal(values.getValue(kind)) ?: Goal.Free
 
+    // Today's steps, the whole day's from Samsung Health when it may be read.
+    val context = LocalContext.current
+    val healthSteps by produceState<Long?>(null) {
+        value = runCatching {
+            if (HealthExport.canReadSteps(context)) {
+                val zone = java.time.ZoneId.systemDefault()
+                HealthExport.steps(context, java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant(), java.time.Instant.now())
+            } else null
+        }.getOrNull()
+    }
+    val steps = maxOf(healthSteps ?: 0L, today.steps)
+
     Column(
         // Scrolls: with a large system font the goal and the start button still fit, just lower.
         modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Text(tr("부지런", "Buji Run"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            nickname?.let {
-                Text(tr("${it}님, 오늘도 가볍게", "Hi $it! Ready for an easy one today?"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        Header(nickname)
         Spacer(Modifier.height(16.dp))
-        // Today at a glance: what the phone counted on its own, steps first.
-        TodayCard(today)
-        Spacer(Modifier.height(12.dp))
-        // The week's numbers are in the history; here just a word about it.
-        Text(
-            cheer(weekSummary), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(28.dp))
-
-        Text(tr("목표", "Goal"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(8.dp))
-        // One line whatever the font size: slides sideways rather than breaking words apart.
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GoalKind.entries.forEach { k ->
-                FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label, maxLines = 1, softWrap = false) })
-            }
-        }
+        TodayHero(steps, today, cheer(weekSummary))
         Spacer(Modifier.height(16.dp))
 
-        if (dial != null) {
-            val value = values.getValue(kind)
-            fun set(v: Int) { values = values + (kind to v.coerceIn(dial.min, dial.max)) }
+        Card {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedIconButton(onClick = { set(value - dial.step) }) { Icon(Icons.Filled.Remove, tr("줄이기", "Less")) }
+                SectionTitle(tr("오늘의 목표", "Today's goal"), Modifier.weight(1f))
                 Text(
-                    dial.label(value),
-                    fontSize = 36.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.widthIn(min = 160.dp)
+                    if (dial == null) tr("자유롭게", "Free") else dial.label(values.getValue(kind)),
+                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
                 )
-                OutlinedIconButton(onClick = { set(value + dial.step) }) { Icon(Icons.Filled.Add, tr("늘리기", "More")) }
             }
+            Spacer(Modifier.height(12.dp))
+            // One line whatever the font size: slides sideways rather than breaking words apart.
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                dial.presets.forEach { p -> SuggestionChip(onClick = { set(p) }, label = { Text(dial.label(p), maxLines = 1, softWrap = false) }) }
+                GoalKind.entries.forEach { k ->
+                    FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label, maxLines = 1, softWrap = false) })
+                }
             }
-        } else {
-            Text(
-                tr("목표 없이 자유롭게 기록해요", "No goal - just record"),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 24.dp)
-            )
+            if (dial != null) {
+                val value = values.getValue(kind)
+                fun set(v: Int) { values = values + (kind to v.coerceIn(dial.min, dial.max)) }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    FilledTonalIconButton(onClick = { set(value - dial.step) }) { Icon(Icons.Filled.Remove, tr("줄이기", "Less")) }
+                    Text(
+                        dial.label(value), style = Brand.number.copy(fontSize = 40.sp), textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f), maxLines = 1,
+                    )
+                    FilledTonalIconButton(onClick = { set(value + dial.step) }) { Icon(Icons.Filled.Add, tr("늘리기", "More")) }
+                }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    dial.presets.forEach { p -> SuggestionChip(onClick = { set(p) }, label = { Text(dial.label(p), maxLines = 1, softWrap = false) }) }
+                }
+            } else {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    tr("목표 없이 자유롭게 기록해요", "No goal - just record"),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
-        Spacer(Modifier.height(32.dp))
-        Button(onClick = { onStart(goal) }, shape = CircleShape, modifier = Modifier.size(128.dp)) {
-            Text(tr("시작", "Start"), fontSize = 28.sp)
-        }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
+        StartButton(
+            tr("시작", "Start"),
+            sub = if (dial == null) tr("자유 기록", "Free run") else tr("목표 ", "Goal ") + dial.label(values.getValue(kind)),
+            onClick = { onStart(goal) },
+        )
         Text(
             if (permissionDenied) tr("기록하려면 위치 권한이 필요해요", "Location permission is needed to record") else tr("걷기와 달리기는 자동으로 구분해요", "Walking and running are detected automatically"),
             style = MaterialTheme.typography.bodySmall,
@@ -195,6 +202,56 @@ fun HomeScreen(
     }
 }
 
+/** "10월 16일 목요일" over "좋은 아침이에요, 설프로님". */
+@Composable
+private fun Header(nickname: String?) {
+    val now = java.time.LocalDateTime.now()
+    val date = if (com.mhmh2.bujirun.Lang.english) now.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.US))
+    else "${now.monthValue}월 ${now.dayOfMonth}일 ${now.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.KOREAN)}"
+    val hello = when (now.hour) {
+        in 4..10 -> tr("좋은 아침이에요", "Good morning")
+        in 11..16 -> tr("좋은 오후예요", "Good afternoon")
+        in 17..21 -> tr("좋은 저녁이에요", "Good evening")
+        else -> tr("늦은 시간이네요", "Late night")
+    }
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text(date, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(
+            nickname?.let { tr("$hello, ${it}님", "$hello, $it") } ?: hello,
+            style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold,
+        )
+    }
+}
+
+/** Today in the brand gradient: the step ring to 8,000, then distance, time and calories. */
+@Composable
+private fun TodayHero(steps: Long, t: TodayStats, cheer: String) {
+    val n = java.text.NumberFormat.getIntegerInstance(Locale.US)
+    HeroCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProgressRing(steps / STEP_GOAL.toFloat(), Modifier.size(124.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(n.format(steps), style = Brand.number.copy(fontSize = 26.sp), color = Color.White, maxLines = 1)
+                    Text(tr("/ ${n.format(STEP_GOAL)} 걸음", "/ ${n.format(STEP_GOAL)} steps"), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                }
+            }
+            Spacer(Modifier.width(18.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(tr("거리", "Distance"), formatKm(t.distanceM), "km", onHero = true)
+                StatTile(tr("활동 시간", "Active"), formatDuration(t.activeMs), onHero = true)
+                StatTile(tr("칼로리", "Calories"), "${t.calories.roundToInt()}", "kcal", onHero = true)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            cheer, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
+private const val STEP_GOAL = 8000L
+
 /** One line on how the week is going, kind whatever it says. */
 private fun cheer(w: WeekStats): String {
     val km = formatKm(w.distanceM)
@@ -203,38 +260,5 @@ private fun cheer(w: WeekStats): String {
         w.count == 1 -> tr("이번 주 한 번, ${km}km. 좋은 출발이에요!", "1 workout this week, ${km}km. Great start!")
         w.count < 4 -> tr("이번 주 ${w.count}번, ${km}km. 잘하고 있어요!", "${w.count} workouts this week, ${km}km. Nice work!")
         else -> tr("이번 주 벌써 ${w.count}번! 꾸준함이 최고예요.", "${w.count} workouts already this week! Keep it up.")
-    }
-}
-
-/** Steps (Samsung Health's day count when it may be read, else the phone's own), distance, kcal. */
-@Composable
-private fun TodayCard(t: TodayStats) {
-    val context = LocalContext.current
-    // The whole day's steps from Health Connect beat a count that started when 자동 기록 was turned on.
-    val health by produceState<Long?>(null) {
-        value = runCatching {
-            if (HealthExport.canReadSteps(context)) {
-                val zone = java.time.ZoneId.systemDefault()
-                HealthExport.steps(context, java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant(), java.time.Instant.now())
-            } else null
-        }.getOrNull()
-    }
-    val steps = maxOf(health ?: 0L, t.steps)
-    val n = java.text.NumberFormat.getIntegerInstance(java.util.Locale.US)
-    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1.3f)) {
-                Text(tr("오늘 걸음", "Steps today"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(n.format(steps), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(tr("거리", "Distance"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${formatKm(t.distanceM)}km", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(tr("칼로리", "Calories"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${t.calories.roundToInt()}kcal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-        }
     }
 }

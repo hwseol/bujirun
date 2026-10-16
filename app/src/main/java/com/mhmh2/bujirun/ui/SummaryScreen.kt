@@ -3,6 +3,7 @@ package com.mhmh2.bujirun.ui
 import com.mhmh2.bujirun.net.srv
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.graphics.Color
 
 import android.content.Intent
 import android.net.Uri
@@ -245,6 +246,31 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 course?.let { Text(tr("코스: ${it.name}", "Course: ${courseTitle(it)}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
             }
             Spacer(Modifier.height(16.dp))
+            val avgPace = if (w.distanceM >= 20) w.durationMs / 1000.0 / (w.distanceM / 1000.0) else null
+            val moving = w.runMs + w.walkMs
+            val runPct = if (moving > 0) (w.runMs * 100.0 / moving).roundToInt() else null
+            HeroCard {
+                Text(tr("거리", "Distance"), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(formatKm(w.distanceM), style = Brand.number.copy(fontSize = 56.sp), color = Color.White)
+                    Text(" km", style = MaterialTheme.typography.titleLarge, color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(bottom = 10.dp))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    StatTile(tr("시간", "Time"), formatDuration(w.durationMs), onHero = true)
+                    StatTile(tr("평균 페이스", "Avg pace"), formatPace(avgPace), "/km", onHero = true)
+                    StatTile(tr("칼로리", "Calories"), "${w.calories.roundToInt()}", "kcal", onHero = true)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Card(padding = 16.dp) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    StatTile(tr("오르막", "Climb"), "${w.ascentM.roundToInt()}", "m")
+                    StatTile(tr("달리기 · 걷기", "Run / walk"), runPct?.let { "$it · ${100 - it}" } ?: "-", runPct?.let { "%" })
+                    StatTile(tr("걸음", "Steps"), if (w.steps > 0) "${w.steps}" else "-")
+                }
+            }
+            Spacer(Modifier.height(16.dp))
             RouteView(points, photos = photos.indices.mapNotNull { i ->
                 photoPlaces.getOrNull(i)?.let { it to photoThumbs[photos[i].uri] }
             })
@@ -255,25 +281,7 @@ fun SummaryScreen(workoutId: Long, justFinished: Boolean, onClose: () -> Unit) {
                 onAdd = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                 onOpen = { viewingPhoto = it },
             )
-            Spacer(Modifier.height(20.dp))
-
-            val avgPace = if (w.distanceM >= 20) w.durationMs / 1000.0 / (w.distanceM / 1000.0) else null
-            StatRow(
-                tr("거리", "Distance") to "${formatKm(w.distanceM)}km",
-                tr("시간", "Time") to formatDuration(w.durationMs),
-            )
-            Spacer(Modifier.height(12.dp))
-            StatRow(
-                tr("평균 페이스", "Avg pace") to "${formatPace(avgPace)}/km",
-                tr("칼로리", "Calories") to tr("약 ${w.calories.roundToInt()}kcal", "about ${w.calories.roundToInt()} kcal"),
-            )
-            Spacer(Modifier.height(12.dp))
-            val moving = w.runMs + w.walkMs
-            val runPct = if (moving > 0) (w.runMs * 100.0 / moving).roundToInt() else null
-            StatRow(
-                tr("오르막", "Climb") to "${w.ascentM.roundToInt()}m",
-                tr("달리기 · 걷기", "Run / walk") to (runPct?.let { "$it% · ${100 - it}%" } ?: "-"),
-            )
+            Spacer(Modifier.height(4.dp))
 
             // Most people never open the settings: offer the automatic records where the result is.
             // Shown while either is off (kept for this visit once shown), until tr("다시 보지 않기", "Don't show again").

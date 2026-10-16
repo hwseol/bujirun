@@ -1,6 +1,7 @@
 package com.mhmh2.bujirun.ui
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,36 +100,42 @@ fun LiveWorkoutScreen(
                 route, course, state.position, state.rerouting, onReroute,
                 Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)), trail = state.trail,
             )
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                SmallStat(tr("시간", "Time"), formatDuration(state.elapsedMs))
-                SmallStat(tr("거리", "Distance"), "${formatKm(state.distanceM)}km")
-                SmallStat(tr("페이스", "Pace"), formatPace(state.currentPaceSecPerKm))
-                if (course.lap != null) SmallStat(tr("바퀴", "Lap"), course.laps?.let { "${course.lap}/$it" } ?: tr("${course.lap}바퀴째", "Lap ${course.lap}"))
-                else SmallStat(tr("코스 남은", "Remaining"), "${formatKm(course.remainingM)}km")
+            Spacer(Modifier.height(12.dp))
+            Card(padding = 16.dp) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    StatTile(tr("시간", "Time"), formatDuration(state.elapsedMs))
+                    StatTile(tr("거리", "Distance"), formatKm(state.distanceM), "km")
+                    StatTile(tr("페이스", "Pace"), formatPace(state.currentPaceSecPerKm))
+                    if (course.lap != null) StatTile(tr("바퀴", "Lap"), course.laps?.let { "${course.lap}/$it" } ?: "${course.lap}")
+                    else StatTile(tr("남은", "Left"), formatKm(course.remainingM), "km")
+                }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
         } else {
             // No course: a map of where you are and the way run so far, the numbers below it.
             Spacer(Modifier.height(8.dp))
             FreeLiveMap(state.trail, state.position, Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)))
-            Spacer(Modifier.height(16.dp))
-            Text(formatDuration(state.elapsedMs), fontSize = 56.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                BigStat(tr("거리", "Distance"), formatKm(state.distanceM), "km")
-                if (state.goal is Goal.Free) BigStat(tr("평균 페이스", "Avg pace"), formatPace(state.averagePaceSecPerKm), "/km")
-                else BigStat(tr("현재 페이스", "Current pace"), formatPace(state.currentPaceSecPerKm), "/km")
-                BigStat(tr("칼로리", "Calories"), "${state.calories.roundToInt()}", "kcal")
+            Spacer(Modifier.height(12.dp))
+            Card(padding = 16.dp) {
+                Text(formatDuration(state.elapsedMs), style = Brand.number.copy(fontSize = 52.sp), modifier = Modifier.align(Alignment.CenterHorizontally))
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    StatTile(tr("거리", "Distance"), formatKm(state.distanceM), "km", big = true)
+                    if (state.goal is Goal.Free) StatTile(tr("평균 페이스", "Avg pace"), formatPace(state.averagePaceSecPerKm), big = true)
+                    else StatTile(tr("현재 페이스", "Pace"), formatPace(state.currentPaceSecPerKm), big = true)
+                    StatTile(tr("칼로리", "Calories"), "${state.calories.roundToInt()}", "kcal", big = true)
+                }
+                if (state.goal !is Goal.Free) {
+                    Spacer(Modifier.height(12.dp))
+                    GoalPanel(state)
+                }
             }
             Spacer(Modifier.height(12.dp))
-            GoalPanel(state)
-            Spacer(Modifier.height(16.dp))
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (paused) {
-                Button(onClick = onResume, modifier = Modifier.weight(1f).height(56.dp)) { Text(tr("재개", "Resume")) }
+                Button(onClick = onResume, modifier = Modifier.weight(1f).height(56.dp)) { Text(tr("재개", "Resume"), fontWeight = FontWeight.Bold) }
             } else {
                 OutlinedButton(onClick = onPause, modifier = Modifier.weight(1f).height(56.dp)) { Text(tr("일시정지", "Pause")) }
             }

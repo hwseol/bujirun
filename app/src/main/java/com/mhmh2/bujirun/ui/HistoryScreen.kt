@@ -1,6 +1,7 @@
 package com.mhmh2.bujirun.ui
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.foundation.layout.size
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
@@ -302,18 +303,26 @@ private fun DayStat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun WorkoutRow(w: WorkoutEntity, onClick: () -> Unit) {
     val pace = if (w.distanceM >= 20) w.durationMs / 1000.0 / (w.distanceM / 1000.0) else null
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp)) {
-        Text(workoutTitle(w), style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOfNotNull(
-                "${formatKm(w.distanceM)}km", formatDuration(w.durationMs), "${formatPace(pace)}/km",
-                "${w.calories.roundToInt()}kcal", w.steps.takeIf { it > 0 }?.let { tr("${it}걸음", "$it steps") },
-            ).forEach {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Card(Modifier.padding(vertical = 5.dp), onClick = onClick, padding = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (w.simulated) Brand.gradientSoft else Brand.gradient),
+                contentAlignment = Alignment.Center,
+            ) { Text(if (w.isRun) "🏃" else "🚶", fontSize = 20.sp) }
+            Spacer(Modifier.size(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(workoutTitle(w), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(
+                    listOfNotNull(formatDuration(w.durationMs), "${formatPace(pace)}/km", "${w.calories.roundToInt()}kcal").joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                )
+            }
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(formatKm(w.distanceM), style = Brand.number.copy(fontSize = 20.sp))
+                Text(" km", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
             }
         }
     }
-    HorizontalDivider()
 }
 
 /** A walk or run recorded in the background: no route to open, so a tap explains (and can delete). */
