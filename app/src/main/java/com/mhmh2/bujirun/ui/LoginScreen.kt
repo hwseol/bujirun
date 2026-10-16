@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.mhmh2.bujirun.account.Account
 import com.mhmh2.bujirun.account.AccountRules
 import com.mhmh2.bujirun.account.AuthException
+import com.mhmh2.bujirun.account.GoogleSignIn
 import kotlinx.coroutines.launch
 
 /** Log in, or sign up (email + nickname + password). Both go to the server. */
@@ -54,6 +55,7 @@ fun LoginScreen() {
     var serverError by rememberSaveable { mutableStateOf<String?>(null) }
     var busy by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val emailOk = AccountRules.isValidEmail(email)
     val nicknameOk = AccountRules.isValidNickname(nickname)
@@ -155,6 +157,30 @@ fun LoginScreen() {
             Box(contentAlignment = Alignment.Center) {
                 if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                 else Text(if (signUp) tr("가입하기", "Sign up") else tr("로그인", "Log in"))
+            }
+        }
+        if (GoogleSignIn.available) {
+            Spacer(Modifier.height(10.dp))
+            androidx.compose.material3.OutlinedButton(
+                onClick = {
+                    busy = true
+                    serverError = null
+                    scope.launch {
+                        try {
+                            GoogleSignIn.signIn(context)
+                        } catch (e: AuthException) {
+                            serverError = e.message
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+            ) {
+                Text("G", fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold, color = androidx.compose.ui.graphics.Color(0xFF4285F4))
+                Spacer(Modifier.size(10.dp))
+                Text(tr("구글로 계속하기", "Continue with Google"))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

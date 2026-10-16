@@ -91,6 +91,47 @@ def logout(authorization: str | None = Header(None)):
     return {"ok": True}
 
 
+class NicknameRequest(BaseModel):
+    nickname: str
+
+
+@app.post("/auth/nickname")
+def change_nickname(req: NicknameRequest, authorization: str | None = Header(None)):
+    user = _user(authorization)
+    try:
+        return accounts.public(accounts.change_nickname(user["id"], req.nickname))
+    except accounts.AccountError as e:
+        _fail(e)
+
+
+class GoogleRequest(BaseModel):
+    id_token: str
+
+
+@app.post("/auth/google")
+def google_login(req: GoogleRequest):
+    """Sign in (or up) with a Google ID token from the phone."""
+    try:
+        user = accounts.google_user(accounts.verify_google_token(req.id_token))
+    except accounts.AccountError as e:
+        _fail(e)
+    return {"token": accounts.create_session(user["id"]), **accounts.public(user)}
+
+
+class DeleteMeRequest(BaseModel):
+    password: str | None = None
+
+
+@app.post("/auth/delete_me")
+def delete_me(req: DeleteMeRequest, authorization: str | None = Header(None)):
+    user = _user(authorization)
+    try:
+        accounts.delete_by_session(user, req.password)
+    except accounts.AccountError as e:
+        _fail(e)
+    return {"ok": True}
+
+
 @app.post("/auth/delete")
 def delete_account(req: LoginRequest):
     try:

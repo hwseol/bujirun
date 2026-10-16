@@ -10,6 +10,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -68,7 +72,7 @@ private val intervals get() = listOf(
 )
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onAccount: () -> Unit) {
     val voiceOn by Prefs.voiceEnabled.collectAsState()
     val autoPause by Prefs.autoPause.collectAsState()
     var interval by remember { mutableStateOf(Prefs.cueInterval) }
@@ -77,8 +81,6 @@ fun SettingsScreen() {
     val weightValid = weight != null && weight in 25..250
 
     val user by Account.user.collectAsState()
-    var confirmSignOut by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val autoCalendar by Prefs.autoCalendar.collectAsState()
@@ -95,28 +97,18 @@ fun SettingsScreen() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Text(tr("설정", "Settings"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
 
-        // Who's signed in, in the brand card.
+        // Who's signed in, in the brand card: opens the account page.
         user?.let { u ->
-            HeroCard {
+            HeroCard(Modifier.clip(RoundedCornerShape(28.dp)).clickable(onClick = onAccount)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
-                        Text(u.nickname.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                    }
+                    Avatar(u.nickname, 56.dp)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(u.nickname, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1)
-                            if (u.isAdmin) {
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    tr("관리자", "Admin"), style = MaterialTheme.typography.labelSmall, color = Color.White,
-                                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.25f)).padding(horizontal = 8.dp, vertical = 2.dp),
-                                )
-                            }
-                        }
+                        Text(u.nickname, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1)
                         Text(u.email, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f), maxLines = 1)
+                        Text(tr("내 계정 · 기록 보기", "My account · records"), style = MaterialTheme.typography.labelMedium, color = Color.White, modifier = Modifier.padding(top = 4.dp))
                     }
-                    TextButton(onClick = { confirmSignOut = true }) { Text(tr("로그아웃", "Log out"), color = Color.White) }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = tr("내 계정", "My account"), tint = Color.White)
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -218,73 +210,9 @@ fun SettingsScreen() {
                 }
             }
         }
-        if (user != null) {
-            TextButton(onClick = { deleting = true }, modifier = Modifier.padding(top = 12.dp)) {
-                Text(tr("계정 삭제", "Delete account"), color = MaterialTheme.colorScheme.error)
-            }
-        }
         Spacer(Modifier.height(32.dp))
     }
 
-    if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text(tr("로그아웃할까요?", "Log out?")) },
-            text = { Text(tr("운동 기록은 이 폰에 그대로 남아요.", "Your workouts stay on this phone.")) },
-            confirmButton = {
-                TextButton(onClick = { confirmSignOut = false; scope.launch { Account.logOut() } }) { Text(tr("로그아웃", "Log out")) }
-            },
-            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(tr("취소", "Cancel")) } }
-        )
-    }
-    if (deleting) DeleteAccountDialog(onDismiss = { deleting = false })
-}
-
-/** Account deletion (required by Play for apps with sign-up). Re-asks for the password. */
-@Composable
-private fun DeleteAccountDialog(onDismiss: () -> Unit) {
-    var password by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text(tr("계정을 삭제할까요?", "Delete your account?")) },
-        text = {
-            Column {
-                Text(tr("서버에서 계정이 지워지고 되돌릴 수 없어요. 이 폰의 운동 기록은 남아요.", "Your account will be permanently deleted from the server. Workouts on this phone will remain."))
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it; error = null },
-                    label = { Text(tr("비밀번호", "Password")) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    isError = error != null,
-                    supportingText = { error?.let { Text(it) } },
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = password.isNotEmpty() && !busy,
-                onClick = {
-                    busy = true
-                    scope.launch {
-                        try {
-                            Account.deleteAccount(password)
-                        } catch (e: AuthException) {
-                            error = e.message
-                        } finally {
-                            busy = false
-                        }
-                    }
-                }
-            ) { Text(tr("삭제", "Delete"), color = MaterialTheme.colorScheme.error) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(tr("취소", "Cancel")) } }
-    )
 }
 
 @Composable

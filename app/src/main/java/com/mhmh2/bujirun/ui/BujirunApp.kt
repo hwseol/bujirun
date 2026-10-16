@@ -90,6 +90,7 @@ fun BujirunApp() {
     var suggesting by rememberSaveable { mutableStateOf(false) }
     var suggestTab by rememberSaveable { mutableStateOf(0) }
     var aiCourse by rememberSaveable { mutableStateOf(false) }
+    var account by rememberSaveable { mutableStateOf(false) }
     // A GPX opened from another app lands on the courses tab, which imports it.
     val pendingImport by PendingImport.uri.collectAsState()
     LaunchedEffect(pendingImport) { if (pendingImport != null) { openCourse = null; drawingCourse = false; tab = Tab.COURSES } }
@@ -183,6 +184,10 @@ fun BujirunApp() {
             BackHandler { openWorkout = null }
             SummaryScreen(openWorkout!!, justFinished = false, onClose = { openWorkout = null })
         }
+        account && signedIn != null -> {
+            BackHandler { account = false }
+            AccountScreen(onClose = { account = false }, onOpenWorkout = { openWorkout = it })
+        }
         aiCourse -> {
             BackHandler { aiCourse = false }
             AiCourseScreen(
@@ -253,7 +258,7 @@ fun BujirunApp() {
                         onAi = { aiCourse = true },
                     )
                     Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it })
-                    Tab.SETTINGS -> SettingsScreen()
+                    Tab.SETTINGS -> SettingsScreen(onAccount = { account = true })
                 }
             }
             }

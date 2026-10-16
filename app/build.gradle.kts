@@ -35,6 +35,11 @@ android {
         // `-PbujirunApi=http://10.0.2.2:8100/` (cleartext is allowed for 10.0.2.2 only).
         val api = (project.findProperty("bujirunApi") as String?) ?: "https://bujirun.184-193-203-68.sslip.io/"
         buildConfigField("String", "API_BASE", "\"$api\"")
+
+        // Google sign-in: the OAuth *web* client ID the ID token is issued for (the server
+        // checks it as BUJIRUN_GOOGLE_CLIENT_ID). Public, like the NAVER ID. Empty hides the button.
+        val googleClient = (project.findProperty("googleWebClientId") as String?) ?: ""
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleClient\"")
     }
 
     signingConfigs {
@@ -117,5 +122,8 @@ dependencies {
     implementation(libs.health.connect)
     implementation(libs.naver.map)
     implementation(libs.work.runtime)
+    implementation(libs.credentials)
+    implementation(libs.credentials.play)
+    implementation(libs.google.id)
     testImplementation(libs.junit)
 }

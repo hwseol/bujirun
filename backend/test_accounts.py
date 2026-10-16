@@ -61,6 +61,42 @@ class AccountsTest(unittest.TestCase):
         accounts.end_session(token)
         self.assertIsNone(accounts.user_by_token(token))
 
+    def test_change_nickname(self):
+        a = accounts.create_user("a@x.com", "달리기왕", "password1")
+        accounts.create_user("b@x.com", "산책러", "password1")
+        self.assertEqual(accounts.change_nickname(a["id"], " 새이름 ")["nickname"], "새이름")
+        with self.assertRaises(accounts.AccountError):
+            accounts.change_nickname(a["id"], "산책러")
+        with self.assertRaises(accounts.AccountError):
+            accounts.change_nickname(a["id"], "a")
+        # Its own name again is fine.
+        self.assertEqual(accounts.change_nickname(a["id"], "새이름")["nickname"], "새이름")
+
+    def test_google_sign_in(self):
+        accounts.GOOGLE_CLIENT_ID = "cid"
+        try:
+            good = {"aud": "cid", "iss": "accounts.google.com", "email": "G@x.com", "email_verified": "true", "name": "설프로"}
+            claims = accounts.verify_google_token("t", fetch=lambda url: good)
+            u = accounts.google_user(claims)
+            self.assertEqual(u["email"], "g@x.com")
+            self.assertEqual(u["nickname"], "설프로")
+            self.assertFalse(accounts.has_password(u))
+            # The same Google account again is the same user; a password login can't get in.
+            self.assertEqual(accounts.google_user(claims)["id"], u["id"])
+            with self.assertRaises(accounts.AccountError):
+                accounts.verify_login("g@x.com", "")
+            # Another Google account with the same name gets a number.
+            other = accounts.google_user({**good, "email": "h@x.com"})
+            self.assertEqual(other["nickname"], "설프로2")
+            # Wrong audience or unverified email: refused.
+            for bad in ({**good, "aud": "other"}, {**good, "email_verified": "false"}):
+                with self.assertRaises(accounts.AccountError):
+                    accounts.verify_google_token("t", fetch=lambda url, b=bad: b)
+            accounts.delete_by_session(u, None)
+            self.assertIsNone(accounts.user_by_token(accounts.create_session(other["id"])) and None)
+        finally:
+            accounts.GOOGLE_CLIENT_ID = ""
+
     def test_delete_and_reset(self):
         u = accounts.create_user("a@b.co", "러너", "password1")
         token = accounts.create_session(u["id"])

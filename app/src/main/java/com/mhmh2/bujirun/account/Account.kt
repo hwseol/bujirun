@@ -7,7 +7,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** [isAdmin] comes from the server (admin email + correct password), never decided locally. */
-data class User(val email: String, val nickname: String, val isAdmin: Boolean = false)
+data class User(
+    val email: String,
+    val nickname: String,
+    val isAdmin: Boolean = false,
+    // False for an account made with Google sign-in (it has no password to re-enter).
+    val hasPassword: Boolean = true,
+    val createdAt: String? = null, // ISO time, from the server
+)
 
 /** Input rules, checked in the app before asking the server (which enforces the same ones). */
 object AccountRules {
@@ -46,7 +53,7 @@ object Account {
         // No token = an account from the earlier local-only build: it never existed on the
         // server, so it has to sign up/in again.
         _user.value = if (email != null && nickname != null && token != null) {
-            User(email, nickname, sp.getBoolean("is_admin", false))
+            User(email, nickname, sp.getBoolean("is_admin", false), sp.getBoolean("has_password", true), sp.getString("created_at", null))
         } else {
             sp.edit().clear().apply()
             null
@@ -58,6 +65,15 @@ object Account {
     )
 
     suspend fun logIn(email: String, password: String) = store(AuthApi.logIn(AccountRules.normalizeEmail(email), password))
+
+    /** Google sign-in (or sign-up): [idToken] from Credential Manager, checked by the server. */
+    suspend fun googleLogIn(idToken: String) = store(AuthApi.google(idToken))
+
+    suspend fun changeNickname(nickname: String) {
+        val t = token ?: return
+        val u = AuthApi.changeNickname(t, AccountRules.normalizeNickname(nickname))
+        save(u)
+    }
 
     suspend fun logOut() {
         token?.let { AuthApi.logOut(it) }
@@ -72,26 +88,34 @@ object Account {
     suspend fun verify() {
         val t = token ?: return
         try {
-            com.mhmh2.bujirun.net.Api.get("/auth/me", t)
+            // Also picks up what the server knows that older builds didn't keep (join date...).
+            save(AuthApi.userOf(com.mhmh2.bujirun.net.Api.get("/auth/me", t)))
         } catch (e: com.mhmh2.bujirun.net.ApiException) {
             if (e.status == 401) clear()
         }
     }
 
-    suspend fun deleteAccount(password: String) {
-        val u = _user.value ?: return
-        AuthApi.deleteAccount(u.email, password)
+    /** [password] is needed for an account that has one; a Google account has none. */
+    suspend fun deleteAccount(password: String?) {
+        val t = token ?: return
+        AuthApi.deleteMe(t, password)
         clear()
     }
 
     private fun store(result: AuthResult) {
+        sp.edit().putString("token", result.token).apply()
+        save(result.user)
+    }
+
+    private fun save(u: User) {
         sp.edit()
-            .putString("token", result.token)
-            .putString("email", result.user.email)
-            .putString("nickname", result.user.nickname)
-            .putBoolean("is_admin", result.user.isAdmin)
+            .putString("email", u.email)
+            .putString("nickname", u.nickname)
+            .putBoolean("is_admin", u.isAdmin)
+            .putBoolean("has_password", u.hasPassword)
+            .putString("created_at", u.createdAt)
             .apply()
-        _user.value = result.user
+        _user.value = u
     }
 
     private fun clear() {

@@ -26,6 +26,7 @@ object Prefs {
         _autoHealth.value = sp.getBoolean("auto_health", false)
         _autoRecord.value = sp.getBoolean("auto_record", false)
         Lang.english = sp.getString("language", "ko") == "en"
+        _monthGoalKm.value = sp.getInt("month_goal_km", 0)
         // Turned on before "since" was kept: from now on, not the whole history at once.
         for (where in listOf("calendar", "health")) {
             if (sp.getBoolean("auto_$where", false) && !sp.contains("auto_${where}_since")) {
@@ -130,6 +131,15 @@ object Prefs {
             Lang.english = v == "en"
             sp.edit().putString("language", v).apply()
         }
+
+    // A distance to reach each month (account page), 0 = none.
+    private val _monthGoalKm = MutableStateFlow(0)
+    val monthGoalKm: StateFlow<Int> = _monthGoalKm.asStateFlow()
+
+    fun setMonthGoalKm(km: Int) {
+        _monthGoalKm.value = km
+        sp.edit().putInt("month_goal_km", km).apply()
+    }
 
     /** The newest server notice already shown (net/Notices). */
     var lastNoticeId: Int

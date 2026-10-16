@@ -7,7 +7,10 @@ two never disagree about what's acceptable.
 """
 
 import hashlib
+import json
 import os
+import urllib.parse
+import urllib.request
 import re
 import secrets
 import sqlite3
@@ -21,6 +24,10 @@ SESSION_LIFETIME = timedelta(days=180)  # a phone stays signed in; logout drops 
 # ~260k rounds matches Django's default: slow enough that a stolen hash is impractical to
 # brute-force, fast enough that a login doesn't feel slow.
 PBKDF2_ITERATIONS = 260_000
+
+# Google sign-in: the OAuth web client ID the app asks Google for an ID token with (public, but
+# set on the server like the rest of its configuration). Unset means Google sign-in is off.
+GOOGLE_CLIENT_ID = os.environ.get("BUJIRUN_GOOGLE_CLIENT_ID", "").strip()
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
 
@@ -82,7 +89,8 @@ def _hash(password: str, salt_hex: str | None = None) -> tuple[str, str]:
 
 def public(row: sqlite3.Row) -> dict:
     """What the app may see about a user - never the hash or salt."""
-    return {"email": row["email"], "nickname": row["nickname"], "is_admin": bool(ADMIN_EMAIL) and row["email"] == ADMIN_EMAIL}
+    return {"email": row["email"], "nickname": row["nickname"], "is_admin": bool(ADMIN_EMAIL) and row["email"] == ADMIN_EMAIL,
+            "has_password": bool(row["password_hash"]), "created_at": row["created_at"]}
 
 
 def create_user(email: str, nickname: str, password: str) -> sqlite3.Row:
@@ -125,6 +133,9 @@ def verify_login(email: str, password: str) -> sqlite3.Row:
     # Same message for "no such account" and "wrong password": don't reveal which emails exist.
     if row is None:
         raise AccountError("이메일 또는 비밀번호가 올바르지 않아요.")
+    if not row["password_hash"]:
+        # A Google account: it signs in with Google, not a password.
+        raise AccountError("구글로 가입한 계정이에요. 구글로 로그인해 주세요.")
     digest, _ = _hash(password, row["password_salt"])
     if not secrets.compare_digest(digest, row["password_hash"]):
         raise AccountError("이메일 또는 비밀번호가 올바르지 않아요.")
@@ -179,6 +190,92 @@ def delete_user(email: str, password: str) -> None:
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
         conn.execute("DELETE FROM users WHERE id = ?", (user["id"],))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def change_nickname(user_id: int, nickname: str) -> sqlite3.Row:
+    nickname = normalize_nickname(nickname)
+    if not 2 <= len(nickname) <= 12:
+        raise AccountError("닉네임은 2~12자로 입력해 주세요.")
+    conn = _connect()
+    try:
+        taken = conn.execute("SELECT id FROM users WHERE nickname = ? AND id != ?", (nickname, user_id)).fetchone()
+        if taken:
+            raise AccountError("이미 사용 중인 닉네임이에요.")
+        try:
+            conn.execute("UPDATE users SET nickname = ? WHERE id = ?", (nickname, user_id))
+        except sqlite3.IntegrityError:
+            raise AccountError("이미 사용 중인 닉네임이에요.")
+        conn.commit()
+        return conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    finally:
+        conn.close()
+
+
+def has_password(row: sqlite3.Row) -> bool:
+    """Accounts made through Google sign-in have no password of their own."""
+    return bool(row["password_hash"])
+
+
+def delete_by_session(user: sqlite3.Row, password: str | None) -> None:
+    """Deletes the signed-in account: with its password when it has one (a borrowed unlocked
+    phone can't delete it), or just the session for a Google account (Google already vouched)."""
+    if has_password(user):
+        verify_login(user["email"], password or "")
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+        conn.execute("DELETE FROM users WHERE id = ?", (user["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def verify_google_token(id_token: str, fetch=None) -> dict:
+    """Google's own check of an ID token (one small request per sign-in): it must be for our
+    client and carry a verified email. Returns the token's claims."""
+    if not GOOGLE_CLIENT_ID:
+        raise AccountError("구글 로그인은 아직 준비 중이에요.")
+    url = "https://oauth2.googleapis.com/tokeninfo?" + urllib.parse.urlencode({"id_token": id_token})
+    try:
+        if fetch:
+            claims = fetch(url)
+        else:
+            with urllib.request.urlopen(url, timeout=10) as r:
+                claims = json.loads(r.read())
+    except Exception:
+        raise AccountError("구글 로그인을 확인하지 못했어요. 다시 시도해 주세요.")
+    if claims.get("aud") != GOOGLE_CLIENT_ID or claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise AccountError("구글 로그인을 확인하지 못했어요. 다시 시도해 주세요.")
+    if str(claims.get("email_verified")).lower() != "true" or not claims.get("email"):
+        raise AccountError("구글 계정의 이메일이 확인되지 않았어요.")
+    return claims
+
+
+def google_user(claims: dict) -> sqlite3.Row:
+    """The account for a Google sign-in: the one with that email (it's verified by Google), or
+    a new one named after the Google profile, made unique with a number if needed."""
+    email = normalize_email(claims["email"])
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if row:
+            return row
+        base = normalize_nickname(claims.get("name") or email.split("@")[0])[:10] or "러너"
+        if len(base) < 2:
+            base = (base + "러너")[:10]
+        nickname = base
+        n = 1
+        while conn.execute("SELECT 1 FROM users WHERE nickname = ?", (nickname,)).fetchone():
+            n += 1
+            nickname = f"{base[:12 - len(str(n))]}{n}"
+        cur = conn.execute(
+            "INSERT INTO users (email, nickname, password_hash, password_salt, created_at) VALUES (?, ?, '', '', ?)",
+            (email, nickname, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+        return conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
     finally:
         conn.close()
 
