@@ -3,6 +3,7 @@ package com.mhmh2.bujirun.ui
 import com.mhmh2.bujirun.net.srv
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.unit.sp
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -97,9 +98,11 @@ fun SuggestScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) -> 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
-            Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(8.dp))
-            Text(tr("AI 주변 코스", "AI courses nearby"), style = MaterialTheme.typography.titleLarge)
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Brand.gradient), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(tr("AI 주변 코스", "AI courses nearby"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(tr("공원·트랙", "Parks")) })
@@ -414,17 +417,19 @@ internal fun LoopCard(
     // Tapping the card (its map is static) opens the course up close.
     Surface(
         onClick = { details = true },
-        shape = RoundedCornerShape(20.dp),
-        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(14.dp)) {
             CourseLineView(points)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
-                shade?.let { ShadeBadge(it) }
+                Text(title.substringBeforeLast(" · "), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 2)
+                Text(formatKm(meters), style = Brand.number.copy(fontSize = 22.sp))
+                Text(" km", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            shade?.let { Spacer(Modifier.height(4.dp)); ShadeBadge(it) }
             Text(
                 estimateText(meters, paces),
                 style = MaterialTheme.typography.bodySmall,

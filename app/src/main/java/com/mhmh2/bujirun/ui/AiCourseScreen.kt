@@ -4,6 +4,9 @@ import com.mhmh2.bujirun.net.srv
 import com.mhmh2.bujirun.net.srvPlace
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -145,8 +148,10 @@ fun AiCourseScreen(onClose: () -> Unit, onOpen: (Long) -> Unit, onRun: (Long) ->
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
-            Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(6.dp))
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Brand.gradient), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(10.dp))
             Text(tr("AI 코스 추천", "AI course"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         // Everything below the title in one list, so it all scrolls together.

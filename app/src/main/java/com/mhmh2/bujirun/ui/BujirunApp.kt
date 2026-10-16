@@ -1,6 +1,8 @@
 package com.mhmh2.bujirun.ui
 
 import com.mhmh2.bujirun.tr
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.widthIn
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -229,7 +231,9 @@ fun BujirunApp() {
                 }
             }
         ) { inner ->
-            Box(Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner)) {
+            // On a wide screen (an unfolded Fold, a tablet) the tabs stay phone-width, centred.
+            Box(Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.fillMaxSize().widthIn(max = 640.dp)) {
                 when (tab) {
                     Tab.HOME -> {
                         val workouts by remember { WorkoutStore.observeDone() }.collectAsState(initial = emptyList())
@@ -251,6 +255,7 @@ fun BujirunApp() {
                     Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it })
                     Tab.SETTINGS -> SettingsScreen()
                 }
+            }
             }
         }
     }
