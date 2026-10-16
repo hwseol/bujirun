@@ -37,8 +37,9 @@ android {
         buildConfigField("String", "API_BASE", "\"$api\"")
 
         // Google sign-in: the OAuth *web* client ID the ID token is issued for (the server
-        // checks it as BUJIRUN_GOOGLE_CLIENT_ID). Public, like the NAVER ID. Empty hides the button.
-        val googleClient = (project.findProperty("googleWebClientId") as String?) ?: ""
+        // checks it as BUJIRUN_GOOGLE_CLIENT_ID). Public, like the NAVER ID. `-PgoogleWebClientId=` (empty) hides the button.
+        val googleClient = (project.findProperty("googleWebClientId") as String?)
+            ?: "865652175610-7levvqlnqnh6k77pglvv7h3ff2s60fvl.apps.googleusercontent.com"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleClient\"")
     }
 
