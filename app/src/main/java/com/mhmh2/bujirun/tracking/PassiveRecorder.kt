@@ -118,6 +118,9 @@ object PassiveRecorder {
 
     /** Reads the steps now (the app opened, the periodic check) and closes a finished bout. */
     suspend fun check(context: Context) = lock.withLock {
+        // Walks an earlier version recorded as the whole 4 hours after a start whose end never
+        // came (not walking at all): gone.
+        WorkoutStore.database.passive().deleteActivitiesLongerThan(BoutTracker.MAX_MS - 60_000)
         if (!isOn(context)) return@withLock
         val now = System.currentTimeMillis()
         val counter = recordSteps(context, now)

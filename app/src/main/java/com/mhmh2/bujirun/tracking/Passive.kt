@@ -119,13 +119,28 @@ class BoutTracker(var state: State = State()) {
     fun check(t: Long, steps: Long?): Bout? {
         val s = state
         if (s.kind == null) return null
-        val ended = when {
-            s.exitMs != null && t - s.exitMs > GAP_MS -> s
-            s.exitMs == null && t - s.startMs > MAX_MS -> accumulate(s, t).copy(exitMs = t, endSteps = steps)
+        when {
+            s.exitMs != null && t - s.exitMs > GAP_MS -> {
+                state = State()
+                return finish(s)
+            }
+            s.exitMs == null && t - s.startMs > MAX_MS -> {
+                // The end never came (the system missed it): the hours since the start weren't
+                // all walking. Only what the step counter proves counts - its steps, and the time
+                // they'd take - and without counter readings nothing is kept.
+                state = State()
+                val counted = if (s.startSteps != null && steps != null) StepLedger.delta(s.startSteps, steps) else 0L
+                if (counted <= 0) return null
+                val run = s.kind == FootKind.RUN
+                val moving = (counted / (if (run) 160.0 else 100.0) * 60_000).toLong().coerceAtMost(t - s.startMs)
+                val proven = s.copy(
+                    walkMs = if (run) 0 else moving, runMs = if (run) moving else 0,
+                    exitMs = s.startMs + moving, startSteps = s.startSteps, endSteps = steps,
+                )
+                return finish(proven)
+            }
             else -> return null
         }
-        state = State()
-        return finish(ended)
     }
 
     private fun accumulate(s: State, t: Long): State {

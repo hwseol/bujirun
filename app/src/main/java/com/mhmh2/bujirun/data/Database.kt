@@ -183,6 +183,7 @@ interface PassiveDao {
     @Insert suspend fun insertActivity(a: AutoActivityEntity): Long
     @Query("SELECT * FROM auto_activities ORDER BY startedAt DESC") fun observeActivities(): Flow<List<AutoActivityEntity>>
     @Query("DELETE FROM auto_activities WHERE id = :id") suspend fun deleteActivity(id: Long)
+    @Query("DELETE FROM auto_activities WHERE movingMs >= :ms") suspend fun deleteActivitiesLongerThan(ms: Long): Int
     @Query("SELECT COUNT(*) FROM workouts WHERE startedAt < :end AND endedAt > :start") suspend fun workoutsOverlapping(start: Long, end: Long): Int
 
     @Query("SELECT * FROM day_steps") fun observeDaySteps(): Flow<List<DayStepsEntity>>

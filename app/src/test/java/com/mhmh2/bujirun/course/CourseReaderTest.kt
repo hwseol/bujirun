@@ -40,6 +40,14 @@ class CourseReaderTest {
         assertEquals(CourseShape.LOOP, reader(nothing.copy(shape = "ONE_WAY")).read("5km").shape)
     }
 
+    @Test fun aNameCutShortByTheModelIsTheWholeWord() {
+        // The model marked only "맘스" of "맘스터치".
+        val r = reader(nothing.copy(spans = listOf(Span(3, 5, "PD")), shape = "OUT_AND_BACK")).read("주변 맘스터치 갔다오려고")
+        assertEquals(listOf(PlaceMention("맘스터치", PlaceRole.DEST)), r.places)
+        assertEquals("석촌호수", CourseReader.wholeName("석촌호수에서 뛰기", 0, 3))
+        assertEquals("올림픽공원", CourseReader.wholeName("올림픽 공원 한바퀴", 0, 6))
+    }
+
     @Test fun whereTheUserIsIsNotAPlace() {
         val r = reader(nothing.copy(spans = listOf(Span(0, 1, "PS"), Span(4, 6, "PD")))).read("집에서 시청까지")
         assertEquals(listOf(PlaceMention("시청", PlaceRole.DEST)), r.places)

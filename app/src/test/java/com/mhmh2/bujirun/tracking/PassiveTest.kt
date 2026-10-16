@@ -75,12 +75,17 @@ class PassiveTest {
         assertEquals(BoutTracker.State(), BoutTracker.State.decode(null))
     }
 
-    @Test fun anEndNeverReportedStillEnds() {
+    @Test fun anEndNeverReportedCountsOnlyTheStepsTaken() {
         val b = BoutTracker()
         b.enter(FootKind.WALK, at(11, 8), 0)
         assertNull(b.check(at(11, 11), 5000))
-        val bout = b.check(at(11, 12, 30), 9000)!!
-        assertEquals(270 * min, bout.movingMs)
-        assertEquals(9000, bout.steps)
+        // 4.5 h since the start, but 3,000 steps: 30 minutes of walking, not 4.5 hours.
+        val bout = b.check(at(11, 12, 30), 3000)!!
+        assertEquals(30 * min, bout.movingMs)
+        assertEquals(3000, bout.steps)
+        // Without counter readings, nothing is kept.
+        val c = BoutTracker()
+        c.enter(FootKind.WALK, at(11, 8), null)
+        assertNull(c.check(at(11, 12, 30), null))
     }
 }

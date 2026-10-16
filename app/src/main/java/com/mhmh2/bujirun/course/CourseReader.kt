@@ -31,7 +31,7 @@ class CourseReader(private val model: ((String) -> NluModel.Reading)?) {
                 "PA" -> PlaceRole.AROUND
                 else -> return@mapNotNull null
             }
-            val name = s.substring(sp.start, sp.end).replace(" ", "")
+            val name = wholeName(s, sp.start, sp.end)
             if (name.length < 2 || name in HERE) null else PlaceMention(name, role)
         }.distinctBy { it.name }
 
@@ -62,6 +62,29 @@ class CourseReader(private val model: ((String) -> NluModel.Reading)?) {
     }
 
     companion object {
+        /**
+         * The place a span points at, as the whole word(s) it falls in: the model sometimes stops
+         * inside a name ("맘스" of "맘스터치"), so the span is widened to the spaces either side,
+         * then a particle or a glued role word at the end comes off ("반포까지" -> "반포").
+         */
+        internal fun wholeName(s: String, start: Int, end: Int): String {
+            var a = start
+            var b = end
+            while (a > 0 && !s[a - 1].isWhitespace()) a--
+            while (b < s.length && !s[b].isWhitespace()) b++
+            var name = s.substring(a, b).replace(" ", "")
+            for (tail in TAILS) {
+                if (name.length > tail.length && name.endsWith(tail)) { name = name.dropLast(tail.length); break }
+            }
+            return name
+        }
+
+        // Longest first, so "에서부터" goes before "에서" and "부터".
+        private val TAILS = listOf(
+            "에서부터", "까지만", "근처에서", "주변에서", "따라서", "에서", "까지", "부터", "으로", "이랑", "근처", "주변", "따라",
+            "로", "을", "를", "은", "는", "이", "가", "에", "랑", "와", "과", "도", "만", "쪽",
+        ).sortedByDescending { it.length }
+
         /** Where the user is now; the course starts here anyway, nothing to look up. */
         private val HERE = setOf("집", "우리집", "회사", "숙소", "호텔", "학교", "여기", "거기", "지금위치", "현위치")
     }
