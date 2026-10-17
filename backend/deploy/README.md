@@ -115,21 +115,26 @@ Nothing on the server changes. On the new computer:
    - `~/.android/debug.keystore` - **required** (see "App signing key").
    - `~/.ssh/englishbite-key.pem` - server access. SSH is allowed from the home IP only: away
      from home the server times out until the security group gets the new IP.
+   - `~/.aws/config` and `credentials` - the AWS CLI, which is how the security group gets a
+     new IP (the original access-key csv needn't come).
    - `~/.secrets/bujirun_*` (admin email, TMAP and Durunubi keys) and, for NLU data generation,
      `~/.secrets/gemini_free_api_key.txt`.
    - `tools/nlu/data/` - only to retrain the NLU model (it's Gemini output; regenerating costs
      calls).
    - `%USERPROFILE%\BujirunBackups\` - the latest user DB copy.
+   - GitHub sign-in: cloning the public repo needs none, pushing does (Git Credential Manager;
+     check with `git push --dry-run`).
    - Not needed: `backend/*.db` (small local test DBs; a local server creates them), `dist/`
      (old APKs), `local.properties` (Android Studio writes it), the big data DBs (on the server).
 3. Local server for testing: `python -m venv .venv` in backend/, `.venv\Scripts\pip install -r
    requirements.txt`, then `.venv\Scripts\python -m uvicorn server:app --port 8100` and build
    with `-PbujirunApi=http://10.0.2.2:8100/` (emulator) - or test against the real server.
-4. Data tools, when needed: `pip install numpy tifffile` (shade, elevation; each holds ~150 MB
-   at a time, fine on 16 GB), torch for NLU training; run with `python -P`.
+4. Data tools, when needed: a venv with `numpy tifffile` (shade, elevation; each holds ~150 MB
+   at a time, fine on 16 GB) and CPU torch (NLU training); run with `python -P`.
 5. Check: `.\gradlew.bat testDebugUnitTest assembleDebug`; install over the existing app on the
    phone (works only with the same signing key); log in, including with Google; the server
-   health check answers.
+   health check answers; `aws sts get-caller-identity` works; and run the safe backup above once
+   from the new computer - that's when operations have really moved.
 
 On a slow laptop, check screens on the phone over wireless debugging instead of an emulator:
 Developer options -> Wireless debugging -> pair with a code, then `adb pair <ip>:<port>` and
@@ -138,5 +143,7 @@ can be tested on the phone with the admin start button's fake GPS (1x/5x/10x). I
 is needed: Windows Hypervisor Platform on, a light AVD (x86_64, no Play image, low resolution,
 `-memory 2048`), `.\gradlew.bat --stop` after building to free memory.
 
-Retiring the old computer: once the new one has built, installed over the phone's app and
-logged in with Google, delete its copies of the key, `.pem` and `.secrets`.
+Retiring the old computer: once the new one has built, installed over the phone's app,
+logged in with Google and taken a backup, the old one's copies of the key, `.pem`, `.aws` and
+`.secrets` can go - but only after EnglishBite has moved too: it uses the same `.pem`, `.aws`,
+`.secrets` and debug key (its scheduled backup pull, deploys and debug builds).
