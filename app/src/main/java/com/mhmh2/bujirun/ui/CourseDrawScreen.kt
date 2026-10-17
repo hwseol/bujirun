@@ -79,6 +79,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -150,6 +151,31 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
         }
     }
 
+    /** [p] becomes the start: the course so far then begins there (its first leg routed again). */
+    fun setStart(p: GeoPoint, name: String?) {
+        if (busy) return
+        startIsHere = false
+        val rest = waypoints.drop(1)
+        if (rest.isEmpty()) {
+            course = DrawnCourse(listOf(p), emptyList(), listOf(name))
+            return
+        }
+        val base = DrawnCourse(listOf(p) + rest, listOf(listOf(p, rest[0])) + course.segments.drop(1), listOf(name) + course.names.drop(1))
+        course = base
+        if (!followPaths) return
+        busy = true
+        scope.launch {
+            try {
+                val route = RouteApi.walk(p, rest[0])
+                if (course === base) course = base.withSegment(0, route)
+            } catch (e: ApiException) {
+                Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     /** Takes out point [i]; its neighbours are joined again (along the paths, when that's on). */
     fun removePoint(i: Int) {
         if (busy || i !in waypoints.indices) return
@@ -207,6 +233,8 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
     var searching by remember { mutableStateOf(false) }
     var nothingFound by remember { mutableStateOf(false) }
     var justPicked by remember { mutableStateOf(false) }
+    // A place picked from the search: the start, or the next point? Asked, not guessed.
+    var picked by remember { mutableStateOf<RouteApi.FoundPlace?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(query) {
         nothingFound = false
@@ -323,9 +351,10 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                                         naverMap?.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(r.point.lat, r.point.lon), 16.0))
                                         results = emptyList()
                                         justPicked = true
-                                        query = r.name
+                                        query = ""
                                         keyboard?.hide()
-                                        addPoint(r.point, r.name)
+                                        // Nothing drawn yet: it can only be the start.
+                                        if (waypoints.isEmpty()) setStart(r.point, r.name) else picked = r
                                     }.padding(horizontal = 16.dp, vertical = 10.dp)
                                 ) {
                                     Text(srv(r.name), style = MaterialTheme.typography.bodyLarge)
@@ -372,7 +401,11 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                     TextButton(onClick = { here?.let { course = DrawnCourse(listOf(it), emptyList(), listOf(myLocation)); startIsHere = true } }) { Text(tr("내 위치에서 출발하기", "Start from my location")) }
                 }
                 if (waypoints.isNotEmpty()) {
-                    PointList(course, startIsHere, onRemove = ::removePoint, enabled = !busy)
+                    PointList(
+                        course,
+                        onShow = { i -> course.points.getOrNull(i)?.let { pt -> naverMap?.moveCamera(CameraUpdate.scrollTo(LatLng(pt.lat, pt.lon)).animate(CameraAnimation.Easing)) } },
+                        onRemove = ::removePoint, enabled = !busy,
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(tr("길 따라 잇기", "Snap to paths"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
@@ -406,6 +439,25 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
         }
     }
 
+    picked?.let { r ->
+        val fromHere = startIsHere && waypoints.size == 1
+        AlertDialog(
+            onDismissRequest = { picked = null },
+            title = { Text(srv(r.name)) },
+            text = {
+                Text(
+                    if (fromHere) tr("여기서 출발할까요, 내 위치에서 여기까지 갈까요?", "Start here, or go here from your location?")
+                    else tr("코스의 출발지로 할까요, 다음 지점으로 넣을까요?", "Make it the start, or the next point?")
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { picked = null; addPoint(r.point, r.name) }) {
+                    Text(if (fromHere) tr("내 위치에서 여기까지", "From my location") else tr("다음 지점으로", "Next point"))
+                }
+            },
+            dismissButton = { TextButton(onClick = { picked = null; setStart(r.point, r.name) }) { Text(tr("여기서 출발", "Start here")) } },
+        )
+    }
     if (naming) {
         NameDialog(tr("코스 이름", "Course name"), tr("내 코스 ${formatKm(distance)}km", "My course ${formatKm(distance)}km"), onDismiss = { naming = false }) { name ->
             naming = false
@@ -419,14 +471,16 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
  * along each is and an X to take it out (the points either side are joined again).
  */
 @Composable
-private fun PointList(course: DrawnCourse, startIsHere: Boolean, onRemove: (Int) -> Unit, enabled: Boolean) {
+private fun PointList(course: DrawnCourse, onShow: (Int) -> Unit, onRemove: (Int) -> Unit, enabled: Boolean) {
     val colors = MaterialTheme.colorScheme
     val along = course.pointDistances()
     val last = course.points.lastIndex
     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 168.dp).padding(vertical = 4.dp)) {
         items(course.points.size) { i ->
             val end = i == last && i > 0
-            Row(Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
+            // A tap shows the point on the map; the x takes it out (the start too, even "my
+            // location": the next point then starts the course).
+            Row(Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(10.dp)).clickable { onShow(i) }, verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.size(24.dp).clip(CircleShape).background(
                         when { i == 0 -> Color(START_GREEN); end -> Color(END_DARK); else -> colors.primary }
@@ -447,7 +501,7 @@ private fun PointList(course: DrawnCourse, startIsHere: Boolean, onRemove: (Int)
                         Text("${formatKm(along[i])}km", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                     }
                 }
-                IconButton(onClick = { onRemove(i) }, enabled = enabled && !(i == 0 && startIsHere && course.points.size > 1)) {
+                IconButton(onClick = { onRemove(i) }, enabled = enabled) {
                     Icon(Icons.Filled.Close, tr("이 지점 빼기", "Remove this point"), Modifier.size(18.dp))
                 }
             }
