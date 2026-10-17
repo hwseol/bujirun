@@ -1,5 +1,26 @@
 package com.mhmh2.bujirun.ui
 
+import androidx.compose.material.icons.filled.PlayArrow
+
+import androidx.compose.ui.draw.shadow
+
+import androidx.compose.foundation.clickable
+
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.positionInWindow
+
+import androidx.compose.ui.layout.onGloballyPositioned
+
+import androidx.compose.animation.slideOutVertically
+
+import androidx.compose.animation.slideInVertically
+
+import androidx.compose.animation.fadeOut
+
+import androidx.compose.animation.fadeIn
+
+import androidx.compose.animation.AnimatedVisibility
+
 import com.mhmh2.bujirun.tr
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.FilledTonalIconButton
@@ -138,6 +159,13 @@ fun HomeScreen(
     }
     val steps = maxOf(healthSteps ?: 0L, today.steps)
 
+    // The big round button sits under the goal; when it's below the fold (a small screen, a large
+    // font) a start bar stays pinned at the bottom instead, so starting is never hidden.
+    var viewBottom by remember { mutableStateOf(0f) }
+    var buttonBottom by remember { mutableStateOf(0f) }
+    val buttonHidden = viewBottom > 0f && buttonBottom > viewBottom
+    val sub = if (dial == null) tr("자유 기록", "Free run") else tr("목표 ", "Goal ") + dial.label(values.getValue(kind))
+    Box(Modifier.fillMaxSize().onGloballyPositioned { viewBottom = it.boundsInWindow().bottom }) {
     Column(
         // Scrolls: with a large system font the goal and the start button still fit, just lower.
         // No inset padding of its own: the Scaffold's covers the bars, and the keyboard's (still
@@ -190,11 +218,11 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(20.dp))
-        StartButton(
-            tr("시작", "Start"),
-            sub = if (dial == null) tr("자유 기록", "Free run") else tr("목표 ", "Goal ") + dial.label(values.getValue(kind)),
-            onClick = { onStart(goal) },
-        )
+        // Unclipped position (bounds would be cut to the visible part): hidden once less than
+        // ~60% of it shows.
+        Box(Modifier.onGloballyPositioned { buttonBottom = it.positionInWindow().y + it.size.height * 0.6f }) {
+            StartButton(tr("시작", "Start"), sub = sub, onClick = { onStart(goal) })
+        }
         Text(
             if (permissionDenied) tr("기록하려면 위치 권한이 필요해요", "Location permission is needed to record") else tr("걷기와 달리기는 자동으로 구분해요", "Walking and running are detected automatically"),
             style = MaterialTheme.typography.bodySmall,
@@ -202,7 +230,31 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(if (buttonHidden) 96.dp else 24.dp))
+    }
+    AnimatedVisibility(
+        buttonHidden, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it },
+        modifier = Modifier.align(Alignment.BottomCenter),
+    ) { StartBar(sub, onClick = { onStart(goal) }) }
+    }
+}
+
+/** The pinned start: a gradient pill, as loud as the round button. */
+@Composable
+private fun StartBar(sub: String, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(64.dp)
+            .shadow(12.dp, RoundedCornerShape(50), ambientColor = Brand.Coral, spotColor = Brand.Coral)
+            .clip(RoundedCornerShape(50)).background(Brand.gradient).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(30.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(tr("시작", "Start"), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.width(10.dp))
+            Text(sub, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        }
     }
 }
 
