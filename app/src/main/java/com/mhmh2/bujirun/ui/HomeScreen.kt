@@ -101,6 +101,8 @@ fun HomeScreen(
     nickname: String?,
     onStart: (Goal) -> Unit,
 ) {
+    val scroll = rememberScrollState()
+    BackToTop(scroll.value == 0, { scroll.animateScrollTo(0) }, onTop = null)
     var kind by remember {
         mutableStateOf(
             when (initialGoal) {
@@ -140,7 +142,7 @@ fun HomeScreen(
         // Scrolls: with a large system font the goal and the start button still fit, just lower.
         // No inset padding of its own: the Scaffold's covers the bars, and the keyboard's (still
         // counted for a moment after signing in) would cut off the lower half.
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Header(nickname)

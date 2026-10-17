@@ -85,7 +85,7 @@ object PendingImport {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: Int) -> Unit, onAi: () -> Unit) {
+fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: Int) -> Unit, onAi: () -> Unit, onBackAtTop: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val courses by remember { CourseStore.observeAll() }.collectAsState(initial = null)
@@ -112,6 +112,7 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
     var query by rememberSaveable { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    BackToTop(listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0, { listState.animateScrollToItem(0) }, onBackAtTop)
     // One list for the whole screen: the cards above scroll away with the courses, so a long
     // list has the full height to scroll in.
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = 20.dp)) {

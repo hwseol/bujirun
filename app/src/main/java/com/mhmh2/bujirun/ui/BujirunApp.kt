@@ -256,9 +256,10 @@ fun BujirunApp() {
                         onDraw = { drawingCourse = true },
                         onSuggest = { t -> suggestTab = t; suggesting = true },
                         onAi = { aiCourse = true },
+                        onBackAtTop = { tab = Tab.HOME },
                     )
-                    Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it })
-                    Tab.SETTINGS -> SettingsScreen(onAccount = { account = true })
+                    Tab.HISTORY -> HistoryScreen(onOpen = { openWorkout = it }, onBackAtTop = { tab = Tab.HOME })
+                    Tab.SETTINGS -> SettingsScreen(onAccount = { account = true }, onBackAtTop = { tab = Tab.HOME })
                 }
             }
             }

@@ -1,5 +1,11 @@
 package com.mhmh2.bujirun.ui
 
+import kotlinx.coroutines.launch
+
+import androidx.compose.runtime.rememberCoroutineScope
+
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -140,4 +146,16 @@ fun StartButton(text: String, sub: String?, onClick: () -> Unit, size: Dp = 148.
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = modifier)
+}
+
+/**
+ * Back on a tab: first up to the top if it's scrolled down, then [onTop] (another tab goes to
+ * home); with nothing left to do, back leaves the app as usual.
+ */
+@Composable
+fun BackToTop(atTop: Boolean, toTop: suspend () -> Unit, onTop: (() -> Unit)?) {
+    val scope = rememberCoroutineScope()
+    BackHandler(enabled = !atTop || onTop != null) {
+        if (!atTop) scope.launch { toTop() } else onTop?.invoke()
+    }
 }

@@ -72,7 +72,9 @@ private val intervals get() = listOf(
 )
 
 @Composable
-fun SettingsScreen(onAccount: () -> Unit) {
+fun SettingsScreen(onAccount: () -> Unit, onBackAtTop: (() -> Unit)? = null) {
+    val scroll = rememberScrollState()
+    BackToTop(scroll.value == 0, { scroll.animateScrollTo(0) }, onBackAtTop)
     val voiceOn by Prefs.voiceEnabled.collectAsState()
     val autoPause by Prefs.autoPause.collectAsState()
     var interval by remember { mutableStateOf(Prefs.cueInterval) }
@@ -94,7 +96,7 @@ fun SettingsScreen(onAccount: () -> Unit) {
         else Toast.makeText(context, tr("권한을 허용해야 삼성헬스에 저장할 수 있어요", "Allow access to save to Samsung Health"), Toast.LENGTH_LONG).show()
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 20.dp)) {
         Text(tr("설정", "Settings"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
 
         // Who's signed in, in the brand card: opens the account page.

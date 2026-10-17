@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+
 import com.mhmh2.bujirun.tr
 import androidx.compose.foundation.layout.size
 
@@ -74,7 +76,9 @@ import kotlin.math.roundToInt
  * with the walks and runs 자동 기록 found without the app.
  */
 @Composable
-fun HistoryScreen(onOpen: (Long) -> Unit) {
+fun HistoryScreen(onOpen: (Long) -> Unit, onBackAtTop: (() -> Unit)? = null) {
+    val listState = rememberLazyListState()
+    BackToTop(listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0, { listState.animateScrollToItem(0) }, onBackAtTop)
     val workouts by remember { WorkoutStore.observeDone() }.collectAsState(initial = null)
     val list = workouts ?: return
     val zone = ZoneId.systemDefault()
@@ -110,7 +114,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit) {
         } else null
     }
 
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), state = listState) {
         item {
             Text(tr("기록", "History"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {

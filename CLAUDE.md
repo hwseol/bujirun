@@ -28,8 +28,11 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
   `BUJIRUN_ADMIN_EMAIL` (not in this public repo); the app trusts the server's `is_admin`.
 - The repo is public on GitHub (hwseol/bujirun): never commit keys, the admin email, or SSH
   details. Server access notes live outside the repo.
-- Test the app against a local server: run `uvicorn server:app --port 8100` in backend/ (the
-  EnglishBite venv has fastapi) and build with `-PbujirunApi=http://10.0.2.2:8100/`.
+- Test the app against a local server: run `uvicorn server:app --port 8100` in backend/ (a venv
+  from backend/requirements.txt) and build with `-PbujirunApi=http://10.0.2.2:8100/`.
+- The service runs on the server alone; a dev computer only builds the app and rebuilds data.
+  All APKs are signed with the dev PC's `~/.android/debug.keystore` (its SHA-1 is registered
+  for Google sign-in): copy it to any new dev computer. Moving and backups: backend/deploy/README.md.
   Backend tests: `python -m unittest test_accounts` in backend/.
 - Admin's start button offers a real workout or a fake-GPS test run at 1x/5x/10x (FakeRun +
   a scaled clock in WorkoutService, everything reads `now()`). Test runs are saved with

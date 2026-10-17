@@ -69,3 +69,74 @@ that overlap a place). The app credits "ESA WorldCover 2021".
 `copernicus-dem-30m` S3 bucket, ~570 MB) into the same copy of places.db as the shade map (it
 keeps the blocks that have shade blocks). It's a surface model (trees and buildings included),
 so backend/elevation.py median-filters the profile. Credit: Copernicus DEM (ESA).
+
+## What lives where
+The service needs only the server: code, data and secrets are all on it, and nothing on the
+server reads from a dev PC. A dev PC is needed only to build the app and to rebuild data.
+
+| | where the real copy is | rebuildable? |
+|---|---|---|
+| `accounts.db` (users, sessions), `notices.db` | server `~/bujirun/data` | **no** - see Backups |
+| `cache.db`, `landmarks.db` | server | yes, they refill themselves |
+| `places.db` (+ shade/elevation tables), `trails.db`, `waterside.db` | server | yes, slowly (syncs, ~750 MB of map downloads, the waterside prebuild); fetch the server copy instead |
+| secrets (TMAP, Durunubi, admin email) | server `secrets.conf`, local copies in `~/.secrets/bujirun_*` | re-issue from the providers |
+| app signing key | dev PC `~/.android/debug.keystore` | **no** - see below |
+
+To work on data on a dev PC, fetch the server copy, build into it, upload it whole:
+```
+scp -i <key>.pem ec2-user@<server>:~/bujirun/data/places.db .
+```
+
+**App signing key.** There's no release key yet: every APK, testers' included, is signed with
+the dev PC's debug key (`~/.android/debug.keystore`). Its SHA-1 is registered for Google
+sign-in (the Android OAuth client in Google Cloud Console). Building on another computer with
+a different key breaks Google sign-in, and phones refuse to install it over the existing app -
+testers would have to uninstall, losing their workouts. So copy this file to every dev computer
+and keep a second copy somewhere safe. A real release key (and its SHA-1 added to the OAuth
+client) is a job for before Play Store release.
+
+## Backups
+Not automated yet: one user (the admin) as of 2026-10-17. Take a copy before anything risky
+(account schema changes, server moves), and set up a daily server-side copy before testers
+grow - user data is the one thing that can't be rebuilt. Safe copy while the service runs
+(sqlite's online backup, read-only on the live file):
+```
+python3 -c "import sqlite3; [sqlite3.connect(f'file:/home/ec2-user/bujirun/data/{n}.db?mode=ro', uri=True).backup(sqlite3.connect(f'/tmp/bj_{n}.db')) for n in ('accounts', 'notices')]"
+scp -i <key>.pem ec2-user@<server>:/tmp/bj_*.db .      # then rm /tmp/bj_*.db on the server
+```
+Restore: stop `bujirun-api`, put the copy in place as `~/bujirun/data/accounts.db`, start it.
+Last copy: 2026-10-17 in `%USERPROFILE%\BujirunBackups\` on the dev PC.
+
+## Moving to another dev computer
+Nothing on the server changes. On the new computer:
+1. Android Studio (SDK; the AGP/Gradle versions come from the repo), Git, Python 3.11+.
+   `git clone https://github.com/hwseol/bujirun.git`.
+2. Copy from the old computer:
+   - `~/.android/debug.keystore` - **required** (see "App signing key").
+   - `~/.ssh/englishbite-key.pem` - server access. SSH is allowed from the home IP only: away
+     from home the server times out until the security group gets the new IP.
+   - `~/.secrets/bujirun_*` (admin email, TMAP and Durunubi keys) and, for NLU data generation,
+     `~/.secrets/gemini_free_api_key.txt`.
+   - `tools/nlu/data/` - only to retrain the NLU model (it's Gemini output; regenerating costs
+     calls).
+   - `%USERPROFILE%\BujirunBackups\` - the latest user DB copy.
+   - Not needed: `backend/*.db` (small local test DBs; a local server creates them), `dist/`
+     (old APKs), `local.properties` (Android Studio writes it), the big data DBs (on the server).
+3. Local server for testing: `python -m venv .venv` in backend/, `.venv\Scripts\pip install -r
+   requirements.txt`, then `.venv\Scripts\python -m uvicorn server:app --port 8100` and build
+   with `-PbujirunApi=http://10.0.2.2:8100/` (emulator) - or test against the real server.
+4. Data tools, when needed: `pip install numpy tifffile` (shade, elevation; each holds ~150 MB
+   at a time, fine on 16 GB), torch for NLU training; run with `python -P`.
+5. Check: `.\gradlew.bat testDebugUnitTest assembleDebug`; install over the existing app on the
+   phone (works only with the same signing key); log in, including with Google; the server
+   health check answers.
+
+On a slow laptop, check screens on the phone over wireless debugging instead of an emulator:
+Developer options -> Wireless debugging -> pair with a code, then `adb pair <ip>:<port>` and
+`adb connect <ip>:<port>`; `adb install`, `adb shell screencap` work as with USB. Course runs
+can be tested on the phone with the admin start button's fake GPS (1x/5x/10x). If an emulator
+is needed: Windows Hypervisor Platform on, a light AVD (x86_64, no Play image, low resolution,
+`-memory 2048`), `.\gradlew.bat --stop` after building to free memory.
+
+Retiring the old computer: once the new one has built, installed over the phone's app and
+logged in with Google, delete its copies of the key, `.pem` and `.secrets`.
