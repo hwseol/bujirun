@@ -2,6 +2,8 @@ package com.mhmh2.bujirun.tracking
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MotionTest {
@@ -103,5 +105,19 @@ class MotionTest {
         // Jogging on the spot at a red light, or GPS lagging: steps mean "not standing".
         val d = AutoPauseDetector()
         (0..20).forEach { assertEquals(AutoPauseDetector.Decision.NONE, d.update(it * 1000L, false, 0.2, 0.1, 10)) }
+    }
+
+    @Test fun aRidePausesAndOnlyAHumanPaceResumes() {
+        val d = AutoPauseDetector()
+        // Running, then the bus: paused at once, as a ride.
+        assertEquals(AutoPauseDetector.Decision.NONE, d.update(0, false, 3.0, 3.0, 12))
+        assertEquals(AutoPauseDetector.Decision.PAUSE, d.update(1000, false, 9.0, 10.0, 0))
+        assertTrue(d.inVehicle)
+        // Walking down the moving bus: steps, but bus speed. Stays paused.
+        for (t in 2..5) assertEquals(AutoPauseDetector.Decision.NONE, d.update(t * 1000L, true, 10.0, 10.0, 8))
+        // Off the bus, running again.
+        assertEquals(AutoPauseDetector.Decision.NONE, d.update(6000, true, 4.0, 3.0, 10))
+        assertEquals(AutoPauseDetector.Decision.RESUME, d.update(7000, true, 3.0, 3.0, 10))
+        assertFalse(d.inVehicle)
     }
 }

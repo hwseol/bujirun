@@ -440,7 +440,9 @@ class WorkoutService : LifecycleService() {
         val announce = t.distanceM >= 10
         when (decision) {
             AutoPauseDetector.Decision.PAUSE -> if (t.status == WorkoutStatus.RUNNING) {
-                t.pause(now, keepPlace = true)
+                // Off a ride, the runner starts afresh where they got off, not a line from where
+                // they got on.
+                t.pause(now, keepPlace = !autoPause.inVehicle)
                 pausedBy = PausedBy.AUTO
                 if (announce) say(Cue.AutoPaused)
             }

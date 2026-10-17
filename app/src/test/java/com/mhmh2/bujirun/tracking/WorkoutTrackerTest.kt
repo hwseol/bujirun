@@ -71,6 +71,24 @@ class WorkoutTrackerTest {
         assertEquals(1, t.track.map { it.segment }.distinct().size)
     }
 
+    @Test fun aRideOrAGpsJumpIsNotDistanceRun() {
+        // 300 m run, then 2 km in a car (14 m/s) with fixes, then 300 m run: only 600 m count.
+        val t = WorkoutTracker()
+        t.start(0)
+        t.run(0, 0.0, seconds = 100, mps = 3.0)
+        for (i in 1..143) t.onLocation(at(100_000 + i * 1000L, 300 + i * 14.0))
+        t.run(244_000, 2302.0, seconds = 100, mps = 3.0)
+        // (A few metres go at the hand-offs, where the first step after the ride starts afresh.)
+        assertEquals(600.0, t.distanceM, 15.0)
+        // A fix 900 m away after 40 s without any (accepted after the gap, but no runner).
+        val j = WorkoutTracker()
+        j.start(0)
+        j.run(0, 0.0, seconds = 60, mps = 3.0)
+        j.onLocation(at(100_000, 1080.0))
+        j.run(101_000, 1083.0, seconds = 30, mps = 3.0)
+        assertEquals(270.0, j.distanceM, 10.0)
+    }
+
     @Test fun pausedTimeAndMovementDoNotCount() {
         val t = WorkoutTracker()
         t.start(0)

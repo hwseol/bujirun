@@ -115,11 +115,19 @@ class AutoPauseDetector(
     private val moveSpeedMps: Double = 0.9,
     private val stillHoldMs: Long = 3_000,
     private val moveHoldTicks: Int = 2,
+    // Riding something (bus, car, subway above ground): faster than running. Paused right away
+    // and resumed only at a human pace; the ride itself counts neither time nor distance.
+    private val vehicleSpeedMps: Double = 7.0,
+    private val humanTopMps: Double = 6.0,
 ) {
     enum class Decision { NONE, PAUSE, RESUME }
 
     private var stillSinceMs: Long? = null
     private var movingTicks = 0
+
+    /** The current auto-pause is for a ride, not a stop: the place isn't kept (see pause). */
+    var inVehicle = false
+        private set
 
     /**
      * @param slowSpeed speed over a longer window (~8 s), steady enough to call "still"
@@ -129,6 +137,12 @@ class AutoPauseDetector(
     fun update(nowMs: Long, autoPaused: Boolean, slowSpeed: Double?, quickSpeed: Double?, recentSteps: Int?): Decision {
         if (!autoPaused) {
             movingTicks = 0
+            inVehicle = false
+            if (slowSpeed != null && slowSpeed > vehicleSpeedMps) {
+                stillSinceMs = null
+                inVehicle = true
+                return Decision.PAUSE
+            }
             // No fixes at all (tunnel, underpass) is not evidence of standing still.
             val still = slowSpeed != null && slowSpeed < stillSpeedMps && (recentSteps == null || recentSteps <= 1)
             if (!still) {
@@ -141,10 +155,16 @@ class AutoPauseDetector(
             return Decision.PAUSE
         }
         stillSinceMs = null
+        // After a ride only a human pace ends it: steps taken walking down a moving bus don't.
+        if (inVehicle && quickSpeed != null && quickSpeed > humanTopMps) {
+            movingTicks = 0
+            return Decision.NONE
+        }
         val moving = (quickSpeed != null && quickSpeed >= moveSpeedMps) || (recentSteps != null && recentSteps >= 6)
         movingTicks = if (moving) movingTicks + 1 else 0
         if (movingTicks < moveHoldTicks) return Decision.NONE
         movingTicks = 0
+        inVehicle = false
         return Decision.RESUME
     }
 }

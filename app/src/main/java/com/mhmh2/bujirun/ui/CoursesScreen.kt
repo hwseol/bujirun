@@ -65,6 +65,11 @@ import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.ParsedGpx
 import com.mhmh2.bujirun.course.sourceEnum
 import com.mhmh2.bujirun.data.CourseEntity
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.PaddingValues
 import com.mhmh2.bujirun.tracking.formatKm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,37 +106,61 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
         pending?.let { PendingImport.uri.value = null; import(it) }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text(tr("코스", "Courses"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
-        // The one used most first: courses around here, each kind a tap away.
-        NearbyHeroCard(onSuggest)
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MakeCard(Icons.Filled.Draw, tr("DIY 코스 만들기", "Draw a course"), tr("지도에 점을 찍어\n나만의 코스", "Tap points on the map for your own course"), onDraw, Modifier.weight(1f))
-            MakeCard(Icons.Filled.AutoAwesome, tr("AI 코스 추천", "AI course"), tr("말하듯 적으면\n코스를 짜 드려요", "Describe it, get a course"), onAi, Modifier.weight(1f), ai = true)
+    var query by rememberSaveable { mutableStateOf("") }
+    // One list for the whole screen: the cards above scroll away with the courses, so a long
+    // list has the full height to scroll in.
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp)) {
+        item {
+            Text(tr("코스", "Courses"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
+            // The one used most first: courses around here, each kind a tap away.
+            NearbyHeroCard(onSuggest)
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MakeCard(Icons.Filled.Draw, tr("DIY 코스 만들기", "Draw a course"), tr("지도에 점을 찍어\n나만의 코스", "Tap points on the map for your own course"), onDraw, Modifier.weight(1f))
+                MakeCard(Icons.Filled.AutoAwesome, tr("AI 코스 추천", "AI course"), tr("말하듯 적으면\n코스를 짜 드려요", "Describe it, get a course"), onAi, Modifier.weight(1f), ai = true)
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(tr("내 코스", "My courses"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                // GPX has no reliable MIME type across apps and file managers; accept anything and
+                // let the parser decide.
+                TextButton(onClick = { picker.launch(arrayOf("*/*")) }) {
+                    Icon(Icons.Filled.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(tr("GPX 불러오기", "Import GPX"))
+                }
+            }
         }
-        // GPX has no reliable MIME type across apps and file managers; accept anything and let
-        // the parser decide.
-        TextButton(onClick = { picker.launch(arrayOf("*/*")) }, modifier = Modifier.align(Alignment.End)) {
-            Icon(Icons.Filled.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(tr("GPX 불러오기", "Import GPX"))
-        }
-        Text(tr("내 코스", "My courses"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))
-        val list = courses ?: return@Column
+        val list = courses ?: return@LazyColumn
         if (list.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            item {
                 Text(
                     tr("아직 저장한 코스가 없어요.\nAI 추천이나 DIY로 만들거나, Strava 등에서 받은 GPX를 불러오세요.\n", "No saved courses yet.\nMake one with AI or by drawing, or import a GPX from Strava or other apps.\n") +
                         tr("운동 기록 요약 화면에서 '코스로 저장'도 할 수 있어요.", "You can also save a workout's route as a course from its summary."),
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                 )
             }
-            return@Column
+            return@LazyColumn
         }
-        LazyColumn {
-            items(list, key = { it.id }) { c -> CourseRow(c, onClick = { onOpen(c.id) }) }
-            item { Spacer(Modifier.height(24.dp)) }
+        if (list.size > 3) item {
+            OutlinedTextField(
+                value = query, onValueChange = { query = it },
+                placeholder = { Text(tr("내 코스 검색 (이름, 거리)", "Search my courses (name, distance)")) },
+                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, tr("지우기", "Clear")) } },
+                singleLine = true, shape = RoundedCornerShape(50),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            )
         }
+        val shown = list.filter { matches(it, query) }
+        if (shown.isEmpty()) item {
+            Text(
+                tr("'$query'에 맞는 코스가 없어요", "No course matches '$query'"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+            )
+        }
+        items(shown, key = { it.id }) { c -> CourseRow(c, onClick = { onOpen(c.id) }) }
+        item { Spacer(Modifier.height(24.dp)) }
     }
 
     parsed?.let { (gpx, fileName) ->
@@ -145,6 +174,15 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
             }
         )
     }
+}
+
+/** A search matches the name (spaces and case ignored) or the distance ("5", "5km", "3.2"). */
+private fun matches(c: CourseEntity, query: String): Boolean {
+    val q = query.lowercase().replace(" ", "")
+    if (q.isEmpty()) return true
+    if (c.name.lowercase().replace(" ", "").contains(q)) return true
+    val km = q.removeSuffix("km").toDoubleOrNull() ?: return false
+    return kotlin.math.abs(c.distanceM / 1000 - km) < if (q.contains('.')) 0.15 else 0.6
 }
 
 /** The way in to courses around here, the most used: each kind (its tab) one tap away. */

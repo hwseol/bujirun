@@ -62,6 +62,10 @@ class WorkoutTracker(
         const val STALE_SPEED_MS = 5_000L   // no speed reading for this long: don't trust the last ones
         const val MIN_MOVING_MPS = 0.5      // slower than this is standing; distance tells it better
         const val COURSE_ACCURACY_M = 50f   // on a course, fixes this rough still place the runner
+        // Faster than any runner holds (7 m/s is 2'23"/km): a car, a bus, a train, or a GPS jump
+        // after a gap. Such a stretch isn't distance run; the track carries on from there.
+        const val MAX_RUN_MPS = 7.0
+        const val MIN_JUMP_M = 20.0
     }
 
     // Course progress at [anchor] (see onLocation).
@@ -188,6 +192,11 @@ class WorkoutTracker(
         val valid = along != null && along >= 0 && along <= 8 * dtS + 30 && along <= gps * 2 + 30
         val step = if (!valid) gps else if (dtS > 10) maxOf(along!!, gps) else along!!
         if (step < minStepM) return
+        if (dtS > 0 && step / dtS > MAX_RUN_MPS && step > MIN_JUMP_M) {
+            anchor = sample
+            anchorAlong = courseAlongM
+            return
+        }
         anchorAlong = courseAlongM
         distanceM += step
         elevation.add(sample.altitudeM, step)
