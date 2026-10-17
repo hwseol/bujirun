@@ -185,6 +185,10 @@ interface PassiveDao {
     @Query("DELETE FROM auto_activities WHERE id = :id") suspend fun deleteActivity(id: Long)
     @Query("DELETE FROM auto_activities WHERE movingMs >= :ms") suspend fun deleteActivitiesLongerThan(ms: Long): Int
     @Query("SELECT COUNT(*) FROM workouts WHERE startedAt < :end AND endedAt > :start") suspend fun workoutsOverlapping(start: Long, end: Long): Int
+    @Query("SELECT COUNT(*) FROM auto_activities WHERE startedAt < :end AND endedAt > :start") suspend fun activitiesOverlapping(start: Long, end: Long): Int
+    // The same walk recorded twice (a transition delivered again): the first one stays.
+    @Query("DELETE FROM auto_activities WHERE EXISTS (SELECT 1 FROM auto_activities o WHERE o.id < auto_activities.id AND o.startedAt < auto_activities.endedAt AND o.endedAt > auto_activities.startedAt)")
+    suspend fun deleteOverlappingActivities(): Int
 
     @Query("SELECT * FROM day_steps") fun observeDaySteps(): Flow<List<DayStepsEntity>>
     @Query("SELECT steps FROM day_steps WHERE day = :day") suspend fun daySteps(day: String): Long?

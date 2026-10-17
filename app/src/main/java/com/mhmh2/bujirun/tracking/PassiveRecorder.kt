@@ -121,6 +121,7 @@ object PassiveRecorder {
         // Walks an earlier version recorded as the whole 4 hours after a start whose end never
         // came (not walking at all): gone.
         WorkoutStore.database.passive().deleteActivitiesLongerThan(BoutTracker.MAX_MS - 60_000)
+        WorkoutStore.database.passive().deleteOverlappingActivities()
         if (!isOn(context)) return@withLock
         val now = System.currentTimeMillis()
         val counter = recordSteps(context, now)
@@ -143,6 +144,8 @@ object PassiveRecorder {
         val dao = WorkoutStore.database.passive()
         // Already recorded with the app (a workout at the same time): that one is the record.
         if (dao.workoutsOverlapping(b.startMs, b.endMs) > 0) return
+        // Or already recorded: the system can deliver the same transitions again.
+        if (dao.activitiesOverlapping(b.startMs, b.endMs) > 0) return
         val activity = if (b.kind == FootKind.RUN) Activity.RUN else Activity.WALK
         dao.insertActivity(
             AutoActivityEntity(
