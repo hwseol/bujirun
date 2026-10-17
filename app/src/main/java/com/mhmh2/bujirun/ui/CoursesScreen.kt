@@ -65,6 +65,8 @@ import com.mhmh2.bujirun.course.CourseStore
 import com.mhmh2.bujirun.course.ParsedGpx
 import com.mhmh2.bujirun.course.sourceEnum
 import com.mhmh2.bujirun.data.CourseEntity
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -81,6 +83,7 @@ object PendingImport {
     val uri = MutableStateFlow<Uri?>(null)
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: Int) -> Unit, onAi: () -> Unit) {
     val context = LocalContext.current
@@ -107,9 +110,11 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
     }
 
     var query by rememberSaveable { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     // One list for the whole screen: the cards above scroll away with the courses, so a long
     // list has the full height to scroll in.
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = 20.dp)) {
         item {
             Text(tr("코스", "Courses"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
             // The one used most first: courses around here, each kind a tap away.
@@ -141,14 +146,20 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
             }
             return@LazyColumn
         }
-        if (list.size > 3) item {
+        // Stays at the top while the list scrolls; tapped, it goes up there, so the matches show
+        // above the keyboard.
+        if (list.size > 3) stickyHeader {
             OutlinedTextField(
                 value = query, onValueChange = { query = it },
                 placeholder = { Text(tr("내 코스 검색 (이름, 거리)", "Search my courses (name, distance)")) },
                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                 trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, tr("지우기", "Clear")) } },
                 singleLine = true, shape = RoundedCornerShape(50),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(vertical = 8.dp)
+                    .onFocusChanged { f ->
+                        searching = f.isFocused
+                        if (f.isFocused) scope.launch { listState.animateScrollToItem(1) }
+                    },
             )
         }
         val shown = list.filter { matches(it, query) }
@@ -160,7 +171,8 @@ fun CoursesScreen(onOpen: (Long) -> Unit, onDraw: () -> Unit, onSuggest: (tab: I
             )
         }
         items(shown, key = { it.id }) { c -> CourseRow(c, onClick = { onOpen(c.id) }) }
-        item { Spacer(Modifier.height(24.dp)) }
+        // Room below a few matches, so the search box can still go up to the top.
+        item { Spacer(if (searching || query.isNotEmpty()) Modifier.fillParentMaxHeight() else Modifier.height(24.dp)) }
     }
 
     parsed?.let { (gpx, fileName) ->
