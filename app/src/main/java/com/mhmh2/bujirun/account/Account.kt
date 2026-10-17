@@ -75,6 +75,16 @@ object Account {
         save(u)
     }
 
+    /** A new password with the code emailed by the server; signs in. */
+    suspend fun resetPassword(email: String, code: String, password: String) =
+        store(AuthApi.confirmReset(AccountRules.normalizeEmail(email), code.trim(), password))
+
+    /** [current] is null for a Google-made account adding its first password. */
+    suspend fun changePassword(current: String?, password: String) {
+        val t = token ?: return
+        save(AuthApi.changePassword(t, current, password))
+    }
+
     suspend fun logOut() {
         token?.let { AuthApi.logOut(it) }
         clear()

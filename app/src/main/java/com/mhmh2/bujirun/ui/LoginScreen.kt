@@ -57,6 +57,13 @@ fun LoginScreen() {
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    var forgot by rememberSaveable { mutableStateOf(false) }
+    if (forgot) {
+        androidx.activity.compose.BackHandler { forgot = false }
+        ForgotPasswordScreen(initialEmail = email, onClose = { forgot = false })
+        return
+    }
+
     val emailOk = AccountRules.isValidEmail(email)
     val nicknameOk = AccountRules.isValidNickname(nickname)
     val passwordOk = if (signUp) AccountRules.isValidPassword(password) else password.isNotEmpty()
@@ -196,12 +203,9 @@ fun LoginScreen() {
             }) { Text(if (signUp) tr("로그인", "Log in") else tr("가입하기", "Sign up")) }
         }
         if (!signUp) {
-            Text(
-                tr("비밀번호를 잊으셨다면 운영자에게 문의해 주세요.", "Forgot your password? Contact the admin."),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            TextButton(onClick = { forgot = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text(tr("비밀번호를 잊으셨나요?", "Forgot your password?"))
+            }
         }
     }
 }

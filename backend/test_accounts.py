@@ -97,6 +97,47 @@ class AccountsTest(unittest.TestCase):
         finally:
             accounts.GOOGLE_CLIENT_ID = ""
 
+    def test_reset_by_email_code(self):
+        u = accounts.create_user("r@x.com", "리셋러", "password1")
+        old = accounts.create_session(u["id"])
+        sent = []
+        accounts.request_reset("R@x.com", send=lambda to, subject, body: sent.append((to, body)))
+        self.assertEqual(sent[0][0], "r@x.com")
+        code = sent[0][1].split(": ")[1][:6]
+        # Unknown emails look the same and send nothing.
+        accounts.request_reset("nobody@x.com", send=lambda *a: sent.append(a))
+        self.assertEqual(len(sent), 1)
+        # Not again within a minute.
+        with self.assertRaises(accounts.AccountError):
+            accounts.request_reset("r@x.com", send=lambda *a: None)
+        with self.assertRaises(accounts.AccountError):
+            accounts.confirm_reset("r@x.com", "000000" if code != "000000" else "111111", "newpass99")
+        accounts.confirm_reset("r@x.com", code, "newpass99")
+        accounts.verify_login("r@x.com", "newpass99")
+        self.assertIsNone(accounts.user_by_token(old))
+        # A code works once.
+        with self.assertRaises(accounts.AccountError):
+            accounts.confirm_reset("r@x.com", code, "another99")
+
+    def test_reset_code_tries_run_out(self):
+        accounts.create_user("t@x.com", "시도러", "password1")
+        sent = []
+        accounts.request_reset("t@x.com", send=lambda to, subject, body: sent.append(body))
+        code = sent[0].split(": ")[1][:6]
+        bad = "000000" if code != "000000" else "111111"
+        for _ in range(accounts.RESET_MAX_TRIES):
+            with self.assertRaises(accounts.AccountError):
+                accounts.confirm_reset("t@x.com", bad, "newpass99")
+        with self.assertRaises(accounts.AccountError):
+            accounts.confirm_reset("t@x.com", code, "newpass99")
+
+    def test_change_password(self):
+        u = accounts.create_user("c@x.com", "바꿈러", "password1")
+        with self.assertRaises(accounts.AccountError):
+            accounts.change_password(u, "wrong", "newpass99")
+        accounts.change_password(u, "password1", "newpass99")
+        accounts.verify_login("c@x.com", "newpass99")
+
     def test_delete_and_reset(self):
         u = accounts.create_user("a@b.co", "러너", "password1")
         token = accounts.create_session(u["id"])

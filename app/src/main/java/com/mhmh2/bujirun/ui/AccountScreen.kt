@@ -134,6 +134,7 @@ fun AccountScreen(onClose: () -> Unit, onOpenWorkout: (Long) -> Unit) {
     var editingGoal by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    var changingPassword by remember { mutableStateOf(false) }
     val photo by ProfilePhoto.bitmap.collectAsState()
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
@@ -254,7 +255,10 @@ fun AccountScreen(onClose: () -> Unit, onOpenWorkout: (Long) -> Unit) {
 
         Spacer(Modifier.height(24.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.weight(1f)) { Text(tr("로그아웃", "Log out")) }
+            OutlinedButton(onClick = { changingPassword = true }, modifier = Modifier.weight(1f)) {
+                Text(if (u.hasPassword) tr("비밀번호 변경", "Change password") else tr("비밀번호 만들기", "Add a password"), maxLines = 1)
+            }
+            OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.weight(1f)) { Text(tr("로그아웃", "Log out"), maxLines = 1) }
         }
         TextButton(onClick = { deleting = true }, modifier = Modifier.padding(top = 4.dp)) {
             Text(tr("계정 삭제", "Delete account"), color = MaterialTheme.colorScheme.error)
@@ -280,6 +284,7 @@ fun AccountScreen(onClose: () -> Unit, onOpenWorkout: (Long) -> Unit) {
         )
     }
     if (deleting) DeleteAccountDialog(u.hasPassword, onDismiss = { deleting = false })
+    if (changingPassword) PasswordDialog(u.hasPassword, onDismiss = { changingPassword = false })
 }
 
 @Composable
@@ -405,6 +410,67 @@ private fun NicknameDialog(current: String, onDismiss: () -> Unit) {
                     }
                 }
             }) { Text(tr("저장", "Save")) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(tr("취소", "Cancel")) } },
+    )
+}
+
+/** A new password; the current one is asked for if the account has one (a Google-made
+ * account adds its first, so it can also log in with email). */
+@Composable
+private fun PasswordDialog(hasPassword: Boolean, onDismiss: () -> Unit) {
+    var current by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(if (hasPassword) tr("비밀번호 변경", "Change password") else tr("비밀번호 만들기", "Add a password")) },
+        text = {
+            Column {
+                if (!hasPassword) Text(
+                    tr("만들어 두면 구글 없이 이메일과 비밀번호로도 로그인할 수 있어요.", "Then you can also log in with your email and password."),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp),
+                )
+                if (hasPassword) OutlinedTextField(
+                    value = current, onValueChange = { current = it; error = null }, singleLine = true,
+                    label = { Text(tr("지금 비밀번호", "Current password")) },
+                    visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it; error = null }, singleLine = true,
+                    label = { Text(tr("새 비밀번호 (8자 이상)", "New password (8+ characters)")) },
+                    visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                OutlinedTextField(
+                    value = again, onValueChange = { again = it; error = null }, singleLine = true,
+                    label = { Text(tr("새 비밀번호 확인", "Confirm new password")) }, isError = again.isNotEmpty() && again != password,
+                    visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp)) }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !busy && (!hasPassword || current.isNotEmpty()) && AccountRules.isValidPassword(password) && password == again,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            Account.changePassword(current.takeIf { hasPassword }, password)
+                            Toast.makeText(context, tr("비밀번호를 저장했어요", "Password saved"), Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        } catch (e: AuthException) {
+                            error = e.message
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+            ) { Text(tr("저장", "Save")) }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(tr("취소", "Cancel")) } },
     )

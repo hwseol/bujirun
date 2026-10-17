@@ -31,6 +31,19 @@ object AuthApi {
         Api.post("/auth/delete_me", JSONObject().apply { if (password != null) put("password", password) }, token)
     }
 
+    /** Whether the server can email reset codes. */
+    suspend fun resetByEmail(): Boolean = Api.get("/auth/reset/available").optBoolean("email", false)
+
+    suspend fun requestReset(email: String) {
+        Api.post("/auth/reset/request", JSONObject().put("email", email))
+    }
+
+    suspend fun confirmReset(email: String, code: String, password: String): AuthResult =
+        authCall("/auth/reset/confirm", JSONObject().put("email", email).put("code", code).put("password", password))
+
+    suspend fun changePassword(token: String, current: String?, password: String): User =
+        userOf(Api.post("/auth/password", JSONObject().put("password", password).apply { if (current != null) put("current", current) }, token))
+
     fun userOf(json: JSONObject) = User(
         json.getString("email"), json.getString("nickname"), json.optBoolean("is_admin", false),
         hasPassword = json.optBoolean("has_password", true),

@@ -13,7 +13,9 @@ import urllib.parse
 import urllib.request
 import re
 import secrets
+import smtplib
 import sqlite3
+from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -28,6 +30,14 @@ PBKDF2_ITERATIONS = 260_000
 # Google sign-in: the OAuth web client ID the app asks Google for an ID token with (public, but
 # set on the server like the rest of its configuration). Unset means Google sign-in is off.
 GOOGLE_CLIENT_ID = os.environ.get("BUJIRUN_GOOGLE_CLIENT_ID", "").strip()
+
+# Password reset codes go out by email through an SMTP account set on the server (e.g. Gmail
+# with an app password): BUJIRUN_SMTP_HOST / _PORT / _USER / _PASSWORD, and _FROM for the
+# sender shown. Unset means no email: the app then offers Google sign-in or the operator.
+SMTP = {k: os.environ.get(f"BUJIRUN_SMTP_{k.upper()}", "").strip() for k in ("host", "port", "user", "password", "from")}
+RESET_CODE_LIFETIME = timedelta(minutes=15)
+RESET_MAX_TRIES = 5          # wrong codes before the code is void
+RESET_RESEND_AFTER = timedelta(seconds=60)
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
 
@@ -59,6 +69,14 @@ def init_db() -> None:
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS password_resets (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id),
+                code_hash TEXT NOT NULL,
+                code_salt TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                sent_at TEXT NOT NULL,
+                tries INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
@@ -188,6 +206,7 @@ def delete_user(email: str, password: str) -> None:
     conn = _connect()
     try:
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+        conn.execute("DELETE FROM password_resets WHERE user_id = ?", (user["id"],))
         conn.execute("DELETE FROM users WHERE id = ?", (user["id"],))
         conn.commit()
     finally:
@@ -276,6 +295,101 @@ def google_user(claims: dict) -> sqlite3.Row:
         )
         conn.commit()
         return conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
+    finally:
+        conn.close()
+
+
+def can_email() -> bool:
+    return bool(SMTP["host"] and SMTP["user"] and SMTP["password"])
+
+
+def _send_mail(to: str, subject: str, body: str) -> None:
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = SMTP["from"] or SMTP["user"]
+    msg["To"] = to
+    msg.set_content(body)
+    with smtplib.SMTP(SMTP["host"], int(SMTP["port"] or 587), timeout=15) as s:
+        s.starttls()
+        s.login(SMTP["user"], SMTP["password"])
+        s.send_message(msg)
+
+
+def request_reset(email: str, send=None) -> None:
+    """Emails a 6-digit code for a password reset. Says nothing about whether the account
+    exists (the app shows the same message either way); a Google-made account gets a code too,
+    which lets it add a password."""
+    if send is None and not can_email():
+        raise AccountError("지금은 이메일로 재설정할 수 없어요. 운영자에게 문의해 주세요.")
+    email = normalize_email(email)
+    now = datetime.now(timezone.utc)
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if row is None:
+            return
+        prev = conn.execute("SELECT sent_at FROM password_resets WHERE user_id = ?", (row["id"],)).fetchone()
+        if prev and now - datetime.fromisoformat(prev["sent_at"]) < RESET_RESEND_AFTER:
+            raise AccountError("방금 코드를 보냈어요. 1분 뒤에 다시 시도해 주세요.")
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        h, salt = _hash(code)
+        conn.execute(
+            "INSERT OR REPLACE INTO password_resets (user_id, code_hash, code_salt, expires_at, sent_at, tries) VALUES (?, ?, ?, ?, ?, 0)",
+            (row["id"], h, salt, (now + RESET_CODE_LIFETIME).isoformat(), now.isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    body = (f"부지런 비밀번호 재설정 코드: {code}\n\n"
+            "앱의 '비밀번호 찾기' 화면에 입력해 주세요. 15분 동안 쓸 수 있어요.\n"
+            "직접 요청하지 않았다면 이 메일은 무시하셔도 돼요.")
+    try:
+        (send or _send_mail)(email, f"[부지런] 비밀번호 재설정 코드 {code}", body)
+    except Exception:
+        raise AccountError("메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.")
+
+
+def confirm_reset(email: str, code: str, new_password: str) -> sqlite3.Row:
+    """Sets a new password with the emailed code; other sessions are signed out."""
+    if len(new_password) < 8:
+        raise AccountError("비밀번호는 8자 이상이어야 해요.")
+    wrong = AccountError("코드가 맞지 않거나 만료됐어요. 다시 받아 주세요.")
+    conn = _connect()
+    try:
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (normalize_email(email),)).fetchone()
+        r = user and conn.execute("SELECT * FROM password_resets WHERE user_id = ?", (user["id"],)).fetchone()
+        if not r or datetime.now(timezone.utc) > datetime.fromisoformat(r["expires_at"]) or r["tries"] >= RESET_MAX_TRIES:
+            raise wrong
+        if not secrets.compare_digest(_hash(code.strip(), r["code_salt"])[0], r["code_hash"]):
+            conn.execute("UPDATE password_resets SET tries = tries + 1 WHERE user_id = ?", (user["id"],))
+            conn.commit()
+            raise wrong
+        h, salt = _hash(new_password)
+        conn.execute("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?", (h, salt, user["id"]))
+        conn.execute("DELETE FROM password_resets WHERE user_id = ?", (user["id"],))
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+        conn.commit()
+        return conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
+    finally:
+        conn.close()
+
+
+def change_password(user: sqlite3.Row, current: str | None, new_password: str) -> sqlite3.Row:
+    """From the account page: needs the current password if there is one (a Google-made
+    account can add its first password without)."""
+    if len(new_password) < 8:
+        raise AccountError("비밀번호는 8자 이상이어야 해요.")
+    if has_password(user):
+        try:
+            verify_login(user["email"], current or "")
+        except AccountError:
+            raise AccountError("지금 비밀번호가 맞지 않아요.")
+    h, salt = _hash(new_password)
+    conn = _connect()
+    try:
+        conn.execute("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?", (h, salt, user["id"]))
+        conn.commit()
+        return conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
     finally:
         conn.close()
 

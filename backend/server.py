@@ -132,6 +132,55 @@ def delete_me(req: DeleteMeRequest, authorization: str | None = Header(None)):
     return {"ok": True}
 
 
+class ResetRequest(BaseModel):
+    email: str
+
+
+@app.get("/auth/reset/available")
+def reset_available():
+    """Whether reset codes can be emailed (the app picks what to offer)."""
+    return {"email": accounts.can_email()}
+
+
+@app.post("/auth/reset/request")
+def reset_request(req: ResetRequest):
+    try:
+        accounts.request_reset(req.email)
+    except accounts.AccountError as e:
+        _fail(e)
+    return {"ok": True}
+
+
+class ResetConfirm(BaseModel):
+    email: str
+    code: str
+    password: str
+
+
+@app.post("/auth/reset/confirm")
+def reset_confirm(req: ResetConfirm):
+    """New password with the emailed code; signs in on this phone."""
+    try:
+        user = accounts.confirm_reset(req.email, req.code, req.password)
+    except accounts.AccountError as e:
+        _fail(e)
+    return {"token": accounts.create_session(user["id"]), **accounts.public(user)}
+
+
+class PasswordChange(BaseModel):
+    current: str | None = None
+    password: str
+
+
+@app.post("/auth/password")
+def change_password(req: PasswordChange, authorization: str | None = Header(None)):
+    user = _user(authorization)
+    try:
+        return accounts.public(accounts.change_password(user, req.current, req.password))
+    except accounts.AccountError as e:
+        _fail(e)
+
+
 @app.post("/auth/delete")
 def delete_account(req: LoginRequest):
     try:
