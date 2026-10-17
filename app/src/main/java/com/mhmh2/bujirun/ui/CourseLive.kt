@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -133,7 +135,22 @@ fun CourseLiveMap(
 
     Box(modifier) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
-        TurnBanner(progress, Modifier.align(Alignment.TopCenter).padding(12.dp))
+        // The banner, and right under it the reroute button: up top, away from the pause and
+        // finish buttons below the map, where a thumb hits it by accident.
+        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.End) {
+            TurnBanner(progress, Modifier.align(Alignment.CenterHorizontally))
+            Spacer(Modifier.height(8.dp))
+            ExtendedFloatingActionButton(
+                onClick = { if (!rerouting) onReroute() },
+                icon = {
+                    if (rerouting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Filled.Refresh, contentDescription = null)
+                },
+                text = { Text(if (rerouting) tr("경로 찾는 중", "Finding route") else tr("경로 다시 찾기", "Find route again")) },
+                containerColor = if (!progress.onCourse && progress.started) MaterialTheme.colorScheme.errorContainer
+                else MaterialTheme.colorScheme.secondaryContainer,
+            )
+        }
         Column(
             Modifier.align(Alignment.BottomEnd).padding(12.dp),
             horizontalAlignment = Alignment.End,
@@ -150,18 +167,6 @@ fun CourseLiveMap(
                 SmallFloatingActionButton(onClick = { following = true }) {
                     Icon(Icons.Filled.MyLocation, contentDescription = tr("내 위치로", "To my location"))
                 }
-            }
-            Row {
-                ExtendedFloatingActionButton(
-                    onClick = { if (!rerouting) onReroute() },
-                    icon = {
-                        if (rerouting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Filled.Refresh, contentDescription = null)
-                    },
-                    text = { Text(if (rerouting) tr("경로 찾는 중", "Finding route") else tr("경로 다시 찾기", "Find route again")) },
-                    containerColor = if (!progress.onCourse && progress.started) MaterialTheme.colorScheme.errorContainer
-                    else MaterialTheme.colorScheme.secondaryContainer,
-                )
             }
         }
     }
