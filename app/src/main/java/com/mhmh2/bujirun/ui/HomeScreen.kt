@@ -138,7 +138,9 @@ fun HomeScreen(
 
     Column(
         // Scrolls: with a large system font the goal and the start button still fit, just lower.
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
+        // No inset padding of its own: the Scaffold's covers the bars, and the keyboard's (still
+        // counted for a moment after signing in) would cut off the lower half.
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Header(nickname)

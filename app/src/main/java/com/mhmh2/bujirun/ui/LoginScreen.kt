@@ -56,6 +56,9 @@ fun LoginScreen() {
     var busy by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    // Signing in closes the keyboard first, so the home screen doesn't open beside it.
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
 
     var forgot by rememberSaveable { mutableStateOf(false) }
     if (forgot) {
@@ -70,6 +73,8 @@ fun LoginScreen() {
     val againOk = password == passwordAgain
 
     fun submit() {
+        keyboard?.hide()
+        focus.clearFocus()
         attempted = true
         serverError = null
         if (!emailOk || !passwordOk || (signUp && (!nicknameOk || !againOk)) || busy) return
@@ -170,6 +175,8 @@ fun LoginScreen() {
             Spacer(Modifier.height(10.dp))
             androidx.compose.material3.OutlinedButton(
                 onClick = {
+                    keyboard?.hide()
+                    focus.clearFocus()
                     busy = true
                     serverError = null
                     scope.launch {
