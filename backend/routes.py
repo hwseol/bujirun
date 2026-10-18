@@ -303,6 +303,10 @@ def loops(start: list[float], distance_m: float, user_id: int, count: int = 3, s
                 break
             pts = remove_spurs(r["points"])
             length = route_length(pts)
+            if length <= 0:
+                # Nothing left once the spurs are cut (the router went out and back on one
+                # street): this direction gives no loop. (It once divided by zero below.)
+                break
             ratio = length / distance_m
             candidate = {"distance_m": round(length), "points": pts, "ratio": ratio}
             if best is None or abs(ratio - 1) < abs(best["ratio"] - 1):

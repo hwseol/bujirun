@@ -104,6 +104,14 @@ class LoopTest(unittest.TestCase):
         with self.assertRaises(routes.RouteError):
             routes.loops(self.START, 5000, user_id=1, route=always_fails)
 
+    def test_a_route_with_no_length_is_skipped_not_a_crash(self):
+        # The router going out and back on one street: nothing left after the spurs are cut.
+        routes._usage.clear()
+        def there_and_back(start, end, via):
+            return {"distance_m": None, "points": [start, via[0], start]}
+        with self.assertRaises(routes.RouteError):
+            routes.loops(self.START, 5000, user_id=1, route=there_and_back)
+
 
 if __name__ == "__main__":
     unittest.main()
