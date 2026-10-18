@@ -104,8 +104,9 @@ class AccountsTest(unittest.TestCase):
         accounts.request_reset("R@x.com", send=lambda to, subject, body: sent.append((to, body)))
         self.assertEqual(sent[0][0], "r@x.com")
         code = sent[0][1].split(": ")[1][:6]
-        # Unknown emails look the same and send nothing.
-        accounts.request_reset("nobody@x.com", send=lambda *a: sent.append(a))
+        # An email with no account is told so, and nothing is sent.
+        with self.assertRaises(accounts.AccountError):
+            accounts.request_reset("nobody@x.com", send=lambda *a: sent.append(a))
         self.assertEqual(len(sent), 1)
         # Not again within a minute.
         with self.assertRaises(accounts.AccountError):

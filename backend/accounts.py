@@ -316,9 +316,9 @@ def _send_mail(to: str, subject: str, body: str) -> None:
 
 
 def request_reset(email: str, send=None) -> None:
-    """Emails a 6-digit code for a password reset. Says nothing about whether the account
-    exists (the app shows the same message either way); a Google-made account gets a code too,
-    which lets it add a password."""
+    """Emails a 6-digit code for a password reset; a Google-made account gets one too, which
+    lets it add a password. An email with no account is said so (sign-up already tells which
+    emails are taken, so hiding it here protected nothing and only confused)."""
     if send is None and not can_email():
         raise AccountError("지금은 이메일로 재설정할 수 없어요. 운영자에게 문의해 주세요.")
     email = normalize_email(email)
@@ -327,7 +327,7 @@ def request_reset(email: str, send=None) -> None:
     try:
         row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if row is None:
-            return
+            raise AccountError("가입되지 않은 이메일이에요. 주소를 확인하거나 새로 가입해 주세요.")
         prev = conn.execute("SELECT sent_at FROM password_resets WHERE user_id = ?", (row["id"],)).fetchone()
         if prev and now - datetime.fromisoformat(prev["sent_at"]) < RESET_RESEND_AFTER:
             raise AccountError("방금 코드를 보냈어요. 1분 뒤에 다시 시도해 주세요.")

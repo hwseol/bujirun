@@ -140,8 +140,11 @@ dependencies {
 }
 
 // Debug packaging updates the APK in place and leaves the space of replaced entries behind:
-// a phone APK grew to twice its real size (31 MB for 14.5). Starting each package from an
-// empty output keeps what's sent through chat as small as its contents.
-tasks.matching { it.name.startsWith("package") && it.name.endsWith("Debug") }.configureEach {
-    doFirst { delete(layout.buildDirectory.dir("outputs/apk/debug")) }
+// a phone APK grew to twice its real size (31 MB for 14.5). So each debug package starts from
+// nothing - the APKs *and* the packager's incremental state removed by a task before it, so
+// Gradle sees its outputs gone and packages in full. (Deleting only the APKs inside the task
+// itself made it write just the changed entries into an empty file: a 2-entry, broken APK.)
+val freshDebugApk = tasks.register<Delete>("freshDebugApk") {
+    delete(layout.buildDirectory.dir("outputs/apk/debug"), layout.buildDirectory.dir("intermediates/incremental/packageDebug"))
 }
+tasks.matching { it.name == "packageDebug" }.configureEach { dependsOn(freshDebugApk) }
