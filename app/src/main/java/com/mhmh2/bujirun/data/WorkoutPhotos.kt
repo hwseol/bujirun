@@ -19,10 +19,10 @@ import kotlinx.coroutines.withContext
 data class WorkoutPhoto(val uri: Uri, val takenAt: Long?, val addedId: Long? = null)
 
 /**
- * The photos taken during a workout. Those on the phone (camera, downloads, and what Google
- * Photos / Samsung Cloud keep on it) are found by the time they were taken - nothing to do;
- * others (in the cloud only) are added with the system photo picker, which shows the cloud
- * library too, and remembered with the workout.
+ * The photos taken during a workout, added with the system photo picker (phone and cloud
+ * library, no permission) and remembered with the workout. The automatic lookup on the phone by
+ * time ([onPhone]) only runs where a gallery permission is granted - and the manifest declares
+ * none for Play's photo policy, so it finds nothing; kept for a later return.
  */
 object WorkoutPhotos {
     /** What to ask for to read the phone's photos: Android 14+ also offers "selected photos only". */

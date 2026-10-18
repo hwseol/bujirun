@@ -62,10 +62,7 @@ privacy policy URL and a short reason per permission:
 - **Foreground service, type location** (FOREGROUND_SERVICE_LOCATION): declare "the user starts
   a workout and the app records the route with the screen off"; Play asks for a short video of
   starting a workout and the ongoing notification. Expected to pass: it's the core feature.
-- **Photos: READ_MEDIA_IMAGES** - Play's photo and video policy allows broad photo access only
-  when it's core to the app; otherwise the system photo picker must be used. Bujirun reads the
-  gallery to find photos taken during a workout (by time). That may be judged not core, and the
-  review can be rejected. Options: declare it and see, or ship without the automatic lookup
-  (keep only "add photos" through the picker, which needs no permission).
+- **Photos**: no gallery permission (removed 2026-10-18 for Play's photo policy); workout photos
+  come from the system photo picker, which needs none. Nothing to declare.
 - Activity recognition, calendar, boot completed, notifications: no special declaration beyond
   the Data safety form.

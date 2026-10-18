@@ -31,7 +31,7 @@ KO = """
 <li>운동 기록: 경로(GPS 위치), 시간, 거리, 페이스, 칼로리, 걸음 수</li>
 <li>자동 기록(켜 둔 경우): 걷기·달리기 활동, 하루 걸음 수 — 신체 활동 인식과 걸음 센서를 사용하며 GPS는 쓰지 않습니다</li>
 <li>내 코스, 체중(칼로리 계산용), 앱 설정, 프로필 사진</li>
-<li>운동 사진: 운동 시간에 찍은 휴대폰 사진을 앱 안에서 보여 줄 뿐, 사진을 업로드하지 않습니다</li>
+<li>운동 사진: 사용자가 고른 사진을 운동 경로 위에 보여 줄 뿐, 사진을 업로드하지 않습니다</li>
 </ul>
 <p>이 정보는 안드로이드의 기본 백업 기능을 켠 경우 사용자의 구글 계정 백업(구글 드라이브)에 함께 백업될 수 있으며,
 앱 개발자는 이 백업에 접근할 수 없습니다.</p>
@@ -59,7 +59,7 @@ KO = """
 <p>이 기능은 해당 권한을 허용한 경우에만 동작하며, 데이터는 사용자의 기기와 계정 안에서만 오갑니다.</p>
 
 <h2>6. 권한</h2>
-<p>위치(운동 기록), 알림(운동 중 안내), 신체 활동 인식(걸음·자동 기록), 사진(운동 사진 보기), 캘린더와 Health Connect(사용자가 켠 경우)를 사용합니다. 거부해도 해당 기능 외에는 쓸 수 있습니다.</p>
+<p>위치(운동 기록), 알림(운동 중 안내), 신체 활동 인식(걸음·자동 기록), 캘린더와 Health Connect(사용자가 켠 경우)를 사용합니다. 사진은 사용자가 시스템 사진 선택기로 고른 것만 볼 수 있으며 사진 접근 권한은 요청하지 않습니다. 거부해도 해당 기능 외에는 쓸 수 있습니다.</p>
 
 <h2>7. 계정 삭제와 데이터 삭제</h2>
 <ul>
@@ -88,7 +88,8 @@ we receive only your verified email and name.</p>
 <h2>Only on your phone</h2>
 <p>Workouts (GPS route, time, distance, pace, calories, steps), auto-recorded walks and daily
 steps (activity recognition and the step sensor, no GPS), your courses, weight, settings and
-profile photo. Workout photos are shown from your phone's gallery and never uploaded. If Android
+profile photo. Workout photos are the ones you pick with the system photo picker (no photo
+permission is asked), shown on the route and never uploaded. If Android
 backup is on, this data may be included in your own Google Drive backup, which we can't access.</p>
 <h2>Sent but not kept with your account</h2>
 <p>For course suggestions, routes and place search: start and point coordinates and search

@@ -73,10 +73,13 @@ fun PhotoStrip(
     val colors = MaterialTheme.colorScheme
     Text(tr("운동하며 찍은 사진", "Photos from the run"), style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
-    if (!canRead) {
-        TextButton(onClick = onAllow, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            Text(tr("폰에 있는 사진 중 이 운동 시간에 찍은 사진 보기", "Show photos taken on this phone during the workout"))
-        }
+    // Without the gallery permission (see the manifest) photos come from the picker only.
+    if (photos.isEmpty() && !canRead) {
+        Text(
+            tr("운동하며 찍은 사진을 고르면 경로 위 찍은 자리에 보여 줘요.", "Pick photos from the run to see them where they were taken."),
+            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
     }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(photos, key = { _, p -> p.uri.toString() }) { i, p ->
