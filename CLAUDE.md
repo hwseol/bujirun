@@ -5,7 +5,8 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
 
 ## Build and test APKs
 - Debug builds are split per CPU type (the NAVER map SDK's native code is ~23 MB per ABI):
-  - phone: `app/build/outputs/apk/debug/app-arm64-v8a-debug.apk` (~28 MB)
+  - phone: `app/build/outputs/apk/debug/app-arm64-v8a-debug.apk` (~15 MB: debug builds run R8,
+    and each package starts from an empty output - in-place updates had left it twice its size)
   - emulator: `app/build/outputs/apk/debug/app-x86_64-debug.apk`
 - Sending to the phone through chat has a 30 MiB limit. Copy the arm64 APK to `dist/` with a
   descriptive name (e.g. `dist/bujirun-m6.apk`, git-ignored) and send that. If it grows past

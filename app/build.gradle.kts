@@ -55,6 +55,16 @@ android {
     }
 
     buildTypes {
+        // Test APKs go to phones through chat (30 MiB limit): R8 drops the unused library code
+        // (the full icon set alone is megabytes), about 20 MB of dex otherwise.
+        debug {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -127,4 +137,11 @@ dependencies {
     implementation(libs.credentials.play)
     implementation(libs.google.id)
     testImplementation(libs.junit)
+}
+
+// Debug packaging updates the APK in place and leaves the space of replaced entries behind:
+// a phone APK grew to twice its real size (31 MB for 14.5). Starting each package from an
+// empty output keeps what's sent through chat as small as its contents.
+tasks.matching { it.name.startsWith("package") && it.name.endsWith("Debug") }.configureEach {
+    doFirst { delete(layout.buildDirectory.dir("outputs/apk/debug")) }
 }
