@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto Backup (to the user's Google Drive), Android 8-11. Workouts live only on the
+     phone, so this is their backup: the database, the settings, the profile photo. Nothing
+     else (map tiles, exports, voice cache), so it stays under the 25 MB limit longer. -->
+<full-backup-content>
+    <include domain="database" path="bujirun.db" />
+    <include domain="sharedpref" path="prefs.xml" />
+    <include domain="sharedpref" path="account.xml" />
+    <include domain="file" path="profile.jpg" />
+</full-backup-content>

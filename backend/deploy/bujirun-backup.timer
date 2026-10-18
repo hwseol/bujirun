@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Bujirun data backup
+
+[Timer]
+# 03:45 UTC = 12:45 KST, a quarter hour after EnglishBite's backup.
+OnCalendar=*-*-* 03:45:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

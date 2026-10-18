@@ -211,6 +211,16 @@ fun SettingsScreen(onAccount: () -> Unit, onBackAtTop: (() -> Unit)? = null) {
                     )
                 }
             }
+            Divider()
+            // The policy page on the server (backend/privacy.py), in the browser.
+            Text(
+                tr("개인정보처리방침", "Privacy policy"),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.fillMaxWidth().clickable {
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(com.mhmh2.bujirun.BuildConfig.API_BASE.trimEnd('/') + "/privacy")))
+                }.padding(vertical = 4.dp),
+            )
         }
         Spacer(Modifier.height(32.dp))
     }

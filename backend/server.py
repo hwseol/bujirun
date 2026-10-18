@@ -8,6 +8,7 @@ older app builds stay installed on phones.
 import time
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 import accounts
@@ -17,6 +18,7 @@ import landmarks
 import notices
 import places
 import planner
+import privacy
 import routes
 import shade
 import trails
@@ -362,6 +364,12 @@ def places_search(q: str, lat: float, lon: float, authorization: str | None = He
 def notices_after(after: int = 0):
     """Notices newer than the last one the phone has shown (no login: it's the same for all)."""
     return {"notices": notices.active(max(0, after))}
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_policy():
+    """The privacy policy, linked from the app's settings and the store listing."""
+    return privacy.page()
 
 
 @app.get("/health")

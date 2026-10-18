@@ -96,20 +96,42 @@ the dev PC's debug key (`~/.android/debug.keystore`). Its SHA-1 is registered fo
 sign-in (the Android OAuth client in Google Cloud Console). Building on another computer with
 a different key breaks Google sign-in, and phones refuse to install it over the existing app -
 testers would have to uninstall, losing their workouts. So copy this file to every dev computer
-and keep a second copy somewhere safe. A real release key (and its SHA-1 added to the OAuth
-client) is a job for before Play Store release.
+and keep a second copy somewhere safe. Copies: the dev PC's `%USERPROFILE%\BujirunBackups\keys\`
+and the server's `~/bujirun/keys/` (mode 600). For the Play Store, Play App Signing keeps the
+app signing key; an upload key is made at the first upload (and its SHA-1 added to the OAuth
+client then).
 
 ## Backups
-Not automated yet: one user (the admin) as of 2026-10-17. Take a copy before anything risky
-(account schema changes, server moves), and set up a daily server-side copy before testers
-grow - user data is the one thing that can't be rebuilt. Safe copy while the service runs
-(sqlite's online backup, read-only on the live file):
+**Workouts are not on the server**: they live only on each phone. Their backup is Android's own
+(to the user's Google Drive), limited by `res/xml/backup_rules.xml` and
+`data_extraction_rules.xml` to the database, the two preference files and the profile photo, so
+it stays under Android's 25 MB limit (tested: backup, clear data, restore - logged in, workouts
+back).
+
+**Server** - `bujirun-backup.timer` (daily 03:45 UTC = 12:45 KST) runs `deploy/backup.py`:
+accounts.db and notices.db through sqlite's online backup into `~/bujirun/backups/<date>/`
+(integrity-checked, 14 days kept, mode 600); places, trails and waterside gzipped into
+`~/bujirun/backups/built/` only when they change. Install or update:
 ```
-python3 -c "import sqlite3; [sqlite3.connect(f'file:/home/ec2-user/bujirun/data/{n}.db?mode=ro', uri=True).backup(sqlite3.connect(f'/tmp/bj_{n}.db')) for n in ('accounts', 'notices')]"
-scp -i <key>.pem ec2-user@<server>:/tmp/bj_*.db .      # then rm /tmp/bj_*.db on the server
+scp -i <key>.pem backend/deploy/{backup.py,bujirun-backup.service,bujirun-backup.timer} <user>@<server>:~/bujirun/backend/deploy/
+ssh ... 'sudo cp ~/bujirun/backend/deploy/bujirun-backup.{service,timer} /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now bujirun-backup.timer'
 ```
-Restore: stop `bujirun-api`, put the copy in place as `~/bujirun/data/accounts.db`, start it.
-Last copy: 2026-10-17 in `%USERPROFILE%\BujirunBackups\` on the dev PC.
+Run one now: `sudo systemctl start bujirun-backup.service`; log: `journalctl -u bujirun-backup`.
+
+**Dev PC** - the scheduled task `BujirunBackupPull` (daily 13:30) runs `deploy/pull_backup.ps1`
+into `%USERPROFILE%\BujirunBackups\` (30 days kept, big files only when changed; `pull.log`).
+Register on a new computer:
+```
+$s = "<repo>\backend\deploy\pull_backup.ps1"
+Register-ScheduledTask -TaskName BujirunBackupPull -Trigger (New-ScheduledTaskTrigger -Daily -At 13:30) `
+  -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$s`" -Key `"<key.pem>`" -Server <user@host>") `
+  -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable)
+```
+Only one computer needs it (two would just keep two copies): with two dev computers on, run
+`Disable-ScheduledTask BujirunBackupPull` on one.
+
+Restore: stop `bujirun-api`, put the copy in place as `~/bujirun/data/accounts.db` (or gunzip a
+built DB into `~/bujirun/data/`), start it.
 
 ## Moving to another dev computer
 Nothing on the server changes. On the new computer:

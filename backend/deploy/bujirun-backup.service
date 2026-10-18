@@ -1,0 +1,12 @@
+[Unit]
+Description=Bujirun data backup (accounts, notices; built DBs when changed)
+
+[Service]
+Type=oneshot
+User=ec2-user
+Environment=BJ_DATA_DIR=/home/ec2-user/bujirun/data
+Environment=BJ_BACKUP_DIR=/home/ec2-user/bujirun/backups
+ExecStart=/home/ec2-user/bujirun/backend/.venv/bin/python /home/ec2-user/bujirun/backend/deploy/backup.py
+Nice=10
+# User data: readable by ec2-user only.
+UMask=0077
