@@ -52,6 +52,10 @@ servers (no key; they're often busy, the script retries). Credits shown by the a
 공공데이터포털 전국도시공원정보표준데이터, © OpenStreetMap 기여자.
 
 ## Forgotten password
+The app emails a 6-digit code (POST /auth/reset/request, /auth/reset/confirm) once the server
+has an SMTP account: run `backend/deploy/set_smtp.ps1 -Key <key.pem> -Server <user@host>`
+yourself (asks for a Gmail address and its app password, hidden; writes the root-only
+`smtp.conf` drop-in and restarts). Without it, the operator resets by hand:
 ```
 cd ~/bujirun/backend && BJ_DATA_DIR=~/bujirun/data .venv/bin/python reset_password.py someone@example.com
 ```
