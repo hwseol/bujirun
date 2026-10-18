@@ -1,7 +1,7 @@
 # Turns on password-reset emails: stores a Gmail address and its app password on the server
 # (/etc/systemd/system/bujirun-api.service.d/smtp.conf, root-only) and restarts the API.
-# Run it yourself - the password is typed here, hidden, and goes to the server over ssh stdin
-# (never on a command line, never in this repo).
+# Run it yourself - the password is read from the clipboard (then cleared) and goes to the
+# server over ssh stdin (never on a command line, on screen, or in this repo).
 #
 #   powershell -ExecutionPolicy Bypass -File backend\deploy\set_smtp.ps1 -Key <key.pem> -Server <user@host>
 #
@@ -13,10 +13,14 @@ param(
 $ErrorActionPreference = "Stop"
 
 $address = Read-Host "Gmail address that sends the codes"
-$secure = Read-Host "App password (16 letters; hidden)" -AsSecureString
-$password = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-    [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)) -replace "\s", ""
-if ($password.Length -ne 16) { throw "An app password has 16 letters (spaces don't count)." }
+# From the clipboard: pasting into a hidden prompt doesn't work in every console window.
+Read-Host "Copy the app password (Ctrl+C on Google's page), then press Enter here" | Out-Null
+$password = ((Get-Clipboard) -join "") -replace "\s", ""
+Set-Clipboard -Value " "   # don't leave it there
+if ($password.Length -ne 16) {
+    # Only the count, never the letters.
+    throw "The clipboard held $($password.Length) letters; an app password has 16 (spaces don't count). Nothing was sent - copy it and run again."
+}
 
 $conf = @"
 [Service]
