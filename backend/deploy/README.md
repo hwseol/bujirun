@@ -101,6 +101,13 @@ and the server's `~/bujirun/keys/` (mode 600). For the Play Store, Play App Sign
 app signing key; an upload key is made at the first upload (and its SHA-1 added to the OAuth
 client then).
 
+## Before a Play Store release
+- A domain of our own: the server address (now sslip.io) and Google's OAuth branding, which
+  needs a verified domain - until then the Google sign-in sheet shows the old project name
+  ("shw"). Branding needs the app name, logo, the privacy policy at `/privacy` on that domain.
+- Play App Signing: Google keeps the app signing key; an upload key is made at the first
+  upload, and its SHA-1 (and Play's) added to the Android OAuth client.
+
 ## Backups
 **Workouts are not on the server**: they live only on each phone. Their backup is Android's own
 (to the user's Google Drive), limited by `res/xml/backup_rules.xml` and
