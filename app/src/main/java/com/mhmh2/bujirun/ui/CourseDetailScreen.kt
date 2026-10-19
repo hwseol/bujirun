@@ -188,7 +188,13 @@ private fun OutlineRow(st: CourseOutline.Step, landmark: Landmark?, loop: Boolea
             .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(mark, color = colors.primary, fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.width(36.dp))
+        // The same colours as on the map: green start, blue turnaround, dark turns and finish.
+        val markColor = when {
+            st.kind == CourseOutline.Kind.START -> Color(START_GREEN)
+            st.kind == CourseOutline.Kind.U_TURN || st.farthest -> Color(TURN_BLUE)
+            else -> Color(END_DARK)
+        }
+        Text(mark, color = markColor, fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.width(36.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             if (st.heading != null) {

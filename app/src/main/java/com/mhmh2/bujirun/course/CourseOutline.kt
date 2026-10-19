@@ -71,6 +71,16 @@ object CourseOutline {
         }
     }
 
+    /** A point to mark on the map: a big change of direction, or where the course turns for
+     * home ([turnaround]: a turn back the way it came, or the turn farthest from the start). */
+    data class KeyPoint(val atM: Double, val turnaround: Boolean)
+
+    /** The same strokes as [of], as points for the map (start and finish have their own pins). */
+    fun keyPoints(route: CourseRoute): List<KeyPoint> =
+        if (route.points.size < 3 || route.lengthM < 300) emptyList()
+        else of(route).filter { it.kind == Kind.TURN || it.kind == Kind.U_TURN }
+            .map { KeyPoint(it.atM, it.kind == Kind.U_TURN || it.farthest) }
+
     /** Douglas-Peucker: indices of the points that keep the shape within [tol] metres. */
     private fun simplify(xy: List<Pair<Double, Double>>, tol: Double): List<Int> {
         val keep = sortedSetOf(0, xy.size - 1)

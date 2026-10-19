@@ -42,6 +42,21 @@ class CourseOutlineTest {
         assertTrue(steps[1].farthest)
     }
 
+    @Test fun mapPointsAreTheTurnsWithOneTurnaround() {
+        // Out and back: one point, the turnaround, 1.5 km out.
+        val back = CourseOutline.keyPoints(CourseRoute(line(0.0 to 0.0, 1500.0 to 0.0, 1500.0 to 10.0, 0.0 to 10.0)))
+        assertEquals(1, back.size)
+        assertTrue(back[0].turnaround)
+        assertEquals(1500.0, back[0].atM, 60.0)
+        // The loop: three big corners, the far one marked as where it heads home; jogs not marked.
+        val loop = CourseOutline.keyPoints(CourseRoute(line(
+            0.0 to 0.0, 0.0 to 200.0, 30.0 to 210.0, 30.0 to 400.0, 0.0 to 410.0, 0.0 to 1000.0,
+            800.0 to 1000.0, 800.0 to 0.0, 0.0 to 0.0,
+        )))
+        assertEquals(3, loop.size)
+        assertEquals(1, loop.count { it.turnaround })
+    }
+
     @Test fun neverMoreThanSevenLines() {
         // A zigzag of 40 corners 300 m apart.
         val pts = (0..40).map { i -> (if (i % 2 == 0) 0.0 else 300.0) to i * 300.0 }

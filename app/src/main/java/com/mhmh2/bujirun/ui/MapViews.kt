@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.mhmh2.bujirun.course.CourseOutline
 import com.mhmh2.bujirun.course.CourseRoute
 import com.mhmh2.bujirun.course.isOutAndBack
 import com.mhmh2.bujirun.course.GeoPoint
@@ -166,6 +167,52 @@ fun directionMarkers(map: NaverMap, points: List<GeoPoint>, density: Float, colo
     }
     return out
 }
+
+/**
+ * The course's key points as dots of their own colour: where it turns for home (a blue dot,
+ * "반환점") and the few big changes of direction (white dots) - the same strokes as the course
+ * outline on its page (CourseOutline), so the map and the list tell the same story.
+ */
+fun keyPointMarkers(map: NaverMap, points: List<GeoPoint>, density: Float): List<Marker> {
+    if (points.size < 3) return emptyList()
+    val route = CourseRoute(points)
+    return CourseOutline.keyPoints(route).map { k ->
+        val p = route.pointAt(k.atM)
+        Marker().apply {
+            position = LatLng(p.lat, p.lon)
+            icon = dot(density, k.turnaround)
+            val size = ((if (k.turnaround) 18 else 12) * density).toInt()
+            width = size
+            height = size
+            anchor = android.graphics.PointF(0.5f, 0.5f)
+            if (k.turnaround) {
+                captionText = tr("반환점", "Turn back")
+                captionColor = TURN_BLUE
+                captionHaloColor = AndroidColor.WHITE
+                setCaptionAligns(Align.Top) // beside it, the map's zoom buttons can cover it
+            }
+            isHideCollidedSymbols = false
+            zIndex = if (k.turnaround) 2 else 1
+            this.map = map
+        }
+    }
+}
+
+private val dots = mutableMapOf<Pair<Float, Boolean>, OverlayImage>()
+
+private fun dot(density: Float, turnaround: Boolean): OverlayImage = dots.getOrPut(density to turnaround) {
+    val s = ((if (turnaround) 18 else 12) * density).toInt()
+    val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    val r = s / 2f
+    val ring = if (turnaround) AndroidColor.WHITE else END_DARK
+    val fill = if (turnaround) TURN_BLUE else AndroidColor.WHITE
+    c.drawCircle(r, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ring })
+    c.drawCircle(r, r, r - (if (turnaround) 2.5f else 2f) * density, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
+    OverlayImage.fromBitmap(bmp)
+}
+
+val TURN_BLUE = AndroidColor.rgb(0x2F, 0x6B, 0xFF)
 
 private var badge: Triple<Float, Int, OverlayImage>? = null
 

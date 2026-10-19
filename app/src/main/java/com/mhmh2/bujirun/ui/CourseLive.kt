@@ -119,6 +119,7 @@ fun CourseLiveMap(
             arrows.forEach { it.map = null }
             arrows.clear()
             arrows += directionMarkers(map, route, density, color)
+            arrows += keyPointMarkers(map, route, density)
             if (position == null) map.moveCamera(CameraUpdate.scrollAndZoomTo(path.coords.first(), 16.0))
         }
     }

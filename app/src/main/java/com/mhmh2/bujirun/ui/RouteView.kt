@@ -62,6 +62,7 @@ fun CourseLineView(points: List<GeoPoint>, modifier: Modifier = Modifier) {
             this.map = map
         }
         result += directionMarkers(map, points, density, color)
+        result += keyPointMarkers(map, points, density)
         result += endpointMarker(map, fit.first(), tr("출발", "Start"), START_GREEN, density)
         val loop = com.mhmh2.bujirun.course.CourseGeometry.isLoop(points)
         if (!loop) result += endpointMarker(map, fit.last(), tr("도착", "Finish"), END_DARK, density)

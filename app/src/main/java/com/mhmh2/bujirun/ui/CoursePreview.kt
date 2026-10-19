@@ -203,6 +203,7 @@ internal fun CourseMap(points: List<GeoPoint>, highlight: List<GeoPoint>? = null
                 this.map = map
             }
             directionMarkers(map, points, density, color)
+            keyPointMarkers(map, points, density)
             endpointMarker(map, fit.first(), tr("출발", "Start"), START_GREEN, density)
             if (!CourseGeometry.isLoop(points)) endpointMarker(map, fit.last(), tr("도착", "Finish"), END_DARK, density)
             // Fitted once the view has its size (inside a scrolling page it may not have yet).
