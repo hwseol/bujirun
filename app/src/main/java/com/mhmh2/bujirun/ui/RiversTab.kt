@@ -73,6 +73,7 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     var distance by rememberSaveable { mutableStateOf(5000) }
     var here by remember { mutableStateOf<GeoPoint?>(null) }
     var rivers by remember { mutableStateOf<List<RouteApi.NearbyRiver>?>(null) }
+    var riversAt by remember { mutableStateOf<GeoPoint?>(null) }
     var sources by remember { mutableStateOf<List<String>>(emptyList()) }
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
     var plan by remember { mutableStateOf<RouteApi.Plan?>(null) }
@@ -89,10 +90,16 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
 
     LaunchedEffect(located, CourseStart.picked) {
         if (!located && CourseStart.picked == null) return@LaunchedEffect
+        here = CourseStart.resolve(context)
+        if (here == null) error = tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on.")
+    }
+
+    // The rivers around the start, again whenever it moves.
+    LaunchedEffect(here) {
+        val at = here ?: return@LaunchedEffect
         try {
-            val at = CourseStart.resolve(context) ?: throw ApiException(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on."))
-            here = at
             val (found, credit) = RouteApi.rivers(at)
+            riversAt = at
             rivers = found
             sources = credit
             if (chosen == null || found.none { it.id == chosen }) chosen = found.firstOrNull()?.id
@@ -103,10 +110,14 @@ internal fun RiversTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     }
 
     // Keyed on the river list too, for the same reason as ParksTab.
-    LaunchedEffect(chosen, distance, here, rivers) {
-        val at = here ?: return@LaunchedEffect
+    LaunchedEffect(chosen, distance, rivers) {
+        val at = riversAt ?: return@LaunchedEffect
         val river = rivers?.firstOrNull { it.id == chosen } ?: return@LaunchedEffect
         delay(200)
+        // The screen can stay open while the user travels (a subway ride): planning from where
+        // the list was made would start the course back there. Moved on: new start, new list.
+        val moved = CourseStart.movedFrom(at, context)
+        if (moved != null) { here = moved; return@LaunchedEffect }
         loading = true
         error = null
         try {

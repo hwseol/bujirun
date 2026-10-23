@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import kotlinx.coroutines.delay
 import com.naver.maps.map.CameraUpdate
 import com.mhmh2.bujirun.tracking.formatKm
+import com.mhmh2.bujirun.tracking.distanceMeters
 import com.mhmh2.bujirun.net.ApiException
 import com.mhmh2.bujirun.course.RouteApi
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -74,6 +75,13 @@ object CourseStart {
 
     /** The picked spot, else the current position (null without permission or a fix). */
     suspend fun resolve(context: Context): GeoPoint? = picked ?: currentLocation(context)
+
+    /** Where the user is now, if that's more than 300 m from [from]; null when it isn't (or a spot was picked). */
+    suspend fun movedFrom(from: GeoPoint, context: Context): GeoPoint? {
+        if (picked != null) return null
+        val now = currentLocation(context) ?: return null
+        return now.takeIf { distanceMeters(from.lat, from.lon, it.lat, it.lon) > 300 }
+    }
 }
 
 /** "📍 출발: 내 위치" - tap to pick another start on the map. */

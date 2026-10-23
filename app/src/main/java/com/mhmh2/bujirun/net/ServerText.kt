@@ -87,6 +87,8 @@ object ServerText {
         Regex("명소를 넣은 코스는 아직 준비 중이에요\\. 거리에 맞춘 순환 코스예요\\.") to { _ -> "Courses through sights aren't ready yet. Here's a loop of your distance." },
         Regex("알맞은 코스를 찾지 못했어요\\.") to { _ -> "Couldn't find a suitable course." },
         Regex("말씀하신 ${KM}가 아니라 ${KM}예요\\. 목적지까지의 거리라서요\\.") to { g -> "It's ${g[1]}, not ${g[0]}: that's how far the destination is." },
+        Regex("$ANY 물가로는 ${KM} 코스를 만들지 못했어요\\. 다른 천이나 거리로 해 보세요\\.") to { g -> "Couldn't make a ${g[1]} course along ${place(g[0])}. Try another stream or distance." },
+        Regex("$ANY 물가 길이 짧아서 ${KM} 코스예요\\.") to { g -> "The path along ${place(g[0])} is short, so this course is ${g[1]}." },
         Regex("근처에 강변이 없어요\\.") to { _ -> "There's no riverside nearby." },
         Regex("근처에 호수가 없어요\\.") to { _ -> "There's no lake nearby." },
         Regex("근처에 바닷가가 없어요\\.") to { _ -> "There's no seaside nearby." },

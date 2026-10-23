@@ -372,6 +372,12 @@ class Planner:
 
         name = river["name"]
 
+        def fits(pts_):
+            # Too long or far too short both mean the plan went wrong: TMAP not taking the via
+            # points can hand back a 300 m loop round the start for a 10 km request (seen at
+            # Suwon station). Then the next way below is tried instead.
+            return 0.6 * target <= path_length(pts_) < 1.4 * target
+
         def bank_of(p):
             """+1 / -1: which side of the river line a point is on (as `side` is for the start)."""
             dd, sg, tt = nearest_on(line, p, plane)
@@ -392,7 +398,7 @@ class Planner:
                 lead = lead_to(w)
                 back = self.route(w[-1], origin) if dist(w[-1], origin) > 60 else [w[-1], origin]
                 pts = join(lead, back)
-                if path_length(pts) < 1.4 * target:
+                if fits(pts):
                     # Split where the far bank begins: the point of the loop furthest along.
                     turn_i = max(range(len(lead)), key=lambda k: dist(lead[k], plane.ll(*p_xy)))
                     return self.add(out, f"{name} 따라 순환", pts, [name],
@@ -407,7 +413,7 @@ class Planner:
             except routes.RouteError:
                 far_turn = plane.ll(*offset(q_xy, q_normal, -side * bank))
                 pts = self.route(origin, origin, [entry, turn, far_turn, plane.ll(*offset(p_xy, normal, -side * bank))])
-            if path_length(pts) < 1.4 * target:
+            if fits(pts):
                 return self.add(out, f"{name} 따라 순환", pts, [name])
         out_pts = out_route(walked)
         pts = join(out_pts, out_pts[::-1])
@@ -416,6 +422,11 @@ class Planner:
         if not 0.85 <= ratio <= 1.15 and walked >= along / 2 - 1:
             out_pts = out_route(max(300, along / 2 / ratio))
             pts = join(out_pts, out_pts[::-1])
+        if path_length(pts) < 0.4 * target:
+            # Even the out-and-back fell far short: no course rather than a misleading one.
+            raise PlanError(f"{name} 물가로는 {km(target)} 코스를 만들지 못했어요. 다른 천이나 거리로 해 보세요.")
+        if path_length(pts) < 0.7 * target:
+            out.notes.append(f"{name} 물가 길이 짧아서 {km(path_length(pts))} 코스예요.")
         self.add(out, f"{name} 따라 왕복", pts, [name],
                  legs=[(f"{name} 따라 가는 길", out_pts), ("되돌아오는 길", out_pts[::-1])])
 

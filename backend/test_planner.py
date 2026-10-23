@@ -89,6 +89,21 @@ class PlannerTest(unittest.TestCase):
         self.assertLess(vias[3][0], 37.497)     # back along the far bank
         self.assertEqual(plan.courses[0]["title"], "작은천 따라 순환")
 
+    def test_a_loop_far_too_short_is_not_the_course(self):
+        # TMAP ignoring the via points of the loop: a 300 m ring round the start for 10 km. The
+        # loop is dropped and the out-and-back (routed normally) is the course instead.
+        class ShortLoops(FakeRouter):
+            def __call__(self, a, b, via=None):
+                if a == b:
+                    self.calls.append((a, b, list(via or [])))
+                    return {"points": [list(a), [a[0] + 0.001, a[1]], [a[0] + 0.001, a[1] + 0.001], list(a)]}
+                return super().__call__(a, b, via)
+        r = ShortLoops()
+        plan = make(r).plan(START, {"distance_m": 10000, "shape": "LOOP", "places": [{"name": "작은천", "role": "AROUND"}]})
+        c = plan.courses[0]
+        self.assertGreater(c["distance_m"], 4000)
+        self.assertEqual(c["title"], "작은천 따라 왕복")
+
     def test_lake_laps_on_the_shore_outside_the_water(self):
         r = FakeRouter()
         plan = make(r).plan(START, {"distance_m": 6000, "places": [{"name": "동그란호수", "role": "AROUND"}]})

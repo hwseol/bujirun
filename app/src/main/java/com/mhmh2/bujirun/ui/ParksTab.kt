@@ -72,6 +72,7 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     var distance by rememberSaveable { mutableStateOf(3000) }
     var here by remember { mutableStateOf<GeoPoint?>(null) }
     var parks by remember { mutableStateOf<List<RouteApi.LapPark>?>(null) }
+    var parksAt by remember { mutableStateOf<GeoPoint?>(null) }
     var sources by remember { mutableStateOf<List<String>>(emptyList()) }
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
     var plan by remember { mutableStateOf<RouteApi.Plan?>(null) }
@@ -90,10 +91,15 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     // the start changes.
     LaunchedEffect(located, CourseStart.picked) {
         if (!located && CourseStart.picked == null) return@LaunchedEffect
+        here = CourseStart.resolve(context)
+        if (here == null) error = tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on.")
+    }
+
+    LaunchedEffect(here) {
+        val at = here ?: return@LaunchedEffect
         try {
-            val at = CourseStart.resolve(context) ?: throw ApiException(tr("현재 위치를 알 수 없어요. 위치가 켜져 있는지 확인해 주세요.", "Can't tell where you are. Please check that location is on."))
-            here = at
             val (found, credit) = RouteApi.lapParks(at)
+            parksAt = at
             parks = found
             sources = credit
             if (chosen == null || found.none { it.id == chosen }) chosen = found.firstOrNull()?.id
@@ -107,10 +113,13 @@ internal fun ParksTab(onOpen: (Long) -> Unit, onRun: (Long) -> Unit) {
     // a new choice cancels the one in flight.
     // Keyed on the park list too: it arrives after the start, and the chosen park survives a
     // rebuilt screen, so without it nothing would trigger the course.
-    LaunchedEffect(chosen, distance, here, parks) {
-        val at = here ?: return@LaunchedEffect
+    // Moved on since the list was made (the screen left open on a subway ride): new start, new list.
+    LaunchedEffect(chosen, distance, parks) {
+        val at = parksAt ?: return@LaunchedEffect
         val park = parks?.firstOrNull { it.id == chosen } ?: return@LaunchedEffect
         delay(200)
+        val moved = CourseStart.movedFrom(at, context)
+        if (moved != null) { here = moved; return@LaunchedEffect }
         loading = true
         error = null
         try {
