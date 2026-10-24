@@ -16,10 +16,10 @@ HTTP is allowed only to the emulator's 10.0.2.2 in test builds).
 |---|---|---|---|---|---|
 | Personal info -> Email address | Yes | No | Required | Account management | login |
 | Personal info -> Name (nickname) | Yes | No | Required | Account management | nickname shown in the app |
-| Location -> Approximate & precise | Yes* | No | Required for features | App functionality | *Sent only to plan courses/routes and search places; not stored with the account. Workout tracks stay on the phone. |
+| Location -> Precise | Yes | No | Required | App functionality | workout routes kept with the account (records sync, 2026-10-24); also sent to plan courses/routes and search places (cached without the account) |
 | App activity -> Other user-generated content (search words) | Yes* | No | Optional | App functionality | course requests, place search; cached without the account |
-| Health and fitness -> Fitness info | No | No | - | - | workouts, steps stay on the phone (on-device processing isn't "collection") |
-| Photos and videos | No | No | - | - | shown from the gallery, never uploaded |
+| Health and fitness -> Fitness info | Yes | No | Required | App functionality | workouts, auto records, daily steps kept with the account so a new phone gets them back; steps read from Health Connect are only shown, never stored or sent |
+| Photos and videos | No | No | - | - | picked with the photo picker, shown on the route, never uploaded |
 | App info and performance -> Crash logs / diagnostics | No | No | - | - | no analytics or crash SDK |
 | Device or other IDs | No | No | - | - | |
 
@@ -56,7 +56,9 @@ sessions and routes, reads steps; the Health Connect permissions declaration nee
 privacy policy URL and a short reason per permission:
 - WRITE_EXERCISE, WRITE_EXERCISE_ROUTE, WRITE_DISTANCE, WRITE_TOTAL_CALORIES_BURNED: save the
   workouts the user records (session, route, distance, calories)
-- READ_STEPS: show the day's total steps on the home and records screens
+- READ_STEPS: show the day's total steps on the home and records screens (only shown, not stored or sent)
+- ACTIVITY_RECOGNITION: 자동 기록 and steps/cadence during workouts; the resulting records are kept
+  with the user's account (records sync), never shared
 
 ## Permission declarations Play asks for (review risks)
 - **Foreground service, type location** (FOREGROUND_SERVICE_LOCATION): declare "the user starts
