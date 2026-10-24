@@ -235,7 +235,13 @@ fun HomeScreen(
     AnimatedVisibility(
         buttonHidden, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it },
         modifier = Modifier.align(Alignment.BottomCenter),
-    ) { StartBar(sub, onClick = { onStart(goal) }) }
+    ) {
+        // On the page's own colour: the top of the round button, still partly on screen, would
+        // otherwise show around the bar as a second "시작".
+        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
+            StartBar(sub, onClick = { onStart(goal) })
+        }
+    }
     }
 }
 

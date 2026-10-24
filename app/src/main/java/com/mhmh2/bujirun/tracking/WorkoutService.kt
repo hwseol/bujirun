@@ -607,6 +607,14 @@ class WorkoutService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        // Destroyed by the system mid-run (not through stop()): keep what was recorded and don't
+        // leave a "running" notification behind with nothing running.
+        tracker?.let { t ->
+            ticker?.cancel()
+            save(t.snapshot(now()), finished = false) // recoverInterrupted finishes it on next launch
+            WorkoutSession.publish(WorkoutSnapshot())
+            getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+        }
         fused.removeLocationUpdates(locationCallback)
         unregisterStepSensor()
         voice?.releaseWhenDone()
@@ -646,6 +654,11 @@ class WorkoutService : LifecycleService() {
 
         fun send(context: Context, action: String) {
             context.startService(Intent(context, WorkoutService::class.java).setAction(action))
+        }
+
+        /** Only when nothing is recording in this process: removes a workout notification left behind. */
+        fun clearStaleNotification(context: Context) {
+            context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
     }
 }

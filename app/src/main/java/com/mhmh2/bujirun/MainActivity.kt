@@ -18,6 +18,7 @@ import com.mhmh2.bujirun.data.AutoExport
 import com.mhmh2.bujirun.data.WorkoutStore
 import com.mhmh2.bujirun.net.Notices
 import com.mhmh2.bujirun.tracking.PassiveRecorder
+import com.mhmh2.bujirun.tracking.WorkoutService
 import com.mhmh2.bujirun.tracking.WorkoutSession
 import com.mhmh2.bujirun.tracking.WorkoutStatus
 import com.mhmh2.bujirun.ui.BujirunApp
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
         val s = WorkoutSession.state.value
         if (s.status == WorkoutStatus.IDLE && s.countdown == null) {
             WorkoutStore.recoverInterrupted { AutoExport.runPendingLater(this) }
+            // Its "달리는 중" notification can outlive the process; left up, it says a workout is
+            // running while the app shows the start button.
+            WorkoutService.clearStaleNotification(this)
         }
         handleGpx(intent)
         // A session the server no longer knows (account deleted, password reset) signs out.
