@@ -267,7 +267,8 @@ private fun RecordsFileRows() {
     }
     val importFrom = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> importing = uri }
 
-    Section(tr("기록 파일", "Records file"), tr("모든 운동 기록과 코스를 파일 하나로 저장하거나, 저장한 파일에서 되살려요. 다른 폰이나 새로 설치한 앱으로 옮길 때 써요.", "Save every workout and course to one file, or bring them back from one. For moving to another phone or a reinstalled app."))
+    Section(tr("기록 백업", "Records backup"), tr("운동 기록과 코스, 자동 기록은 로그인한 계정에 자동으로 저장돼요. 폰을 바꾸거나 앱을 다시 설치해도 같은 계정으로 로그인하면 돌아와요.", "Workouts, courses and auto records are saved to your account automatically. Sign in with the same account on a new phone or a reinstalled app and they come back."))
+    Section(tr("기록 파일", "Records file"), tr("모든 운동 기록과 코스를 파일 하나로 저장하거나, 저장한 파일에서 되살려요.", "Save every workout and course to one file, or bring them back from one."))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.OutlinedButton(onClick = { exportTo.launch("bujirun-records.zip") }) { Text(tr("내보내기", "Export")) }
         androidx.compose.material3.OutlinedButton(onClick = { importFrom.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text(tr("가져오기", "Import")) }

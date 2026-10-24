@@ -8,13 +8,13 @@ server's BUJIRUN_ADMIN_EMAIL, so it isn't in this public repository.
 import html
 import os
 
-UPDATED = "2026-10-18"
+UPDATED = "2026-10-24"
 
 KO = """
 <h1>부지런 개인정보처리방침</h1>
 <p class="meta">시행일 {updated}</p>
-<p>부지런(Buji Run, 이하 "앱")은 달리기·걷기 기록 앱입니다. 앱은 운동 기록을 <b>사용자의 휴대폰에만</b>
-저장하며, 서버에는 로그인에 필요한 최소한의 계정 정보만 보관합니다.</p>
+<p>부지런(Buji Run, 이하 "앱")은 달리기·걷기 기록 앱입니다. 운동 기록은 휴대폰에 저장되고, 휴대폰을 바꾸거나
+앱을 다시 설치해도 되찾을 수 있도록 <b>로그인한 계정에 사본을 보관</b>합니다. 그 밖에는 로그인에 필요한 최소한의 계정 정보만 보관합니다.</p>
 
 <h2>1. 서버에 보관하는 정보</h2>
 <table>
@@ -23,14 +23,16 @@ KO = """
 <tr><td>비밀번호 (복원할 수 없는 해시로만 저장)</td><td>로그인</td><td>계정 삭제 시까지</td></tr>
 <tr><td>로그인 세션 토큰</td><td>로그인 유지</td><td>로그아웃 또는 180일</td></tr>
 <tr><td>비밀번호 재설정 코드 (해시)</td><td>비밀번호 찾기</td><td>사용 즉시 또는 15분 후 무효</td></tr>
+<tr><td>운동 기록(경로 GPS 위치, 시간, 거리, 페이스, 칼로리, 걸음 수), 내 코스, 자동 기록(걷기·달리기, 하루 걸음 수)</td><td>휴대폰 교체·앱 재설치 시 기록 복원</td><td>앱에서 지우거나 계정 삭제 시까지</td></tr>
 </table>
 <p>구글로 로그인하면 구글이 확인한 이메일과 이름(닉네임으로 사용)만 받습니다. 구글 계정의 다른 정보에는 접근하지 않습니다.</p>
 
+<p>자동 기록(켜 둔 경우)은 신체 활동 인식과 걸음 센서를 사용하며 GPS는 쓰지 않습니다.
+운동 기록 사본은 다른 사용자에게 공개되지 않으며, 계정 주인의 기기로 되돌려 주는 데만 씁니다.</p>
+
 <h2>2. 휴대폰에만 저장하는 정보 (서버로 보내지 않음)</h2>
 <ul>
-<li>운동 기록: 경로(GPS 위치), 시간, 거리, 페이스, 칼로리, 걸음 수</li>
-<li>자동 기록(켜 둔 경우): 걷기·달리기 활동, 하루 걸음 수 — 신체 활동 인식과 걸음 센서를 사용하며 GPS는 쓰지 않습니다</li>
-<li>내 코스, 체중(칼로리 계산용), 앱 설정, 프로필 사진</li>
+<li>체중(칼로리 계산용), 앱 설정, 프로필 사진</li>
 <li>운동 사진: 사용자가 고른 사진을 운동 경로 위에 보여 줄 뿐, 사진을 업로드하지 않습니다</li>
 </ul>
 <p>이 정보는 안드로이드의 기본 백업 기능을 켠 경우 사용자의 구글 계정 백업(구글 드라이브)에 함께 백업될 수 있으며,
@@ -47,7 +49,7 @@ KO = """
 <li><b>SK텔레콤 TMAP</b>: 걷기 경로 계산을 위해 지점 좌표를 전달합니다 (계정 정보는 전달하지 않음).</li>
 <li><b>네이버 클라우드(네이버 지도)</b>: 지도 표시. 지도 SDK가 지도 이미지를 내려받습니다.</li>
 <li><b>Google</b>: 구글 로그인, 비밀번호 재설정 메일 발송(Gmail).</li>
-<li><b>Amazon Web Services</b>: 서버 운영(미국 버지니아 리전). 계정 정보가 이곳에 저장됩니다.</li>
+<li><b>Amazon Web Services</b>: 서버 운영(미국 버지니아 리전). 계정 정보와 운동 기록 사본이 이곳에 저장됩니다.</li>
 </ul>
 <p>법령에 따른 경우를 제외하고 개인정보를 판매하거나 광고 목적으로 제공하지 않습니다.</p>
 
@@ -63,8 +65,8 @@ KO = """
 
 <h2 id="delete">7. 계정 삭제와 데이터 삭제 (부지런)</h2>
 <ul>
-<li>앱의 설정 → 내 계정 → <b>계정 삭제</b>에서 바로 삭제할 수 있으며, 서버의 계정 정보(이메일, 닉네임, 비밀번호 해시)와 로그인 세션이 즉시 지워집니다. 따로 보관하는 데이터는 없으며, 서버 백업에 남은 사본은 14일 안에 자동으로 지워집니다.</li>
-<li>휴대폰의 운동 기록은 앱의 기록 화면에서 삭제하거나, 앱을 지우면 함께 삭제됩니다.</li>
+<li>앱의 설정 → 내 계정 → <b>계정 삭제</b>에서 바로 삭제할 수 있으며, 서버의 계정 정보(이메일, 닉네임, 비밀번호 해시), 로그인 세션, 계정에 보관한 운동 기록·코스·자동 기록 사본이 즉시 지워집니다. 서버 백업에 남은 사본은 14일 안에 자동으로 지워집니다.</li>
+<li>운동 기록 하나를 앱의 기록 화면에서 지우면 계정에 보관한 사본도 다음 동기화 때 함께 지워집니다. 휴대폰의 기록은 앱을 지우면 함께 삭제됩니다.</li>
 <li>앱을 쓸 수 없는 경우 아래 연락처로 요청하면 계정을 삭제해 드립니다.</li>
 </ul>
 
@@ -79,16 +81,18 @@ KO = """
 EN = """
 <h1>Buji Run Privacy Policy</h1>
 <p class="meta">Effective {updated}</p>
-<p>Buji Run (부지런) is a running and walking app. Workouts are stored <b>only on your phone</b>; the
-server keeps only what logging in needs.</p>
+<p>Buji Run (부지런) is a running and walking app. Workouts are stored on your phone, and <b>a copy is
+kept with your account</b> so a new phone or a reinstalled app gets them back. Otherwise the server
+keeps only what logging in needs.</p>
 <h2>Kept on the server</h2>
 <p>Email, nickname, a one-way hash of your password, login session tokens (until you log out or
 180 days), and password-reset codes (hashed, void after use or 15 minutes). With Google sign-in
-we receive only your verified email and name.</p>
+we receive only your verified email and name. A copy of your workouts (GPS route, time,
+distance, pace, calories, steps), your courses and auto-recorded walks and daily steps (activity
+recognition and the step sensor, no GPS), kept until you delete them or your account, used only
+to give them back to your devices and never shown to anyone else.</p>
 <h2>Only on your phone</h2>
-<p>Workouts (GPS route, time, distance, pace, calories, steps), auto-recorded walks and daily
-steps (activity recognition and the step sensor, no GPS), your courses, weight, settings and
-profile photo. Workout photos are the ones you pick with the system photo picker (no photo
+<p>Weight, settings and profile photo. Workout photos are the ones you pick with the system photo picker (no photo
 permission is asked), shown on the route and never uploaded. If Android
 backup is on, this data may be included in your own Google Drive backup, which we can't access.</p>
 <h2>Sent but not kept with your account</h2>
@@ -97,14 +101,15 @@ words. Results (routes, nearby place names) are cached by location for up to 60 
 to your account or to you. Server access logs (IP, time, path) are kept for a limited time for security.</p>
 <h2>Service providers</h2>
 <p>SK Telecom TMAP (walking routes: coordinates only), NAVER Cloud (maps), Google (sign-in,
-reset emails via Gmail), Amazon Web Services (servers, US East). We don't sell personal data or
+reset emails via Gmail), Amazon Web Services (servers, US East; your account and the copy of your records). We don't sell personal data or
 use it for advertising.</p>
 <h2>Only when you turn it on</h2>
 <p>Google Calendar (adds your workouts as events) and Health Connect / Samsung Health (writes
 workouts and routes, reads daily steps).</p>
 <h2>Deleting</h2>
-<p>Settings → My account → Delete account removes your account from the server at once. Workouts
-on the phone are deleted in the app or by uninstalling it. You can also ask us at the address
+<p>Settings → My account → Delete account removes your account and the copy of your records from
+the server at once (backups clear within 14 days). A workout deleted in the app is also deleted
+from your account's copy at the next sync. Workouts on the phone go with the app when it is uninstalled. You can also ask us at the address
 below.</p>
 <h2>Children</h2><p>The app is not directed at children under 14.</p>
 <h2>Contact</h2><p>{contact}</p>

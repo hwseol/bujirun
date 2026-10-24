@@ -54,6 +54,7 @@ import com.mhmh2.bujirun.coach.Goal
 import com.mhmh2.bujirun.data.WorkoutEntity
 import com.mhmh2.bujirun.data.WorkoutStore
 import com.mhmh2.bujirun.tracking.WorkoutService
+import com.mhmh2.bujirun.data.RecordSync
 import com.mhmh2.bujirun.tracking.WorkoutSession
 import com.mhmh2.bujirun.tracking.WorkoutStatus
 import com.mhmh2.bujirun.tracking.formatKm
@@ -112,7 +113,11 @@ fun BujirunApp() {
     // activity being recreated) still takes precedence below, so it's never orphaned.
     val signedIn = user
     // Whoever just signed in starts on home, not on whatever tab the previous session left open.
-    LaunchedEffect(signedIn?.email) { if (PendingImport.uri.value == null) tab = Tab.HOME }
+    LaunchedEffect(signedIn?.email) {
+        if (PendingImport.uri.value == null) tab = Tab.HOME
+        // Signing in on a new phone or a reinstalled app brings the account's records back.
+        if (signedIn != null) RecordSync.requestLater()
+    }
     val workoutActive = state.countdown != null || state.status != WorkoutStatus.IDLE
     if (signedIn == null && !workoutActive) {
         LoginScreen()

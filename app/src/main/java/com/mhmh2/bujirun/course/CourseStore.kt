@@ -1,5 +1,6 @@
 package com.mhmh2.bujirun.course
 
+import com.mhmh2.bujirun.data.RecordSync
 import com.mhmh2.bujirun.tr
 
 import com.mhmh2.bujirun.data.CourseEntity
@@ -32,7 +33,7 @@ object CourseStore {
         return dao.insertWithPoints(
             course,
             line.mapIndexed { i, p -> CoursePointEntity(courseId = 0, seq = i, lat = p.lat, lon = p.lon, altitudeM = p.altitudeM) },
-        )
+        ).also { RecordSync.requestLater() }
     }
 
     /** Name and line of a course, for running it. Null if it no longer exists. */
@@ -42,8 +43,8 @@ object CourseStore {
         return if (pts.size >= 2) c.name to pts else null
     }
 
-    fun rename(id: Long, name: String) { scope.launch { dao.rename(id, name.trim().ifEmpty { tr("이름 없는 코스", "Untitled course") }) } }
-    fun delete(id: Long) { scope.launch { dao.delete(id) } }
+    fun rename(id: Long, name: String) { scope.launch { dao.rename(id, name.trim().ifEmpty { tr("이름 없는 코스", "Untitled course") }); RecordSync.requestLater() } }
+    fun delete(id: Long) { scope.launch { dao.delete(id); RecordSync.requestLater() } }
 
     fun observeAll(): Flow<List<CourseEntity>> = dao.observeAll()
     fun observe(id: Long): Flow<CourseEntity?> = dao.observe(id)

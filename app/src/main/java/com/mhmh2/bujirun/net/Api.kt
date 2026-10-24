@@ -27,6 +27,10 @@ object Api {
 
     suspend fun get(path: String, token: String? = null): JSONObject = request("GET", path, null, token, 20_000)
 
+    suspend fun put(path: String, body: JSONObject, token: String?): JSONObject = request("PUT", path, body, token, 60_000)
+
+    suspend fun delete(path: String, token: String?): JSONObject = request("DELETE", path, null, token, 20_000)
+
     private suspend fun request(method: String, path: String, body: JSONObject?, token: String?, readTimeoutMs: Int): JSONObject =
         withContext(Dispatchers.IO) {
             val offline = tr("서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.", "Couldn't reach the server. Please check your internet connection.")

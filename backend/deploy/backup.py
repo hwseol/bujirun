@@ -1,6 +1,6 @@
 """Daily copy of the Bujirun data that can't be rebuilt (run by bujirun-backup.timer).
 
-accounts.db and notices.db go into ~/bujirun/backups/<date>/ through sqlite's online backup
+accounts.db, notices.db and records.db go into ~/bujirun/backups/<date>/ through sqlite's online backup
 (safe while the API runs), each checked with integrity_check; the last KEEP_DAYS days are kept.
 The big built databases (places, trails, waterside) are copied gzipped only when they change,
 latest only, into ~/bujirun/backups/built/. cache.db and landmarks.db refill themselves.
@@ -17,7 +17,7 @@ from pathlib import Path
 DATA = Path(os.environ.get("BJ_DATA_DIR") or Path.home() / "bujirun" / "data")
 OUT = Path(os.environ.get("BJ_BACKUP_DIR") or Path.home() / "bujirun" / "backups")
 KEEP_DAYS = 14
-USER_DBS = ("accounts", "notices")
+USER_DBS = ("accounts", "notices", "records")
 BUILT_DBS = ("places", "trails", "waterside")
 
 

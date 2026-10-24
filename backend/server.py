@@ -19,6 +19,7 @@ import notices
 import places
 import planner
 import privacy
+import records
 import routes
 import shade
 import trails
@@ -189,6 +190,41 @@ def delete_account(req: LoginRequest):
         accounts.delete_user(req.email, req.password)
     except accounts.AccountError as e:
         _fail(e)
+    return {"ok": True}
+
+
+class SyncItem(BaseModel):
+    hash: str
+    data: dict | list
+
+
+@app.get("/sync/list")
+def sync_list(authorization: str | None = Header(None)):
+    """Keys and content hashes of this account's records on the server (records.py)."""
+    return {"items": records.list_items(_user(authorization)["id"])}
+
+
+@app.get("/sync/items/{key}")
+def sync_get(key: str, authorization: str | None = Header(None)):
+    data = records.get_item(_user(authorization)["id"], key)
+    if data is None:
+        raise HTTPException(status_code=404, detail="기록을 찾을 수 없어요.")
+    return {"data": data}
+
+
+@app.put("/sync/items/{key}")
+def sync_put(key: str, item: SyncItem, authorization: str | None = Header(None)):
+    user = _user(authorization)
+    try:
+        records.put_item(user["id"], key, item.hash, item.data)
+    except records.RecordError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@app.delete("/sync/items/{key}")
+def sync_delete(key: str, authorization: str | None = Header(None)):
+    records.delete_item(_user(authorization)["id"], key)
     return {"ok": True}
 
 

@@ -27,6 +27,9 @@ object AutoExport {
     fun runPendingLater(context: Context) {
         val app = context.applicationContext
         scope.launch { runCatching { runPending(app) } }
+        // The same moments (a workout saved, the app opened) send records to the account's copy.
+        RecordSync.init(app)
+        RecordSync.requestLater()
     }
 
     /** Exports what's waiting; returns where each newly exported workout went (id to places). */

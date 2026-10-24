@@ -52,6 +52,10 @@ PLAN.md, Phase 1 design and milestones (M1-M6) in docs/PHASE1.md.
   <places.db> S W N E [tile]`, resumable; dense tiles that time out: rerun with tile 0.01) into
   waterside.db `cells`, then merged into the server's waterside.db (ATTACH + INSERT OR REPLACE).
   Capital region (36.9-38.0, 126.5-127.6) is done; elsewhere falls back to live Overpass.
+- Records are copied to the account on the server (data/RecordSync + pure SyncPlan, backend
+  records.py, records.db): workouts with tracks, courses, auto records, day steps, keyed by start
+  time; runs on app open, workout save, sign-in and course changes. Photos stay on the phone. The
+  phone belongs to the first account that syncs it. Settings also has a records file export/import.
 - Calendar/Health auto export runs in data/AutoExport (on save and on app open), not only
   from the summary screen.
 

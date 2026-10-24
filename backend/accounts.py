@@ -15,6 +15,8 @@ import re
 import secrets
 import smtplib
 import sqlite3
+
+import records
 from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -211,6 +213,7 @@ def delete_user(email: str, password: str) -> None:
         conn.commit()
     finally:
         conn.close()
+    records.delete_user(user["id"])
 
 
 def change_nickname(user_id: int, nickname: str) -> sqlite3.Row:
@@ -249,6 +252,7 @@ def delete_by_session(user: sqlite3.Row, password: str | None) -> None:
         conn.commit()
     finally:
         conn.close()
+    records.delete_user(user["id"])
 
 
 def verify_google_token(id_token: str, fetch=None) -> dict:

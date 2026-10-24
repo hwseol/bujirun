@@ -106,7 +106,7 @@ object WorkoutStore {
     suspend fun doneSince(since: Long): List<WorkoutEntity> = dao.doneSince(since)
 
     fun delete(id: Long) {
-        scope.launch { writes.withLock { dao.delete(id) } }
+        scope.launch { writes.withLock { dao.delete(id) }; RecordSync.requestLater() }
     }
 
     fun observeDone(): Flow<List<WorkoutEntity>> = dao.observeDone()

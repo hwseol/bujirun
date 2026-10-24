@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.mhmh2.bujirun.account.Account
 import com.mhmh2.bujirun.data.AutoExport
+import com.mhmh2.bujirun.data.RecordSync
 import com.mhmh2.bujirun.data.WorkoutStore
 import com.mhmh2.bujirun.net.Notices
 import com.mhmh2.bujirun.tracking.PassiveRecorder
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
         Prefs.init(this)
         Account.init(this)
         WorkoutStore.init(this)
+        RecordSync.init(this)
         // Nothing is recording in this process (a running workout would have moved the session
         // off IDLE), so any workout still marked in-progress was cut short by the process dying.
         val s = WorkoutSession.state.value

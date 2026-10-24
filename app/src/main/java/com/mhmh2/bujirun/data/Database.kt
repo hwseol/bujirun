@@ -73,6 +73,7 @@ interface WorkoutDao {
     @Query("SELECT * FROM workouts WHERE id = :id") fun observe(id: Long): Flow<WorkoutEntity?>
     @Query("SELECT * FROM workouts WHERE status = 'DONE' ORDER BY startedAt DESC") fun observeDone(): Flow<List<WorkoutEntity>>
     @Query("SELECT * FROM workouts WHERE status = 'IN_PROGRESS'") suspend fun inProgress(): List<WorkoutEntity>
+    @Query("SELECT * FROM workouts WHERE status = 'DONE'") suspend fun allDone(): List<WorkoutEntity>
     @Query("SELECT * FROM track_points WHERE workoutId = :id ORDER BY id") fun observePoints(id: Long): Flow<List<TrackPointEntity>>
     @Query("SELECT COUNT(*) FROM track_points WHERE workoutId = :id") suspend fun pointCount(id: Long): Int
     @Query("SELECT * FROM track_points WHERE workoutId = :id ORDER BY id") suspend fun points(id: Long): List<TrackPointEntity>
@@ -134,6 +135,7 @@ interface CourseDao {
     @Query("SELECT * FROM courses ORDER BY createdAt DESC") fun observeAll(): Flow<List<CourseEntity>>
     @Query("SELECT * FROM courses WHERE id = :id") fun observe(id: Long): Flow<CourseEntity?>
     @Query("SELECT * FROM courses WHERE id = :id") suspend fun get(id: Long): CourseEntity?
+    @Query("SELECT * FROM courses") suspend fun all(): List<CourseEntity>
     @Query("SELECT * FROM course_points WHERE courseId = :id ORDER BY seq") fun observePoints(id: Long): Flow<List<CoursePointEntity>>
     @Query("SELECT * FROM course_points WHERE courseId = :id ORDER BY seq") suspend fun points(id: Long): List<CoursePointEntity>
     @Query("DELETE FROM course_points WHERE courseId = :id") suspend fun deletePoints(id: Long)
@@ -191,6 +193,8 @@ interface PassiveDao {
     suspend fun deleteOverlappingActivities(): Int
 
     @Query("SELECT * FROM day_steps") fun observeDaySteps(): Flow<List<DayStepsEntity>>
+    @Query("SELECT * FROM day_steps") suspend fun allDaySteps(): List<DayStepsEntity>
+    @Query("SELECT * FROM auto_activities") suspend fun allActivities(): List<AutoActivityEntity>
     @Query("SELECT steps FROM day_steps WHERE day = :day") suspend fun daySteps(day: String): Long?
     @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) suspend fun putDaySteps(row: DayStepsEntity)
 
