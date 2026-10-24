@@ -129,7 +129,7 @@ fun HistoryScreen(onOpen: (Long) -> Unit, onBackAtTop: (() -> Unit)? = null) {
                 val inMonth = real(byDay.filterKeys { YearMonth.from(it) == month }.values.flatten())
                 val autoInMonth = autoByDay.filterKeys { YearMonth.from(it) == month }.values.flatten()
                 Text(
-                    tr("${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ", "${inMonth.size + autoInMonth.size} runs · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ") +
+                    tr("${inMonth.size + autoInMonth.size}회 · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ", "${inMonth.size + autoInMonth.size} ${if (inMonth.size + autoInMonth.size == 1) "workout" else "workouts"} · ${formatKm(inMonth.sumOf { it.distanceM } + autoInMonth.sumOf { it.distanceM })}km · ") +
                         "${(inMonth.sumOf { it.calories } + autoInMonth.sumOf { it.calories }).roundToInt()}kcal",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

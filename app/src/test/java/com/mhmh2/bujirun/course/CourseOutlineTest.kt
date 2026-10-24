@@ -42,6 +42,20 @@ class CourseOutlineTest {
         assertTrue(steps[1].farthest)
     }
 
+    @Test fun theEndsOfALongThinLoopAreBendsNotTurnsBack() {
+        // A park 1.2 km long: out along one path, round the end onto the path 60 m across, home.
+        val thin = CourseRoute(line(0.0 to 0.0, 1200.0 to 0.0, 1200.0 to 60.0, 0.0 to 60.0, 0.0 to 0.0))
+        val steps = CourseOutline.of(thin)
+        assertTrue(steps.none { it.kind == Kind.U_TURN })
+        assertTrue(CourseOutline.keyPoints(thin).count { it.turnaround } <= 1)
+    }
+
+    @Test fun lapsOfARingHaveNoTurnaround() {
+        val ring = listOf(0.0 to 0.0, 400.0 to 0.0, 400.0 to 300.0, 0.0 to 300.0, 0.0 to 0.0)
+        val twice = CourseRoute(line(*(ring + ring.drop(1)).toTypedArray()))
+        assertTrue(CourseOutline.keyPoints(twice).none { it.turnaround })
+    }
+
     @Test fun mapPointsAreTheTurnsWithOneTurnaround() {
         // Out and back: one point, the turnaround, 1.5 km out.
         val back = CourseOutline.keyPoints(CourseRoute(line(0.0 to 0.0, 1500.0 to 0.0, 1500.0 to 10.0, 0.0 to 10.0)))

@@ -112,10 +112,11 @@ class WorkoutTracker(
      * again) count - dropping them at every crossing is what made distance come out short. A
      * pause the runner chose drops whatever happens while paused (walking back to the start...).
      */
-    fun pause(nowMs: Long, keepPlace: Boolean = false) {
+    fun pause(nowMs: Long, keepPlace: Boolean = false, stoppedAtMs: Long? = null) {
         if (status != WorkoutStatus.RUNNING) return
         tick(nowMs)
-        activeMsBeforeSegment += nowMs - segmentStartMs
+        // An auto-pause is noticed a few seconds after the runner stopped: the clock stops back then.
+        activeMsBeforeSegment += (stoppedAtMs?.coerceIn(segmentStartMs, nowMs) ?: nowMs) - segmentStartMs
         status = WorkoutStatus.PAUSED
         keptPlace = keepPlace
         if (!keepPlace) {

@@ -95,6 +95,23 @@ class CourseNavigatorTest {
         assertEquals(705.0, r.locate(at(3.0, 100.0), 600.0, 900.0).first, 5.0)
     }
 
+    @Test fun remainingNeverJumpsNearTheTurnOfAnOutAndBack() {
+        // 1 km out and back on the same path (the way home 4 m across).
+        val r = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 1000.0), at(4.0, 1000.0), at(4.0, 0.0)))
+        val nav = CourseNavigator("O", r)
+        var last = 0.0
+        var t = 0L
+        var d = 0.0
+        while (d < 1300) {
+            // GPS 3 m to the side - nearer the way home than the way out.
+            nav.update(r.pointAt(d).let { if (d < 1000) it.copy(lon = it.lon + 3 / kx) else it }, t)
+            val p = nav.progress().progressM
+            assertTrue("at $d progress went $last -> $p", p - last <= 30)
+            last = p
+            d += 3; t += 1000
+        }
+    }
+
     @Test fun guidesThroughTheCourse() {
         val nav = CourseNavigator("L", CourseRoute(lShape))
         val said = mutableListOf<Pair<Double, CourseCue>>()

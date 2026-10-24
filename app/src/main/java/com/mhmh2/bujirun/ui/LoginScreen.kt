@@ -96,7 +96,7 @@ fun LoginScreen() {
         Spacer(Modifier.height(40.dp))
         Text(tr("부지런", "Buji Run"), style = MaterialTheme.typography.headlineLarge)
         Text(
-            if (signUp) tr("계정을 만들어요", "Create your account") else tr("다시 오셨네요", "Welcome back"),
+            if (signUp) tr("계정을 만들어요", "Create your account") else tr("로그인하고 시작해요", "Log in to start"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -177,7 +177,13 @@ class CourseRoute(val points: List<GeoPoint>) {
             if (cum[i + 1] < fromM || cum[i] > toM) continue
             val bx = xs[i + 1] - xs[i]; val by = ys[i + 1] - ys[i]
             val len2 = bx * bx + by * by
-            val t = if (len2 == 0.0) 0.0 else (((px - xs[i]) * bx + (py - ys[i]) * by) / len2).coerceIn(0.0, 1.0)
+            // Only the part of the segment inside the window: a long straight one (a whole leg
+            // home along a river) otherwise matched far beyond it - progress jumped hundreds of
+            // metres near an out-and-back's turn.
+            val segM = cum[i + 1] - cum[i]
+            val tLo = if (segM > 0) ((fromM - cum[i]) / segM).coerceIn(0.0, 1.0) else 0.0
+            val tHi = if (segM > 0) ((toM - cum[i]) / segM).coerceIn(0.0, 1.0) else 1.0
+            val t = if (len2 == 0.0) 0.0 else (((px - xs[i]) * bx + (py - ys[i]) * by) / len2).coerceIn(tLo, maxOf(tLo, tHi))
             val dist = hypot(px - (xs[i] + t * bx), py - (ys[i] + t * by))
             if (dist < bestDist) { bestDist = dist; bestAlong = cum[i] + t * (cum[i + 1] - cum[i]) }
         }
@@ -380,6 +386,15 @@ class CourseNavigator(
             route.locate(p, progress - 150, progress + 200)
         }
         val h = heading()
+        // On an out-and-back the way home runs over the way out: nearing the turn, the closest
+        // point can be on the way back, up to 200 m "ahead" - remaining distance then dropped
+        // by hundreds of metres and crept back. A match ahead that runs against the runner's
+        // heading is the other leg; the one on their own leg (up to the turn) is taken instead.
+        val fold = route.turns.firstOrNull { it.direction == TurnDirection.U_TURN && it.atM > progress - 5 && it.atM < along }
+        if (fold != null && h != null && angleBetween(h, route.headingAt(along)) > 120) {
+            val (ownAt, ownDist) = route.locate(p, progress - 150, fold.atM)
+            if (ownDist <= dist + 25) { along = ownAt; dist = ownDist }
+        }
         // Not near where we thought: maybe the runner is further along than we'd kept up with (a
         // stretch of bad fixes). Right on the course within the next km, going its way, is where
         // they are - better than calling them off a course they're standing on.

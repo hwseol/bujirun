@@ -154,7 +154,7 @@ class PlannerTest(unittest.TestCase):
 
     def test_lap_count_is_respected(self):
         plan = make(FakeRouter()).plan(START, {"distance_m": 1000, "laps": 3, "places": [{"name": "동그란호수", "role": "AROUND"}]})
-        self.assertEqual(plan.courses[0]["title"], "동그란호수 3바퀴")
+        self.assertRegex(plan.courses[0]["title"], r"^동그란호수 3바퀴 \(한 바퀴 [\d.]+km\)$")
 
     def test_repeat_without_a_name_laps_the_nearest_park(self):
         plan = make(FakeRouter()).plan(START, {"distance_m": 3000, "repeat": True, "themes": ["PARK"]})
@@ -191,7 +191,7 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(plan.courses[0]["title"], "남산타워 왕복")
         self.assertIn("TMAP", plan.to_json()["sources"])
         lost = make(FakeRouter()).plan(START, {"distance_m": 3000, "places": [{"name": "없는곳", "role": "DEST"}]})
-        self.assertIn("'없는곳'을(를) 찾지 못했어요.", lost.notes)
+        self.assertIn("'없는곳' 위치를 찾지 못했어요.", lost.notes)
         self.assertEqual(len(lost.courses), 1)  # still a plain loop
 
     def test_themes_without_names(self):

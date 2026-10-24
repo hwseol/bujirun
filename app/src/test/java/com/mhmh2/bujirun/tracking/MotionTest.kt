@@ -96,6 +96,25 @@ class MotionTest {
         assertEquals(AutoPauseDetector.Decision.RESUME, step(12, 0.8, 2.5, 9))
     }
 
+    @Test fun autoPauseRemembersWhenTheRunnerStopped() {
+        val d = AutoPauseDetector()
+        (0..10).forEach { d.update(it * 1000L, false, 3.0, 3.0, null) } // running
+        (11..30).forEach { d.update(it * 1000L, false, if (it < 19) 1.5 else 0.2, 0.1, null) } // stopped at 11 s
+        assertEquals(10_000L, d.lastMovingMs)
+    }
+
+    @Test fun anAutoPauseStopsTheClockWhenTheRunnerStopped() {
+        val t = WorkoutTracker()
+        t.start(0)
+        t.pause(20_000, keepPlace = true, stoppedAtMs = 10_000)
+        assertEquals(10_000L, t.elapsedMs(25_000))
+        // Never before the run (or the last resume) began.
+        val u = WorkoutTracker()
+        u.start(5_000)
+        u.pause(9_000, keepPlace = true, stoppedAtMs = 1_000)
+        assertEquals(0L, u.elapsedMs(9_000))
+    }
+
     @Test fun noAutoPauseWhenGpsIsLost() {
         val d = AutoPauseDetector()
         (0..20).forEach { assertEquals(AutoPauseDetector.Decision.NONE, d.update(it * 1000L, false, null, null, null)) }

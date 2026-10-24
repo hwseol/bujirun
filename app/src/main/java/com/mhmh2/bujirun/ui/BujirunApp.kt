@@ -112,9 +112,21 @@ fun BujirunApp() {
     // Login is required. A workout already running (e.g. after signing out mid-run, or the
     // activity being recreated) still takes precedence below, so it's never orphaned.
     val signedIn = user
-    // Whoever just signed in starts on home, not on whatever tab the previous session left open.
+    // Whoever just signed in starts on home, not on whatever screen the previous session left
+    // open. Only on a real change of account: the activity being recreated (a language switch)
+    // keeps the screen it was on.
+    var shownFor by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(signedIn?.email) {
-        if (PendingImport.uri.value == null) tab = Tab.HOME
+        val email = signedIn?.email
+        if (email != null && email != shownFor) {
+            if (shownFor != null || PendingImport.uri.value == null) {
+                if (PendingImport.uri.value == null) tab = Tab.HOME
+                account = false; openWorkout = null; openCourse = null
+                drawingCourse = false; suggesting = false; aiCourse = false
+            }
+            shownFor = email
+        }
+        if (email == null) shownFor = "-"
         // Signing in on a new phone or a reinstalled app brings the account's records back.
         if (signedIn != null) RecordSync.requestLater()
     }
@@ -233,7 +245,8 @@ fun BujirunApp() {
                     Tab.entries.forEach { t ->
                         NavigationBarItem(
                             selected = tab == t,
-                            onClick = { tab = t },
+                            // The tab already shown: back to its top.
+                            onClick = { if (tab == t) ScrollToTop.request() else tab = t },
                             icon = { Icon(t.icon, contentDescription = null) },
                             label = { Text(t.label) }
                         )

@@ -60,7 +60,7 @@ object CourseOutline {
                 kind = when {
                     k == 0 -> Kind.START
                     next == null -> Kind.FINISH
-                    turn != null && abs(turn.second) >= 150 -> Kind.U_TURN
+                    turn != null && abs(turn.second) >= 150 && retraces(i, xy, route) -> Kind.U_TURN
                     else -> Kind.TURN
                 },
                 direction = turn?.let { classify(it.second) },
@@ -76,10 +76,30 @@ object CourseOutline {
     data class KeyPoint(val atM: Double, val turnaround: Boolean)
 
     /** The same strokes as [of], as points for the map (start and finish have their own pins). */
-    fun keyPoints(route: CourseRoute): List<KeyPoint> =
-        if (route.points.size < 3 || route.lengthM < 300) emptyList()
-        else of(route).filter { it.kind == Kind.TURN || it.kind == Kind.U_TURN }
-            .map { KeyPoint(it.atM, it.kind == Kind.U_TURN || it.farthest) }
+    fun keyPoints(route: CourseRoute): List<KeyPoint> {
+        if (route.points.size < 3 || route.lengthM < 300) return emptyList()
+        // Laps of a ring don't turn for home anywhere in particular: no turnaround mark on them.
+        val laps = CourseLaps.detect(route) != null
+        return of(route).filter { it.kind == Kind.TURN || it.kind == Kind.U_TURN }
+            .map { KeyPoint(it.atM, !laps && (it.kind == Kind.U_TURN || it.farthest)) }
+    }
+
+    /**
+     * Whether the sharp turn at point [i] really goes back the way it came: the next stretch runs
+     * over the one before. The end of a long thin loop also turns sharply, onto a path alongside
+     * (the other bank, the other side of a park) - that's a bend in a loop, not a turn back.
+     */
+    private fun retraces(i: Int, xy: List<Pair<Double, Double>>, route: CourseRoute): Boolean {
+        val at = route.cum[i]
+        val p0 = route.points[0]
+        val kx = M_PER_DEG * cos(Math.toRadians(p0.lat))
+        fun xyAt(d: Double) = route.pointAt(d).let { (it.lon - p0.lon) * kx to (it.lat - p0.lat) * M_PER_DEG }
+        val before = (0..25).map { xyAt((at - 250 + it * 10.0).coerceAtLeast(0.0)) }
+        val after = (0..6).map { at + 30 + it * 20.0 }.filter { it < route.lengthM }.map(::xyAt)
+        if (after.isEmpty()) return true
+        val near = after.count { q -> before.zipWithNext().minOf { (a, b) -> segDist(q, a, b) } <= 20.0 }
+        return near * 2 >= after.size
+    }
 
     /** Douglas-Peucker: indices of the points that keep the shape within [tol] metres. */
     private fun simplify(xy: List<Pair<Double, Double>>, tol: Double): List<Int> {

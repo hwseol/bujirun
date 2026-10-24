@@ -489,7 +489,7 @@ private fun DeleteAccountDialog(hasPassword: Boolean, onDismiss: () -> Unit) {
         title = { Text(tr("계정을 삭제할까요?", "Delete your account?")) },
         text = {
             Column {
-                Text(tr("서버에서 계정이 지워지고 되돌릴 수 없어요. 이 폰의 운동 기록은 남아요.", "Your account will be permanently deleted from the server. Workouts on this phone will remain."))
+                Text(tr("계정과 계정에 백업된 운동 기록·코스가 서버에서 지워지고 되돌릴 수 없어요. 이 폰에 있는 기록은 남아요.", "Your account and the records backed up with it are deleted from the server for good. Workouts on this phone stay."))
                 if (hasPassword) {
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(

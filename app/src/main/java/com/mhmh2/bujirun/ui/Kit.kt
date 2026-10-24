@@ -1,5 +1,9 @@
 package com.mhmh2.bujirun.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.launch
 
 import androidx.compose.runtime.rememberCoroutineScope
@@ -155,7 +159,19 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun BackToTop(atTop: Boolean, toTop: suspend () -> Unit, onTop: (() -> Unit)?) {
     val scope = rememberCoroutineScope()
+    // Tapping the tab that's already shown also goes up to its top.
+    val asked = ScrollToTop.requests
+    var handled by remember { mutableIntStateOf(asked) }
+    LaunchedEffect(asked) { if (asked != handled) { handled = asked; toTop() } }
     BackHandler(enabled = !atTop || onTop != null) {
         if (!atTop) scope.launch { toTop() } else onTop?.invoke()
     }
+}
+
+/** Taps on the tab that's already shown, for the screen there to scroll back to its top. */
+object ScrollToTop {
+    var requests by mutableIntStateOf(0)
+        private set
+
+    fun request() { requests++ }
 }

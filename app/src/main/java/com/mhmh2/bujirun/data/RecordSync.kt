@@ -140,6 +140,11 @@ object RecordSync {
         if (stepsMerged) requestLater()
     }
 
+    /** After the owner deleted their account: the phone's records can go to whoever signs in next. */
+    fun forgetOwner() {
+        if (::app.isInitialized) sp.edit().remove("owner").remove("keys").apply()
+    }
+
     /** When the last sync finished, or 0. */
     val lastSyncMs: Long get() = if (::app.isInitialized) sp.getLong("last", 0L) else 0L
 

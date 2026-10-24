@@ -1,5 +1,6 @@
 package com.mhmh2.bujirun.account
 
+import com.mhmh2.bujirun.data.RecordSync
 import android.content.Context
 import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -110,6 +111,8 @@ object Account {
         val t = token ?: return
         AuthApi.deleteMe(t, password)
         clear()
+        // The records left on the phone are nobody's now: the next account to sign in may take them.
+        RecordSync.forgetOwner()
     }
 
     private fun store(result: AuthResult) {

@@ -81,6 +81,9 @@ object ServerText {
         Regex("내 코스 $KM") to { g -> "My course ${g[0]}" },
         Regex("$ANY 순환") to { g -> "Loop via " + g[0].split("·").joinToString(" and ") { place(it) } },
         // Notes and messages.
+        Regex("공원을 엮어 $KM 코스예요 \\(말씀하신 ${KM}보다 짧아요\\)\\.") to { g -> "Linking the parks makes ${g[0]}, shorter than the ${g[1]} you asked for." },
+        Regex("공원을 엮어 $KM 코스예요 \\(말씀하신 ${KM}보다 길어요\\)\\.") to { g -> "Linking the parks makes ${g[0]}, longer than the ${g[1]} you asked for." },
+        Regex("'$ANY' 위치를 찾지 못했어요\\.") to { g -> "Couldn't find where '${place(g[0])}' is." },
         Regex("'$ANY'을\\(를\\) 찾지 못했어요\\.") to { g -> "Couldn't find '${place(g[0])}'." },
         Regex("오르막 정보는 아직 반영하지 못했어요\\.") to { _ -> "Hills aren't taken into account yet." },
         Regex("지금 해가 높아요 \\(고도 ([0-9]+)°\\)\\. 나무 그늘이 많은 길 위주로 골랐어요\\.") to { g -> "The sun is high (${g[0]}°), so shady paths were preferred." },

@@ -1,5 +1,6 @@
 package com.mhmh2.bujirun.ui
 
+import androidx.activity.compose.BackHandler
 import com.mhmh2.bujirun.net.srv
 
 import com.mhmh2.bujirun.tr
@@ -113,6 +114,12 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
 
     val line = remember(course) { course.line }
     val distance = CourseGeometry.distanceM(line)
+
+    // Leaving with points placed and not saved: ask first, a stray back press shouldn't throw
+    // away a course drawn point by point.
+    var leaving by remember { mutableStateOf(false) }
+    fun close() { if (waypoints.size >= 2) leaving = true else onClose() }
+    BackHandler { close() }
     val myLocation = tr("내 위치", "My location")
 
     // A tapped point is called after what's there ("GS25", "역삼사거리"), when the server knows.
@@ -320,7 +327,7 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
         Column(Modifier.zIndex(1f).safeDrawingPadding().padding(12.dp).fillMaxWidth()) {
             Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 2.dp, shadowElevation = 2.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
+                    IconButton(onClick = { close() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("뒤로", "Back")) }
                     TextField(
                         value = query,
                         onValueChange = { query = it },
@@ -456,6 +463,20 @@ fun CourseDrawScreen(onClose: () -> Unit, onSaved: (Long) -> Unit) {
                 }
             },
             dismissButton = { TextButton(onClick = { picked = null; setStart(r.point, r.name) }) { Text(tr("여기서 출발", "Start here")) } },
+        )
+    }
+    if (leaving) {
+        AlertDialog(
+            onDismissRequest = { leaving = false },
+            title = { Text(tr("그리던 코스를 버릴까요?", "Discard this course?")) },
+            text = { Text(tr("저장하지 않은 지점 ${waypoints.size}개가 사라져요.", "The ${waypoints.size} points you placed aren't saved.")) },
+            confirmButton = { TextButton(onClick = { leaving = false; naming = true }, enabled = line.size >= 2) { Text(tr("저장하기", "Save")) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { leaving = false }) { Text(tr("계속 그리기", "Keep drawing")) }
+                    TextButton(onClick = { leaving = false; onClose() }) { Text(tr("버리기", "Discard")) }
+                }
+            },
         )
     }
     if (naming) {

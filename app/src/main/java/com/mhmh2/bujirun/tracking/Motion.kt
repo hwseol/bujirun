@@ -130,12 +130,21 @@ class AutoPauseDetector(
         private set
 
     /**
+     * Last time the runner was seen moving (short-window speed at a walking pace). Deciding
+     * "still" takes the long window plus the hold - about 10 s - and those seconds of standing
+     * shouldn't count as workout time: the pause starts from here.
+     */
+    var lastMovingMs: Long? = null
+        private set
+
+    /**
      * @param slowSpeed speed over a longer window (~8 s), steady enough to call "still"
      * @param quickSpeed speed over a short window (~3 s), to notice moving again fast
      * @param recentSteps steps in the last 5 s, or null without a step sensor
      */
     fun update(nowMs: Long, autoPaused: Boolean, slowSpeed: Double?, quickSpeed: Double?, recentSteps: Int?): Decision {
         if (!autoPaused) {
+            if (quickSpeed != null && quickSpeed >= moveSpeedMps) lastMovingMs = nowMs
             movingTicks = 0
             inVehicle = false
             if (slowSpeed != null && slowSpeed > vehicleSpeedMps) {

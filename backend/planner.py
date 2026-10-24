@@ -208,7 +208,7 @@ class Planner:
                 hits = [{**h, "name": m["name"], "id": None, "kind": "poi", "source": "TMAP"}
                         for h in self.poi(m["name"], near, NEAR_KM[role]) if h["away_m"] <= limit]
             if not hits:
-                out.notes.append(f"'{m['name']}'을(를) 찾지 못했어요.")
+                out.notes.append(f"'{m['name']}' 위치를 찾지 못했어요.")
                 continue
             h = hits[0]
             resolved[role] = {**h, "pt": [h["lat"], h["lon"]]}
@@ -530,8 +530,10 @@ class Planner:
             out.notes.append(f"{name}까지 가고 오는 {km(2 * lead_m)}가 거리에 포함돼 있어요.")
         pts = join(lead, *([lap] * n), lead[::-1])
         where = f"{name} 트랙" if track and not name.endswith("트랙") else name
-        title = f"{where} {n}바퀴" if n > 1 else f"{where} 한 바퀴"
+        # The lap's own length in the name: a park's path loop can be much shorter than the park
+        # round (반포한강공원 is 6 km round, its loop 1.4 km) and "2바퀴 3.2 km" alone reads wrong.
         laps_label = f"{where} {n}바퀴 (한 바퀴 {km(lap_m)})" if n > 1 else f"{where} 한 바퀴"
+        title = laps_label
         self.add(out, title, pts, [name],
                  legs=[(f"{name}까지 가는 길", lead), (laps_label, join(*([lap] * n))), ("돌아오는 길", lead[::-1])])
 
@@ -642,6 +644,10 @@ class Planner:
         for p in stops:
             out.sources.add(p["source"])
         names = [p["name"] for p in stops]
+        # Said when it's well off what was asked ("30분" planned as 4.5 km, the parks make 3.8).
+        got = path_length(pts)
+        if abs(got - target) > 0.1 * target:
+            out.notes.append(f"공원을 엮어 {km(got)} 코스예요 (말씀하신 {km(target)}보다 {'짧아요' if got < target else '길어요'}).")
         self.add(out, "·".join(names) + " 순환", pts, names)
 
     # --- no place at all ---------------------------------------------------------------------

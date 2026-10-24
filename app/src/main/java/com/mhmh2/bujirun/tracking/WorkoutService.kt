@@ -452,7 +452,7 @@ class WorkoutService : LifecycleService() {
             AutoPauseDetector.Decision.PAUSE -> if (t.status == WorkoutStatus.RUNNING) {
                 // Off a ride, the runner starts afresh where they got off, not a line from where
                 // they got on.
-                t.pause(now, keepPlace = !autoPause.inVehicle)
+                t.pause(now, keepPlace = !autoPause.inVehicle, stoppedAtMs = autoPause.lastMovingMs.takeIf { !autoPause.inVehicle })
                 pausedBy = PausedBy.AUTO
                 if (announce) say(Cue.AutoPaused)
             }
