@@ -129,9 +129,13 @@ class WorkoutService : LifecycleService() {
     }
 
     /** [path]: run along this course instead of wandering from a random Seoul spot. */
+    // The pretend runner of a test run, told about reroutes so it follows them like a person.
+    private var fakeRun: FakeRun? = null
+
     private fun startFakeGps(path: List<GeoPoint>?) {
         val (lat, lon) = FakeRun.SEOUL_STARTS.random()
-        val fake = FakeRun(System.nanoTime(), lat, lon, path)
+        val fake = FakeRun(System.nanoTime(), lat, lon, path, strays = simStrays)
+        fakeRun = fake
         simJob = lifecycleScope.launch {
             while (isActive) {
                 // Paused by the runner: the pretend runner stands still too (the last fix again),
@@ -182,6 +186,7 @@ class WorkoutService : LifecycleService() {
             ACTION_START -> start(
                 Goal.decode(intent.getStringExtra(EXTRA_GOAL_TYPE), intent.getDoubleExtra(EXTRA_GOAL_VALUE, 0.0)),
                 simScale = intent.getIntExtra(EXTRA_SIM_SCALE, 0),
+                strays = intent.getBooleanExtra(EXTRA_SIM_STRAYS, false),
                 courseId = intent.getLongExtra(EXTRA_COURSE_ID, 0L).takeIf { it > 0 },
             )
             ACTION_PAUSE -> tracker?.takeIf { it.status == WorkoutStatus.RUNNING }?.let {
@@ -204,8 +209,11 @@ class WorkoutService : LifecycleService() {
         return START_NOT_STICKY
     }
 
-    private fun start(goal: Goal, simScale: Int, courseId: Long?) {
+    private var simStrays = false
+
+    private fun start(goal: Goal, simScale: Int, courseId: Long?, strays: Boolean = false) {
         if (tracker != null) return
+        simStrays = strays
         if (!hasLocationPermission()) {
             stopSelf()
             return
@@ -250,7 +258,7 @@ class WorkoutService : LifecycleService() {
         ticker = lifecycleScope.launch {
             // The course (a quick local read) before anything needs it; a test run then runs along it.
             val course = courseId?.let { CourseStore.load(it) }
-            if (simScale > 0) startFakeGps(course?.second)
+            if (simScale > 0) startFakeGps(course?.second) else fakeRun = null
             // The course is run from where the runner is: found during the countdown (GPS fix,
             // then the walking route to the course if they're away from it).
             val joining = course?.let { (name, points) ->
@@ -405,6 +413,8 @@ class WorkoutService : LifecycleService() {
             if (navigator !== nav || tracker == null) return@launch // stopped or rerouted meanwhile
             val rerouted = CourseNavigator(courseName, newRoute, announceHalfway = false, startsHere = true)
             navigator = rerouted
+            // A test run's pretend runner takes the new way after a moment, as a person would.
+            fakeRun?.let { f -> launch { delay(3_000L / maxOf(simScale, 1)); if (navigator === rerouted) f.follow(newRoute.points) } }
             fetchLandmarks(rerouted)
             val toCourse = (newRoute.lengthM - (route.lengthM - at)).coerceAtLeast(0.0)
             say(Cue.Course(CourseCue.Rerouted(((toCourse / 10).roundToInt() * 10))))
@@ -646,19 +656,21 @@ class WorkoutService : LifecycleService() {
         private const val EXTRA_GOAL_TYPE = "goal_type"
         private const val EXTRA_GOAL_VALUE = "goal_value"
         private const val EXTRA_SIM_SCALE = "sim_scale"
+        private const val EXTRA_SIM_STRAYS = "sim_strays"
         private const val EXTRA_COURSE_ID = "course_id"
 
         /**
          * [simScale] > 0: an admin test run with fake GPS at that many times real speed.
          * [courseId]: follow that course with voice guidance.
          */
-        fun start(context: Context, goal: Goal, simScale: Int = 0, courseId: Long? = null) {
+        fun start(context: Context, goal: Goal, simScale: Int = 0, courseId: Long? = null, strays: Boolean = false) {
             val (type, value) = goal.encode()
             val intent = Intent(context, WorkoutService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_GOAL_TYPE, type)
                 .putExtra(EXTRA_GOAL_VALUE, value)
                 .putExtra(EXTRA_SIM_SCALE, simScale)
+                .putExtra(EXTRA_SIM_STRAYS, strays)
                 .putExtra(EXTRA_COURSE_ID, courseId ?: 0L)
             ContextCompat.startForegroundService(context, intent)
         }

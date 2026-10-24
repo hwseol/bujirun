@@ -14,14 +14,54 @@ import kotlin.random.Random
  * curves and occasional turns, rolling hills, and a couple of metres of GPS noise - enough to
  * exercise walk/run detection, auto-pause, splits, calories and the route drawing.
  * Endless: it keeps going until the workout is stopped. Pure and seeded, so it's testable.
+ *
+ * [strays]: on a course, now and then it doesn't do as it's told, the way people really run - the
+ * pavement across the road for a while, a detour along another street, straight on past a turn,
+ * a loop started the other way round - and then follows whatever route the app guides it onto
+ * ([follow]). That's the guidance a test run is for: getting a runner back, not a perfect line.
  */
-class FakeRun(seed: Long, private var lat: Double, private var lon: Double, path: List<GeoPoint>? = null) {
+class FakeRun(
+    seed: Long,
+    private var lat: Double,
+    private var lon: Double,
+    path: List<GeoPoint>? = null,
+    private val strays: Boolean = false,
+) {
     /** With a course: run along it (laps of a loop; stand at the finish of a one-way course). */
-    private val route = path?.takeIf { it.size >= 2 }?.let { CourseRoute(it) }
+    private var route = path?.takeIf { it.size >= 2 }?.let { CourseRoute(it) }
     private var along = 0.0
+
+    private sealed interface Stray
+    /** Alongside the course, [sideM] off it (the other pavement, a path beside it, or a whole street over). */
+    private data class Aside(val fromM: Double, val lengthM: Double, val sideM: Double) : Stray
+    /** Straight on past a turn, [leftM] still to go, then back to where they left the course. */
+    private data class Straight(val headingDeg: Double, var leftM: Double, val backTo: GeoPoint) : Stray
+    private data class Back(val to: GeoPoint) : Stray
+
+    private var stray: Stray? = null
+    private var missTurnAt: Double? = null
+    private var nextStrayAt = 0.0
+
+    /** What it's doing off the course right now, for the log of a test run (null: on it). */
+    val straying: String? get() = when (val s = stray) {
+        is Aside -> if (s.sideM.let { kotlin.math.abs(it) } > 100) "detour" else "alongside"
+        is Straight -> "missed a turn"
+        is Back -> "back to the course"
+        null -> null
+    }
 
     init {
         route?.pointAt(0.0)?.let { lat = it.lat; lon = it.lon }
+    }
+
+    /** The app guided it onto [path] (a reroute): from here on that's what it runs. */
+    fun follow(path: List<GeoPoint>) {
+        if (path.size < 2) return
+        val r = CourseRoute(path)
+        route = r
+        along = r.locate(GeoPoint(lat, lon), 0.0, minOf(r.lengthM, 300.0)).first
+        stray = null
+        missTurnAt = null
     }
 
     data class Fix(val lat: Double, val lon: Double, val altitudeM: Double, val accuracyM: Float, val speedMps: Double)
@@ -42,15 +82,39 @@ class FakeRun(seed: Long, private var lat: Double, private var lon: Double, path
     fun next(): Fix {
         val phase = currentPhase()
         phase.secondsLeft--
-        val finished = route != null && !route.isLoop && along >= route.lengthM
+        val finished = route?.let { !it.isLoop && along >= it.lengthM } == true
         val speed = when {
             phase.kind == Kind.STOP || finished -> 0.0
             else -> phase.baseSpeed * (1 + rnd.nextDouble(-0.05, 0.05))
         }
-        if (route != null) {
+        val route = route
+        if (route != null && stray is Straight) {
+            val s = stray as Straight
+            step(s.headingDeg, speed)
+            s.leftM -= speed
+            if (s.leftM <= 0) stray = Back(s.backTo)
+            distance += speed
+        } else if (route != null && stray is Back) {
+            // Not rerouted (offline, or before the app noticed): back to where they went wrong.
+            val to = (stray as Back).to
+            val d = metres(lat, lon, to.lat, to.lon)
+            if (d <= speed + 1) { lat = to.lat; lon = to.lon; stray = null } else step(bearingTo(to), speed)
+            distance += speed
+        } else if (route != null) {
             along += speed
             if (along >= route.lengthM) along = if (route.isLoop) along - route.lengthM else route.lengthM
-            route.pointAt(along).let { lat = it.lat; lon = it.lon }
+            val on = route.pointAt(along)
+            lat = on.lat; lon = on.lon
+            (stray as? Aside)?.let { a ->
+                val t = along - a.fromM
+                if (t > a.lengthM || t < 0) stray = null
+                else {
+                    // Eased out to the side and back over the first and last 40 m.
+                    val ramp = minOf(1.0, t / 40, (a.lengthM - t) / 40)
+                    shift(route.headingAt(along) + 90, a.sideM * ramp)
+                }
+            }
+            if (strays && speed > 0) maybeStray(route)
             distance += speed
         } else if (speed > 0) {
             heading += gaussian() * 3
@@ -100,6 +164,56 @@ class FakeRun(seed: Long, private var lat: Double, private var lon: Double, path
         }
         // ...and sometimes followed by a walking breather.
         if (rnd.nextDouble() < 0.4) phases += walk(rnd.nextInt(30, 90))
+    }
+
+    // Every 500-900 m one of: the pavement alongside (should be "following", no nagging), a
+    // detour a street over (off the course: rerouted), or straight on at the next turn.
+    private fun maybeStray(route: CourseRoute) {
+        if (nextStrayAt == 0.0) {
+            nextStrayAt = distance + rnd.nextDouble(300.0, 600.0)
+            // A loop now and then set off the wrong way round.
+            if (route.isLoop && rnd.nextDouble() < 0.25) {
+                this.route = CourseRoute(route.points.reversed())
+                along = 0.0
+            }
+            return
+        }
+        missTurnAt?.let { at ->
+            if (along >= at - 3) {
+                missTurnAt = null
+                stray = Straight(route.headingAt(maxOf(0.0, at - 20)), rnd.nextDouble(120.0, 220.0), route.pointAt(at))
+            }
+            return
+        }
+        if (stray != null || distance < nextStrayAt) return
+        nextStrayAt = distance + rnd.nextDouble(500.0, 900.0)
+        val side = if (rnd.nextBoolean()) 1.0 else -1.0
+        val nextTurn = route.turns.firstOrNull { it.atM > along + 40 && it.atM < along + 400 }
+        when {
+            nextTurn != null && rnd.nextDouble() < 0.35 -> missTurnAt = nextTurn.atM
+            rnd.nextBoolean() -> stray = Aside(along, rnd.nextDouble(150.0, 300.0), side * rnd.nextDouble(35.0, 60.0))
+            else -> stray = Aside(along, rnd.nextDouble(250.0, 450.0), side * rnd.nextDouble(140.0, 220.0))
+        }
+    }
+
+    private fun step(headingDeg: Double, m: Double) = shift(headingDeg, m)
+
+    private fun shift(headingDeg: Double, m: Double) {
+        val rad = headingDeg * PI / 180
+        lat += m * cos(rad) / M_PER_DEG
+        lon += m * sin(rad) / (M_PER_DEG * cos(lat * PI / 180))
+    }
+
+    private fun bearingTo(p: GeoPoint): Double {
+        val dy = (p.lat - lat) * M_PER_DEG
+        val dx = (p.lon - lon) * M_PER_DEG * cos(lat * PI / 180)
+        return Math.toDegrees(kotlin.math.atan2(dx, dy))
+    }
+
+    private fun metres(aLat: Double, aLon: Double, bLat: Double, bLon: Double): Double {
+        val dy = (bLat - aLat) * M_PER_DEG
+        val dx = (bLon - aLon) * M_PER_DEG * cos(aLat * PI / 180)
+        return kotlin.math.hypot(dx, dy)
     }
 
     private fun walk(seconds: Int) = Phase(Kind.WALK, seconds, rnd.nextDouble(1.2, 1.5))

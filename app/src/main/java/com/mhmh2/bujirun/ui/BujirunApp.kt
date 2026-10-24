@@ -1,5 +1,7 @@
 package com.mhmh2.bujirun.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Checkbox
 import com.mhmh2.bujirun.tr
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.widthIn
@@ -81,6 +83,7 @@ fun BujirunApp() {
     var permissionDenied by remember { mutableStateOf(false) }
     var pendingGoal by remember { mutableStateOf<Goal>(Goal.Free) }
     var pendingSimScale by remember { mutableStateOf(0) }
+    var pendingStrays by remember { mutableStateOf(false) }
     var pendingCourse by remember { mutableStateOf<Long?>(null) }
     // Admin's "real or test?" question, holding what was about to start.
     var adminChoiceFor by remember { mutableStateOf<Pair<Goal, Long?>?>(null) }
@@ -103,7 +106,7 @@ fun BujirunApp() {
         // them); location isn't.
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             permissionDenied = false
-            WorkoutService.start(context, pendingGoal, pendingSimScale, pendingCourse)
+            WorkoutService.start(context, pendingGoal, pendingSimScale, pendingCourse, pendingStrays)
         } else {
             permissionDenied = true
         }
@@ -147,7 +150,8 @@ fun BujirunApp() {
         )
     }
 
-    fun start(goal: Goal, simScale: Int = 0, courseId: Long? = null) {
+    fun start(goal: Goal, simScale: Int = 0, courseId: Long? = null, strays: Boolean = false) {
+        pendingStrays = strays
         // A course run's distance goal is the course's, not a preference to remember.
         if (courseId == null) Prefs.lastGoal = goal
         pendingGoal = goal
@@ -162,7 +166,7 @@ fun BujirunApp() {
         val missing = needed.filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }
-        if (missing.isEmpty()) WorkoutService.start(context, goal, simScale, courseId)
+        if (missing.isEmpty()) WorkoutService.start(context, goal, simScale, courseId, strays)
         else permissionLauncher.launch(missing.toTypedArray())
     }
 
@@ -173,7 +177,7 @@ fun BujirunApp() {
     adminChoiceFor?.let { (goal, courseId) ->
         AdminStartDialog(
             onReal = { adminChoiceFor = null; start(goal, courseId = courseId) },
-            onTest = { scale -> adminChoiceFor = null; start(goal, scale, courseId) },
+            onTest = { scale, strays -> adminChoiceFor = null; start(goal, scale, courseId, strays) },
             onDismiss = { adminChoiceFor = null },
         )
     }
@@ -287,7 +291,10 @@ fun BujirunApp() {
 
 /** Admin only: a real workout, or a fake-GPS test run at 1x/5x/10x. */
 @Composable
-private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismiss: () -> Unit) {
+private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int, Boolean) -> Unit, onDismiss: () -> Unit) {
+    // On a course, the pretend runner strays now and then (another street, a missed turn, a loop
+    // the other way) and follows the app back - the guidance real runners need.
+    var strays by remember { mutableStateOf(true) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(tr("어떻게 시작할까요?", "How do you want to start?")) },
@@ -300,10 +307,14 @@ private fun AdminStartDialog(onReal: () -> Unit, onTest: (Int) -> Unit, onDismis
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
                 )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { strays = !strays }) {
+                    Checkbox(checked = strays, onCheckedChange = { strays = it })
+                    Text(tr("코스에서 가끔 다른 길로 (이탈·재안내 테스트)", "Stray from the course now and then (rerouting test)"), style = MaterialTheme.typography.bodySmall)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(1, 5, 10).forEach { scale ->
                         OutlinedButton(
-                            onClick = { onTest(scale) },
+                            onClick = { onTest(scale, strays) },
                             contentPadding = PaddingValues(horizontal = 4.dp),
                             modifier = Modifier.weight(1f)
                         ) { Text(tr("${scale}배속", "${scale}x"), maxLines = 1) }
