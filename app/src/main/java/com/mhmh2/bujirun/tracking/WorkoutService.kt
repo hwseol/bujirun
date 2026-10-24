@@ -289,7 +289,14 @@ class WorkoutService : LifecycleService() {
                 // then crossing slowly); only a pause the runner chose stops it.
                 if (nav != null && here != null && pausedBy != PausedBy.USER && t.status != WorkoutStatus.FINISHED) {
                     val cues = nav.update(here, now())
-                    cues.forEach { say(Cue.Course(it)) }
+                    // Off the course, or round a loop the other way: put the runner back on it from
+                    // where they are (a new route, whose own cue says where to go) instead of
+                    // telling them "off course" / "turn back". A one-way course run backwards is
+                    // still told once - turning it round would make no sense.
+                    val fix = cues.any { it is CourseCue.OffCourse || (it == CourseCue.WrongWay && nav.route.isLoop) } &&
+                        canAutoReroute(nav, now())
+                    cues.filterNot { fix && (it is CourseCue.OffCourse || it == CourseCue.WrongWay) }.forEach { say(Cue.Course(it)) }
+                    if (fix) autoRerouteNow(now())
                     // At the destination (or back at the start of a loop): the workout is done -
                     // finished and saved, the report up, the voice says the totals. (Not a loop
                     // of the runner's own: that goes on until they stop.)
@@ -337,24 +344,30 @@ class WorkoutService : LifecycleService() {
     private suspend fun walkingRoute(from: GeoPoint, to: GeoPoint): List<GeoPoint>? =
         runCatching { withTimeout(8_000) { RouteApi.walk(from, to) } }.getOrNull()?.takeIf { it.size >= 2 }
 
-    // The runner took another road: after a while off the course (or going further from it), a
-    // new route from where they are instead of repeating "off course". At most once a minute,
-    // and twice a workout - each is a walking-route request to the server, and someone who keeps
-    // leaving the course is running their own way (LoopLearner picks that up).
+    // The runner took another road: a new route from where they are instead of repeating "off
+    // course" - straight away when the navigator calls them off it, and again if they stay off
+    // (the new way didn't suit either). At most every 30 s and 8 times a workout: each can be a
+    // walking-route request, and someone who keeps leaving the course is running their own way
+    // (LoopLearner picks that up).
     private var offSinceMs: Long? = null
-    private var lastAutoRerouteMs = 0L
+    private var lastAutoRerouteMs = Long.MIN_VALUE / 2
     private var autoReroutes = 0
+
+    private fun canAutoReroute(nav: CourseNavigator, now: Long) =
+        !nav.openLaps && !rerouting && autoReroutes < MAX_AUTO_REROUTES && now - lastAutoRerouteMs >= 30_000
+
+    private fun autoRerouteNow(now: Long) {
+        lastAutoRerouteMs = now
+        offSinceMs = null
+        autoReroutes++
+        reroute()
+    }
 
     private fun autoReroute(nav: CourseNavigator, cues: List<CourseCue>, now: Long) {
         val p = nav.progress()
         if (p.onCourse || !p.started || p.finished || nav.openLaps) { offSinceMs = null; return }
         val since = offSinceMs ?: now.also { offSinceMs = it }
-        if (autoReroutes < 2 && now - since >= AUTO_REROUTE_AFTER_MS && now - lastAutoRerouteMs >= 60_000) {
-            lastAutoRerouteMs = now
-            offSinceMs = null
-            autoReroutes++
-            reroute()
-        }
+        if (now - since >= AUTO_REROUTE_AFTER_MS && canAutoReroute(nav, now)) autoRerouteNow(now)
     }
 
     // Going round a loop of their own (a park's running track instead of the course round the
@@ -385,12 +398,9 @@ class WorkoutService : LifecycleService() {
         rerouting = true
         publish()
         lifecycleScope.launch {
-            val route = nav.route
-            val done = nav.progress().progressM
-            val (at, d) = CourseJoin.rejoinPoint(route, done, here)
+            val (route, at, d) = CourseJoin.rerouteFrom(nav.route, nav.progress().progressM, tracker?.distanceM ?: 0.0, here)
             val approach = if (d > CourseJoin.JOIN_M) walkingRoute(here, route.pointAt(at)) else null
-            val run = CourseJoin.rejoin(route, done, here, approach)
-            val newRoute = CourseRoute(run)
+            val newRoute = CourseRoute(CourseJoin.restFrom(route, at, here, approach))
             rerouting = false
             if (navigator !== nav || tracker == null) return@launch // stopped or rerouted meanwhile
             val rerouted = CourseNavigator(courseName, newRoute, announceHalfway = false, startsHere = true)
@@ -631,7 +641,8 @@ class WorkoutService : LifecycleService() {
         const val ACTION_RESUME = "com.mhmh2.bujirun.RESUME"
         const val ACTION_STOP = "com.mhmh2.bujirun.STOP"
         const val ACTION_REROUTE = "com.mhmh2.bujirun.REROUTE"
-        private const val AUTO_REROUTE_AFTER_MS = 30_000L
+        private const val AUTO_REROUTE_AFTER_MS = 20_000L
+        private const val MAX_AUTO_REROUTES = 8
         private const val EXTRA_GOAL_TYPE = "goal_type"
         private const val EXTRA_GOAL_VALUE = "goal_value"
         private const val EXTRA_SIM_SCALE = "sim_scale"

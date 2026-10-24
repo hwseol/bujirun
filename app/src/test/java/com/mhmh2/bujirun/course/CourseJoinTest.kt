@@ -14,6 +14,42 @@ class CourseJoinTest {
     // A 400 m square loop, closed (last point = first).
     private val square = listOf(at(0.0, 0.0), at(100.0, 0.0), at(100.0, 100.0), at(0.0, 100.0), at(0.0, 0.0))
 
+    // A 1.2 km loop: 300 m east, 300 m north, back west and down.
+    private val big = listOf(at(0.0, 0.0), at(300.0, 0.0), at(300.0, 300.0), at(0.0, 300.0), at(0.0, 0.0))
+
+    @Test fun runningALoopTheOtherWayTurnsItRoundInsteadOfHeadingHome() {
+        // Set off north instead of east: 250 m up the loop's last side, which the navigator
+        // takes as 950 m along (nearly home).
+        val here = at(2.0, 250.0)
+        val r = CourseJoin.rerouteFrom(CourseRoute(big), 950.0, 250.0, here)
+        assertEquals(250.0, r.at, 5.0)
+        val rest = CourseRoute(CourseJoin.restFrom(r.route, r.at, here, null)).lengthM
+        assertEquals(950.0, rest, 10.0) // the rest of the whole loop, the other way round
+        assertEquals(big.first(), r.route.points.last())
+    }
+
+    @Test fun startingALoopBackwardsWhileTheNavigatorStillHasThemAtTheStart() {
+        // 200 m up the last side; the navigator never placed them (progress 0).
+        val here = at(-3.0, 200.0)
+        val r = CourseJoin.rerouteFrom(CourseRoute(big), 0.0, 200.0, here)
+        assertEquals(big.first(), r.route.points.last())
+        assertEquals(1000.0, CourseRoute(CourseJoin.restFrom(r.route, r.at, here, null)).lengthM, 10.0)
+    }
+
+    @Test fun aRunnerGoingTheRightWayIsNotTurnedRound() {
+        val here = at(250.0, 3.0)
+        val r = CourseJoin.rerouteFrom(CourseRoute(big), 250.0, 260.0, here)
+        assertEquals(big, r.route.points)
+        assertEquals(250.0, r.at, 5.0)
+    }
+
+    @Test fun progressIsNeverMoreThanWhatWasRun() {
+        // A one-way course: lost 150 m in, but the navigator had jumped to 500 m.
+        val line = CourseRoute(listOf(at(0.0, 0.0), at(600.0, 0.0)))
+        val r = CourseJoin.rerouteFrom(line, 500.0, 150.0, at(150.0, 40.0))
+        assertEquals(150.0, r.at, 10.0)
+    }
+
     @Test fun loopIsEnteredAtTheNearestPointAndClosesThere() {
         val here = at(105.0, 102.0) // by the far corner
         assertFalse(CourseJoin.needsApproach(square, here))

@@ -70,8 +70,35 @@ object CourseJoin {
      * The rest of the course as run from [here] after getting lost: [approach] (the walking route
      * to the rejoin point; null - a straight line) and then the course from there to its end.
      */
-    fun rejoin(route: CourseRoute, progressM: Double, here: GeoPoint, approach: List<GeoPoint>?): List<GeoPoint> {
-        val (at, _) = rejoinPoint(route, progressM, here)
+    fun rejoin(route: CourseRoute, progressM: Double, here: GeoPoint, approach: List<GeoPoint>?): List<GeoPoint> =
+        restFrom(route, rejoinPoint(route, progressM, here).first, here, approach)
+
+    /** What "경로 다시 찾기" goes on with: [route] (the course, or the loop turned round) from [at], [distance] away. */
+    data class Rejoin(val route: CourseRoute, val at: Double, val distance: Double)
+
+    /**
+     * Where to pick the course up again for a runner at [here] who has run [ranM] so far, the
+     * navigator having them at [progressM]. Someone who set off round a loop the other way is
+     * matched onto its last stretch home, far beyond what they've run - rejoining "ahead" from
+     * there would just send them to the finish. Instead the loop is turned round and run on from
+     * where they are, so the whole course is still run. Otherwise: the nearest part not yet run,
+     * never counting more of the course as done than the runner has covered.
+     */
+    fun rerouteFrom(route: CourseRoute, progressM: Double, ranM: Double, here: GeoPoint): Rejoin {
+        val done = minOf(progressM, ranM)
+        if (route.isLoop) {
+            // On the loop's first stretch the other way round, and nowhere near the part they
+            // should be on going the right way: they're running it backwards.
+            val back = CourseRoute(route.points.reversed())
+            val (at, d) = back.locate(here, 0.0, minOf(back.lengthM, ranM + 100))
+            if (d <= 2 * JOIN_M && d < distance(here, route.pointAt(done)) / 2) return Rejoin(back, at, d)
+        }
+        val (at, d) = rejoinPoint(route, done, here)
+        return Rejoin(route, at, d)
+    }
+
+    /** [route] from [at] to its end, reached from [here] by [approach] (null: a straight line). */
+    fun restFrom(route: CourseRoute, at: Double, here: GeoPoint, approach: List<GeoPoint>?): List<GeoPoint> {
         val rest = listOf(route.pointAt(at)) + route.points.filterIndexed { i, _ -> route.cum[i] > at + 1 }
         val way = fromHere(here, approach) ?: listOf(here, rest.first())
         val run = way + rest.drop(1)

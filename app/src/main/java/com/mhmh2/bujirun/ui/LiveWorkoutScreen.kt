@@ -1,5 +1,13 @@
 package com.mhmh2.bujirun.ui
 
+import android.app.Activity
+import android.os.SystemClock
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.mhmh2.bujirun.tr
 import androidx.compose.ui.text.font.FontWeight
 
@@ -63,6 +71,20 @@ fun LiveWorkoutScreen(
 ) {
     val voiceOn by Prefs.voiceEnabled.collectAsState()
     val paused = state.status == WorkoutStatus.PAUSED
+
+    // Nothing to go back to mid-run, and a stray back press shouldn't make the app vanish: the
+    // first one says what a second does (the app steps aside, the recording goes on).
+    val context = LocalContext.current
+    var backPressedAt by remember { mutableLongStateOf(0L) }
+    BackHandler {
+        val now = SystemClock.uptimeMillis()
+        if (now - backPressedAt < 2_000) {
+            (context as? Activity)?.moveTaskToBack(true)
+        } else {
+            backPressedAt = now
+            Toast.makeText(context, tr("한 번 더 누르면 앱이 닫혀요. 기록은 계속돼요.", "Press back again to leave. Recording goes on."), Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp, vertical = 16.dp),
