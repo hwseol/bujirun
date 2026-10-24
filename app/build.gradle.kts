@@ -23,8 +23,8 @@ android {
         applicationId = "com.mhmh2.bujirun"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
 
         // NAVER Cloud Platform Maps client ID. Not a secret: it ships inside the app and only
         // works for the package name registered with it (com.mhmh2.bujirun). The client

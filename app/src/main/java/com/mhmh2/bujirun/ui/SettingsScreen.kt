@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.health.connect.client.PermissionController
 import com.mhmh2.bujirun.data.CalendarExport
 import com.mhmh2.bujirun.data.HealthExport
+import com.mhmh2.bujirun.data.RecordsFile
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.coach.CueInterval
 
@@ -191,6 +192,8 @@ fun SettingsScreen(onAccount: () -> Unit, onBackAtTop: (() -> Unit)? = null) {
                     else -> Toast.makeText(context, tr("이 폰에서는 Health Connect를 먼저 설치하거나 업데이트해야 해요", "Install or update Health Connect on this phone first"), Toast.LENGTH_LONG).show()
                 }
             }
+            Divider()
+            RecordsFileRows()
         }
 
         Spacer(Modifier.height(20.dp))
@@ -243,6 +246,45 @@ internal fun ToggleRow(title: String, description: String, checked: Boolean, onC
         }
         Spacer(Modifier.width(16.dp))
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+/** 기록 파일로 내보내기 / 가져오기: moving records to another phone or another build of the app. */
+@Composable
+private fun RecordsFileRows() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var importing by remember { mutableStateOf<android.net.Uri?>(null) }
+    fun fail(e: Exception) = Toast.makeText(context, e.message ?: tr("실패했어요", "Failed"), Toast.LENGTH_LONG).show()
+    val exportTo = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                RecordsFile.export(context, uri)
+                Toast.makeText(context, tr("기록을 파일로 저장했어요", "Records saved to the file"), Toast.LENGTH_LONG).show()
+            } catch (e: Exception) { fail(e) }
+        }
+    }
+    val importFrom = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> importing = uri }
+
+    Section(tr("기록 파일", "Records file"), tr("모든 운동 기록과 코스를 파일 하나로 저장하거나, 저장한 파일에서 되살려요. 다른 폰이나 새로 설치한 앱으로 옮길 때 써요.", "Save every workout and course to one file, or bring them back from one. For moving to another phone or a reinstalled app."))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.material3.OutlinedButton(onClick = { exportTo.launch("bujirun-records.zip") }) { Text(tr("내보내기", "Export")) }
+        androidx.compose.material3.OutlinedButton(onClick = { importFrom.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text(tr("가져오기", "Import")) }
+    }
+    importing?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { importing = null },
+            title = { Text(tr("기록 가져오기", "Import records")) },
+            text = { Text(tr("이 폰의 지금 기록은 파일의 기록으로 바뀌어요. 가져온 뒤 앱이 다시 시작돼요.", "The records on this phone are replaced by the file's. The app restarts afterwards.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    importing = null
+                    scope.launch { try { RecordsFile.import(context, uri) } catch (e: Exception) { fail(e) } }
+                }) { Text(tr("가져오기", "Import")) }
+            },
+            dismissButton = { TextButton(onClick = { importing = null }) { Text(tr("취소", "Cancel")) } },
+        )
     }
 }
 
