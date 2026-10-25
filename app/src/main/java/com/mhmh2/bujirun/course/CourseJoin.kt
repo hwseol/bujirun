@@ -93,9 +93,29 @@ object CourseJoin {
             val (at, d) = back.locate(here, 0.0, minOf(back.lengthM, ranM + 100))
             if (d <= 2 * JOIN_M && d < distance(here, route.pointAt(done)) / 2) return Rejoin(back, at, d)
         }
-        val (at, d) = rejoinPoint(route, done, here)
-        return Rejoin(route, at, d)
+        val at = aheadTarget(route, done, here)
+        return Rejoin(route, at, distance(here, route.pointAt(at)))
     }
+
+    /**
+     * Where a runner who left the course picks it up again, as a car navigation would: never
+     * back to where they left it, but ahead - the next big turn (or the turn for home, or the
+     * finish) past where they've got to alongside the course. From there the course carries on
+     * as planned. Their place alongside is the nearest point of the next stretch; a long
+     * straight with no turn for a while rejoins [REJOIN_AHEAD_M] on.
+     */
+    fun aheadTarget(route: CourseRoute, done: Double, here: GeoPoint): Double {
+        val from = done.coerceIn(0.0, route.lengthM)
+        val alongside = route.locate(here, from, minOf(route.lengthM, from + 1_200)).first
+        val next = CourseOutline.keyPoints(route).map { it.atM }.firstOrNull { it > alongside + 40 }
+        return when {
+            next != null && next <= alongside + MAX_TO_KEY_POINT_M -> next
+            else -> minOf(route.lengthM, alongside + REJOIN_AHEAD_M)
+        }
+    }
+
+    private const val MAX_TO_KEY_POINT_M = 800.0
+    private const val REJOIN_AHEAD_M = 300.0
 
     /** [route] from [at] to its end, reached from [here] by [approach] (null: a straight line). */
     fun restFrom(route: CourseRoute, at: Double, here: GeoPoint, approach: List<GeoPoint>?): List<GeoPoint> {

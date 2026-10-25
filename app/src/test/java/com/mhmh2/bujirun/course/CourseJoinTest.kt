@@ -40,14 +40,27 @@ class CourseJoinTest {
         val here = at(250.0, 3.0)
         val r = CourseJoin.rerouteFrom(CourseRoute(big), 250.0, 260.0, here)
         assertEquals(big, r.route.points)
-        assertEquals(250.0, r.at, 5.0)
+        // Picked up at the next corner ahead (300 m), not back where they were.
+        assertEquals(300.0, r.at, 5.0)
+    }
+
+    @Test fun aDetourRejoinsAheadNotWhereItLeft() {
+        // Left a 1.8 km course (north 900, east 900) at 300 m, ran a street over to level with
+        // 600 m: picked up at the corner ahead (900 m), never sent back to 300 m.
+        val l = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 900.0), at(900.0, 900.0)))
+        val r = CourseJoin.rerouteFrom(l, 300.0, 450.0, at(-150.0, 600.0))
+        assertEquals(900.0, r.at, 5.0)
+        // A long straight with no turn near: 300 m on from where they've got to.
+        val long = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 3000.0)))
+        assertEquals(900.0, CourseJoin.rerouteFrom(long, 300.0, 450.0, at(-150.0, 600.0)).at, 10.0)
     }
 
     @Test fun progressIsNeverMoreThanWhatWasRun() {
-        // A one-way course: lost 150 m in, but the navigator had jumped to 500 m.
-        val line = CourseRoute(listOf(at(0.0, 0.0), at(600.0, 0.0)))
+        // A one-way course: lost 150 m in, but the navigator had jumped to 500 m - placed from
+        // what was really run (150 m), then on from there, not from 500.
+        val line = CourseRoute(listOf(at(0.0, 0.0), at(1200.0, 0.0)))
         val r = CourseJoin.rerouteFrom(line, 500.0, 150.0, at(150.0, 40.0))
-        assertEquals(150.0, r.at, 10.0)
+        assertEquals(450.0, r.at, 10.0)
     }
 
     @Test fun loopIsEnteredAtTheNearestPointAndClosesThere() {
