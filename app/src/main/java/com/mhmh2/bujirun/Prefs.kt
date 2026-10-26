@@ -79,8 +79,8 @@ object Prefs {
 
     /** How often the routine progress announcement comes. */
     var cueInterval: CueInterval
-        get() = when (val v = sp.getString("cue_interval", "d1000")) {
-            null -> CueInterval.EveryDistance(1000.0)
+        get() = when (val v = sp.getString("cue_interval", "auto")) {
+            null, "auto" -> CueInterval.Auto
             else -> if (v.startsWith("t")) CueInterval.EveryTime(v.drop(1).toLong())
             else CueInterval.EveryDistance(v.drop(1).toDouble())
         }
@@ -88,6 +88,7 @@ object Prefs {
             val encoded = when (value) {
                 is CueInterval.EveryDistance -> "d${value.meters.toInt()}"
                 is CueInterval.EveryTime -> "t${value.ms}"
+                CueInterval.Auto -> "auto"
             }
             sp.edit().putString("cue_interval", encoded).apply()
         }

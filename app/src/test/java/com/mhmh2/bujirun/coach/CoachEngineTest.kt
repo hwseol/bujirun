@@ -7,6 +7,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CoachEngineTest {
+    @Test fun autoIntervalFollowsTheGoal() {
+        assertEquals(CueInterval.EveryDistance(500.0), CueInterval.Auto.resolve(Goal.Distance(2000.0)))
+        assertEquals(CueInterval.EveryDistance(1000.0), CueInterval.Auto.resolve(Goal.Distance(10_000.0)))
+        assertEquals(CueInterval.EveryTime(5 * 60_000L), CueInterval.Auto.resolve(Goal.Time(30 * 60_000L)))
+        assertEquals(CueInterval.EveryTime(10 * 60_000L), CueInterval.Auto.resolve(Goal.Time(60 * 60_000L)))
+        assertEquals(CueInterval.EveryDistance(1000.0), CueInterval.Auto.resolve(Goal.Free))
+        // A choice the user made is kept whatever the goal.
+        assertEquals(CueInterval.EveryTime(60_000L), CueInterval.EveryTime(60_000L).resolve(Goal.Distance(2000.0)))
+    }
+
     /** Steady run at [mps]; returns every cue with the second it was spoken. */
     private fun simulate(
         engine: CoachEngine,

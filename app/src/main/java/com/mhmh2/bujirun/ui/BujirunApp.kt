@@ -359,5 +359,6 @@ private fun todaySummary(
         distanceM = ws.sumOf { it.distanceM } + au.sumOf { it.distanceM },
         activeMs = ws.sumOf { it.durationMs } + au.sumOf { it.movingMs },
         calories = ws.sumOf { it.calories } + au.sumOf { it.calories },
+        recordedSteps = ws.sumOf { it.steps.toLong() } + au.sumOf { it.steps },
     )
 }

@@ -109,7 +109,11 @@ private val dials = mapOf(
 )
 
 /** This week so far, for the home card. */
-data class TodayStats(val steps: Long = 0, val distanceM: Double = 0.0, val activeMs: Long = 0, val calories: Double = 0.0)
+data class TodayStats(
+    val steps: Long = 0, val distanceM: Double = 0.0, val activeMs: Long = 0, val calories: Double = 0.0,
+    /** Steps the workouts and 자동 기록 behind the distance, time and calories took. */
+    val recordedSteps: Long = 0,
+)
 
 data class WeekStats(val count: Int, val distanceM: Double, val durationMs: Long, val calories: Double)
 
@@ -158,6 +162,12 @@ fun HomeScreen(
         }.getOrNull()
     }
     val steps = maxOf(healthSteps ?: 0L, today.steps)
+    // Everyday steps outside any record add to distance, time and calories as walking.
+    val loose = com.mhmh2.bujirun.tracking.LooseSteps.extra(steps, today.recordedSteps, com.mhmh2.bujirun.Prefs.weightKg)
+    val todayAll = today.copy(
+        distanceM = today.distanceM + loose.distanceM, activeMs = today.activeMs + loose.activeMs,
+        calories = today.calories + loose.calories,
+    )
 
     // The big round button sits under the goal; when it's below the fold (a small screen, a large
     // font) a start bar stays pinned at the bottom instead, so starting is never hidden.
@@ -175,7 +185,7 @@ fun HomeScreen(
     ) {
         Header(nickname)
         Spacer(Modifier.height(16.dp))
-        TodayHero(steps, today, cheer(weekSummary))
+        TodayHero(steps, todayAll, cheer(weekSummary))
         Spacer(Modifier.height(16.dp))
 
         Card {

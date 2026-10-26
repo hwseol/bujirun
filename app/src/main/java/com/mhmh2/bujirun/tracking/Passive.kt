@@ -12,6 +12,23 @@ import kotlin.math.roundToLong
  * only what's worth a line in the history is kept. The logic here is pure; PassiveRecorder
  * feeds it.
  */
+/**
+ * The day's steps that no workout or 자동 기록 accounts for - a walk to the shop, around the
+ * office - still covered ground. Taken as walking at a typical stride (~0.7 m) and cadence
+ * (~100 a minute), so the home card's distance, time and calories never read 0 under 900 steps.
+ */
+object LooseSteps {
+    data class Extra(val distanceM: Double, val activeMs: Long, val calories: Double)
+
+    fun extra(daySteps: Long, recordedSteps: Long, weightKg: Double): Extra {
+        val loose = daySteps - recordedSteps
+        if (loose <= 0) return Extra(0.0, 0, 0.0)
+        val distanceM = loose * 0.7
+        val activeMs = loose * 60_000L / 100
+        return Extra(distanceM, activeMs, Calories.kcal(Activity.WALK, distanceM, activeMs / 1000.0, 0.0, weightKg))
+    }
+}
+
 object StepLedger {
     /**
      * Steps since the last reading of the cumulative counter. A lower reading means the phone

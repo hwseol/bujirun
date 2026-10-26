@@ -65,12 +65,15 @@ import com.mhmh2.bujirun.data.RecordsFile
 import com.mhmh2.bujirun.Prefs
 import com.mhmh2.bujirun.coach.CueInterval
 
-private val intervals get() = listOf(
+private val distanceIntervals = listOf(
+    "250m" to CueInterval.EveryDistance(250.0),
     "500m" to CueInterval.EveryDistance(500.0),
     "1km" to CueInterval.EveryDistance(1000.0),
-    tr("5분", "5 min") to CueInterval.EveryTime(5 * 60_000L),
-    tr("10분", "10 min") to CueInterval.EveryTime(10 * 60_000L),
+    "2km" to CueInterval.EveryDistance(2000.0),
+    "5km" to CueInterval.EveryDistance(5000.0),
 )
+
+private val timeIntervals get() = listOf(1, 3, 5, 10, 15, 30).map { tr("${it}분", "$it min") to CueInterval.EveryTime(it * 60_000L) }
 
 @Composable
 fun SettingsScreen(onAccount: () -> Unit, onBackAtTop: (() -> Unit)? = null) {
@@ -142,10 +145,32 @@ fun SettingsScreen(onAccount: () -> Unit, onBackAtTop: (() -> Unit)? = null) {
                 Text(tr("비워두면 65kg으로 계산해요", "If left empty, 65 kg is used"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
             Divider()
-            Section(tr("음성 안내 주기", "Voice update interval"), tr("이 간격마다 거리, 시간, 페이스를 알려줘요.", "Hear distance, time and pace at this interval."))
+            Section(
+                tr("음성 안내 주기", "Voice update interval"),
+                when (interval) {
+                    CueInterval.Auto -> tr(
+                        "목표에 맞춰 알려줘요: 3km 미만 거리 목표는 500m, 시간 목표는 5~10분, 그 밖에는 1km마다.",
+                        "Set by your goal: every 500 m for distance goals under 3 km, 5-10 min for time goals, otherwise every km.",
+                    )
+                    else -> tr("이 간격마다 거리, 시간, 페이스를 알려줘요.", "Hear distance, time and pace at this interval.")
+                },
+            )
+            val set = { v: CueInterval -> interval = v; Prefs.cueInterval = v }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                intervals.forEach { (label, value) ->
-                    FilterChip(selected = interval == value, onClick = { interval = value; Prefs.cueInterval = value }, label = { Text(label) })
+                FilterChip(selected = interval == CueInterval.Auto, onClick = { set(CueInterval.Auto) }, label = { Text(tr("자동", "Auto")) })
+                FilterChip(selected = interval is CueInterval.EveryDistance, onClick = { if (interval !is CueInterval.EveryDistance) set(CueInterval.EveryDistance(1000.0)) }, label = { Text(tr("거리마다", "By distance")) })
+                FilterChip(selected = interval is CueInterval.EveryTime, onClick = { if (interval !is CueInterval.EveryTime) set(CueInterval.EveryTime(5 * 60_000L)) }, label = { Text(tr("시간마다", "By time")) })
+            }
+            val values = when (interval) {
+                is CueInterval.EveryDistance -> distanceIntervals
+                is CueInterval.EveryTime -> timeIntervals
+                CueInterval.Auto -> emptyList()
+            }
+            if (values.isNotEmpty()) {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    values.forEach { (label, value) ->
+                        FilterChip(selected = interval == value, onClick = { set(value) }, label = { Text(label) })
+                    }
                 }
             }
             Divider()

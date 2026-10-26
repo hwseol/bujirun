@@ -35,13 +35,14 @@ sealed interface Cue {
  */
 class CoachEngine(
     private val goal: Goal,
-    private val interval: CueInterval = CueInterval.EveryDistance(1000.0),
+    chosenInterval: CueInterval = CueInterval.EveryDistance(1000.0),
     private val paceToleranceSec: Double = 15.0,
     // Being told "faster" every few seconds would be maddening; also skip the first stretch,
     // where everyone is still finding their rhythm and the rolling pace is noisy.
     private val paceAdviceCooldownMs: Long = 60_000,
     private val paceAdviceMinDistanceM: Double = 300.0,
 ) {
+    private val interval = chosenInterval.resolve(goal)
     private var nextSplitM = (interval as? CueInterval.EveryDistance)?.meters
     private var lastSplitTotalMs = 0L
     private var nextTimeMarkMs = (interval as? CueInterval.EveryTime)?.ms
@@ -124,6 +125,7 @@ class CoachEngine(
                 if (!suppress) cues += Cue.TimeMark(markMs, s.distanceM, s.averagePaceSecPerKm)
                 nextTimeMarkMs = markMs + interval.ms
             }
+            CueInterval.Auto -> {} // resolved above
         }
     }
 

@@ -8,6 +8,17 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class PassiveTest {
+    @Test fun stepsOutsideAnyRecordStillCountAsAWalk() {
+        // 912 steps today, nothing recorded: ~640 m, ~9 min, a few dozen kcal.
+        val e = LooseSteps.extra(912, 0, 70.0)
+        assertEquals(638.4, e.distanceM, 0.1)
+        assertEquals(547_200L, e.activeMs)
+        org.junit.Assert.assertTrue("kcal ${e.calories}", e.calories in 15.0..60.0)
+        // Steps a workout already counted aren't counted twice.
+        assertEquals(0.0, LooseSteps.extra(5_000, 6_000, 70.0).distanceM, 0.0)
+        assertEquals(700.0, LooseSteps.extra(6_000, 5_000, 70.0).distanceM, 0.1)
+    }
+
     private val zone = ZoneId.of("Asia/Seoul")
     private val min = 60_000L
     private fun at(day: Int, h: Int, m: Int = 0) =

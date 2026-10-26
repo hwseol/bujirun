@@ -55,6 +55,20 @@ class CourseJoinTest {
         assertEquals(900.0, CourseJoin.rerouteFrom(long, 300.0, 450.0, at(-150.0, 600.0)).at, 10.0)
     }
 
+    @Test fun aDetourOnTheWayOutOfAnOutAndBackStillGoesToTheTurnaround() {
+        // 1.4 km up a stream path and back on the other bank (8 m west). Left it at 300 m, came
+        // back beside the 900 m mark (east of the way out - closer to the way home's bank than
+        // it looks): picked up ahead on the way out and sent to the turnaround, not home.
+        val path = CourseRoute(listOf(at(0.0, 0.0), at(0.0, 1400.0), at(-8.0, 1400.0), at(-8.0, 0.0), at(0.0, 0.0)))
+        val here = at(-4.0, 900.0)
+        val r = CourseJoin.rerouteFrom(path, 300.0, 1000.0, here)
+        assertEquals(path.points, r.route.points)
+        assertEquals(1400.0, r.at, 10.0)
+        // Nearer the way home's bank, with the way home inside the window looked at: still the
+        // way out (the first pass), so still the turnaround.
+        assertEquals(1400.0, CourseJoin.rerouteFrom(path, 800.0, 1000.0, at(-6.0, 900.0)).at, 10.0)
+    }
+
     @Test fun progressIsNeverMoreThanWhatWasRun() {
         // A one-way course: lost 150 m in, but the navigator had jumped to 500 m - placed from
         // what was really run (150 m), then on from there, not from 500.

@@ -36,4 +36,16 @@ sealed interface Goal {
 sealed interface CueInterval {
     data class EveryDistance(val meters: Double) : CueInterval
     data class EveryTime(val ms: Long) : CueInterval
+    /** Picked from the goal: a short distance goal every 500 m, a time goal by the clock. */
+    data object Auto : CueInterval
+
+    /** The interval actually used for [goal]: [Auto] made concrete, anything else as it is. */
+    fun resolve(goal: Goal): CueInterval = when (this) {
+        Auto -> when (goal) {
+            is Goal.Distance -> EveryDistance(if (goal.meters < 3000) 500.0 else 1000.0)
+            is Goal.Time -> EveryTime(if (goal.ms <= 30 * 60_000L) 5 * 60_000L else 10 * 60_000L)
+            else -> EveryDistance(1000.0)
+        }
+        else -> this
+    }
 }

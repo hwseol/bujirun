@@ -88,10 +88,13 @@ object CourseJoin {
         val done = minOf(progressM, ranM)
         if (route.isLoop) {
             // On the loop's first stretch the other way round, and nowhere near the part they
-            // should be on going the right way: they're running it backwards.
+            // should be on going the right way: they're running it backwards. An out-and-back
+            // is also closed, and its way home runs over the way out - someone on the way out
+            // is on the course ahead too, and turning it round would skip the turnaround.
             val back = CourseRoute(route.points.reversed())
             val (at, d) = back.locate(here, 0.0, minOf(back.lengthM, ranM + 100))
-            if (d <= 2 * JOIN_M && d < distance(here, route.pointAt(done)) / 2) return Rejoin(back, at, d)
+            val ahead = route.locate(here, done, minOf(route.lengthM, maxOf(done, ranM) + 300)).second
+            if (d <= 2 * JOIN_M && ahead > 2 * JOIN_M && d < distance(here, route.pointAt(done)) / 2) return Rejoin(back, at, d)
         }
         val at = aheadTarget(route, done, here)
         return Rejoin(route, at, distance(here, route.pointAt(at)))
@@ -106,7 +109,7 @@ object CourseJoin {
      */
     fun aheadTarget(route: CourseRoute, done: Double, here: GeoPoint): Double {
         val from = done.coerceIn(0.0, route.lengthM)
-        val alongside = route.locate(here, from, minOf(route.lengthM, from + 1_200)).first
+        val alongside = firstPass(route, here, from, minOf(route.lengthM, from + 1_200))
         val next = CourseOutline.keyPoints(route).map { it.atM }.firstOrNull { it > alongside + 40 }
         return when {
             next != null && next <= alongside + MAX_TO_KEY_POINT_M -> next
@@ -114,6 +117,25 @@ object CourseJoin {
         }
     }
 
+    /**
+     * Where [here] is alongside [route] between [from] and [to]: the first pass of the course
+     * near them, not simply the nearest. On an out-and-back the way home runs a few metres from
+     * the way out; the nearest point can be on the way home, which would skip the turnaround.
+     */
+    private fun firstPass(route: CourseRoute, here: GeoPoint, from: Double, to: Double): Double {
+        val step = 5.0
+        val n = ((to - from) / step).toInt()
+        if (n < 1) return route.locate(here, from, to).first
+        val along = (0..n).map { from + it * step } + to
+        val d = along.map { distance(here, route.pointAt(it)) }
+        val nearest = d.min()
+        val k = d.indices.first { k ->
+            d[k] <= nearest + PASS_SLACK_M && (k == d.lastIndex || d[k] <= d[k + 1]) && (k == 0 || d[k] <= d[k - 1])
+        }
+        return route.locate(here, (along[k] - step).coerceAtLeast(from), minOf(to, along[k] + step)).first
+    }
+
+    private const val PASS_SLACK_M = 40.0
     private const val MAX_TO_KEY_POINT_M = 800.0
     private const val REJOIN_AHEAD_M = 300.0
 
